@@ -1,7 +1,10 @@
 import type {
   Axis,
+  ConsoleEntry,
   FileListing,
+  GcodeCommand,
   JobStatus,
+  Macro,
   MotionStatus,
   ObjectExclusion,
   PrinterConnection,
@@ -63,6 +66,24 @@ interface Pending {
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
   timer: ReturnType<typeof setTimeout>;
+}
+
+/**
+ * Parameters a Klipper macro reads, from its Jinja template: `params.X`,
+ * `params["X"]` and an optional `|default(...)`. Klipper upper-cases
+ * parameter names, so they are reported upper-case.
+ */
+export function parseMacroParams(gcode: string): { name: string; defaultValue: string | null }[] {
+  const pattern =
+    /params\s*(?:\.\s*([A-Za-z_][A-Za-z0-9_]*)|\[\s*["']([A-Za-z_][A-Za-z0-9_]*)["']\s*\])(?:\s*\|\s*default\(\s*([^)]*?)\s*\))?/g;
+  const params = new Map<string, string | null>();
+  for (const match of gcode.matchAll(pattern)) {
+    const name = (match[1] ?? match[2] ?? "").toUpperCase();
+    const fallback = match[3]?.replace(/^(["'])(.*)\1$/, "$2") ?? null;
+    if (!params.has(name) || (params.get(name) === null && fallback !== null))
+      params.set(name, fallback);
+  }
+  return [...params].map(([name, defaultValue]) => ({ name, defaultValue }));
 }
 
 export class MoonrakerError extends Error {}
@@ -536,6 +557,46 @@ export class MoonrakerDriver implements PrinterDriver {
         filamentMm: Number(totals.job_totals?.total_filament_used ?? 0),
       },
     };
+  }
+
+  async getConsoleHistory(count: number): Promise<ConsoleEntry[]> {
+    const result = (await this.call("server.gcode_store", { count })) as {
+      gcode_store?: { message?: string; time?: number; type?: string }[];
+    };
+    return (result.gcode_store ?? []).map((entry) => ({
+      time: new Date(Number(entry.time ?? 0) * 1000),
+      kind: entry.type === "command" ? "command" : "response",
+      message: String(entry.message ?? ""),
+    }));
+  }
+
+  async listMacros(): Promise<Macro[]> {
+    const [list, query] = (await Promise.all([
+      this.call("printer.objects.list"),
+      this.call("printer.objects.query", { objects: { configfile: ["config"] } }),
+    ])) as [
+      { objects?: string[] },
+      { status?: { configfile?: { config?: Record<string, Record<string, string>> } } },
+    ];
+    const config = query.status?.configfile?.config ?? {};
+    return (list.objects ?? [])
+      .filter((name) => name.startsWith("gcode_macro "))
+      .map((object) => {
+        const section = config[object.toLowerCase()] ?? {};
+        return {
+          name: object.slice("gcode_macro ".length),
+          description: section.description?.trim() || null,
+          params: parseMacroParams(section.gcode ?? ""),
+        };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  async listGcodeCommands(): Promise<GcodeCommand[]> {
+    const help = (await this.call("printer.gcode.help")) as Record<string, string>;
+    return Object.entries(help)
+      .map(([name, description]) => ({ name, description: description || null }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }
 
   private authHeaders(): Record<string, string> {

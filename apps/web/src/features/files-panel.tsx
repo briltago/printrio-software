@@ -271,16 +271,16 @@ export function FilesPanel({
                 <th scope="col" className="pb-2 font-semibold">
                   {t("files.name")}
                 </th>
-                <th scope="col" className="pb-2 font-semibold">
+                <th scope="col" className="pb-2 pr-4 font-semibold">
                   {t("files.printTime")}
                 </th>
-                <th scope="col" className="hidden pb-2 font-semibold sm:table-cell">
+                <th scope="col" className="hidden pb-2 pr-4 font-semibold sm:table-cell">
                   {t("files.filament")}
                 </th>
-                <th scope="col" className="hidden pb-2 font-semibold md:table-cell">
+                <th scope="col" className="hidden pb-2 pr-4 font-semibold md:table-cell">
                   {t("files.size")}
                 </th>
-                <th scope="col" className="hidden pb-2 font-semibold lg:table-cell">
+                <th scope="col" className="hidden pb-2 pr-4 font-semibold lg:table-cell">
                   {t("files.modified")}
                 </th>
                 <th scope="col" className="pb-2" />
@@ -321,16 +321,16 @@ export function FilesPanel({
                     </p>
                     {file.slicer && <p className="text-xs text-subtle">{file.slicer}</p>}
                   </td>
-                  <td className="py-2 whitespace-nowrap tabular-nums">
+                  <td className="py-2 pr-4 whitespace-nowrap tabular-nums">
                     {formatDuration(t, file.estimatedSeconds)}
                   </td>
-                  <td className="hidden py-2 whitespace-nowrap tabular-nums sm:table-cell">
+                  <td className="hidden py-2 pr-4 whitespace-nowrap tabular-nums sm:table-cell">
                     {formatFilamentAmount(file.filamentGrams, file.filamentMm)}
                   </td>
-                  <td className="hidden py-2 whitespace-nowrap text-muted tabular-nums md:table-cell">
+                  <td className="hidden py-2 pr-4 whitespace-nowrap text-muted tabular-nums md:table-cell">
                     {formatBytes(file.size)}
                   </td>
-                  <td className="hidden py-2 whitespace-nowrap text-muted lg:table-cell">
+                  <td className="hidden py-2 pr-4 whitespace-nowrap text-muted lg:table-cell">
                     {formatRelativeTime(file.modified)}
                   </td>
                   <td className="py-2">

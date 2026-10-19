@@ -134,6 +134,30 @@ export interface PrinterStatus {
   updatedAt: Date;
 }
 
+export interface ConsoleEntry {
+  time: Date;
+  kind: "command" | "response";
+  message: string;
+}
+
+export interface MacroParam {
+  name: string;
+  /** Default from the macro template (`params.X|default(...)`), as written. */
+  defaultValue: string | null;
+}
+
+export interface Macro {
+  /** Command name as configured, e.g. "PRINT_START". */
+  name: string;
+  description: string | null;
+  params: MacroParam[];
+}
+
+export interface GcodeCommand {
+  name: string;
+  description: string | null;
+}
+
 export interface PrinterConnection {
   /** Base URL of the printer API, e.g. "http://voron.local:7125". */
   url: string;
@@ -169,6 +193,12 @@ export interface PrinterDriver {
   /** Raw bytes of a file under the G-code root (used for thumbnails). */
   readFile(path: string): Promise<{ contentType: string; body: AsyncIterable<Uint8Array> }>;
   listJobs(limit: number, offset: number): Promise<{ jobs: PrintJob[]; totals: PrintTotals }>;
+  /** Recent console traffic, oldest first. */
+  getConsoleHistory(count: number): Promise<ConsoleEntry[]>;
+  /** User macros, including hidden ones (names starting with "_"). */
+  listMacros(): Promise<Macro[]>;
+  /** Commands the firmware knows, for autocomplete. */
+  listGcodeCommands(): Promise<GcodeCommand[]>;
   pause(): Promise<void>;
   resume(): Promise<void>;
   cancel(): Promise<void>;

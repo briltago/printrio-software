@@ -73,8 +73,47 @@ const SAMPLE_FILES: Record<string, FakeFile> = {
 const HISTORY_SIZE = 1200;
 const HEATERS = ["extruder", "heater_bed"] as const;
 
+/** Commands the fake firmware understands (subset of Klipper's `printer.gcode.help`). */
+const GCODE_HELP: Record<string, string> = {
+  G1: "Linear move",
+  G28: "Move to origin",
+  G90: "Absolute positioning",
+  G91: "Relative positioning",
+  M84: "Disable steppers",
+  M105: "Report temperatures",
+  M106: "Set fan speed",
+  M107: "Turn fan off",
+  M117: "Display message",
+  M220: "Set speed factor",
+  M221: "Set extrude factor",
+  EXCLUDE_OBJECT: "Cancel moves for an object",
+  SET_FAN_SPEED: "Set the speed of a generic fan",
+  SET_GCODE_OFFSET: "Set a virtual offset to g-code positions",
+  SET_HEATER_TEMPERATURE: "Sets a heater temperature",
+  SET_PIN: "Set the value of an output pin",
+  STATUS: "Report the printer status",
+};
+
+/** Macro sections as Moonraker reports them in `configfile.config` (lower-case keys). */
+const MACROS: Record<string, { name: string; description?: string; gcode: string }> = {
+  "gcode_macro print_start": {
+    name: "PRINT_START",
+    description: "Heat up, home and purge",
+    gcode:
+      "{% set bed = params.BED|default(60)|float %}\n{% set extruder = params['EXTRUDER']|default(215)|float %}\nM190 S{bed}\nM109 S{extruder}\nG28",
+  },
+  "gcode_macro print_end": { name: "PRINT_END", gcode: "M104 S0\nM140 S0\nM84" },
+  "gcode_macro load_filament": {
+    name: "LOAD_FILAMENT",
+    description: "Load filament into the hotend",
+    gcode: "{% set length = params.LENGTH|default(50) %}\nG1 E{length} F300",
+  },
+  "gcode_macro _heat_soak": { name: "_HEAT_SOAK", gcode: "G4 P{params.SECONDS * 1000}" },
+};
+
 export class FakeMoonraker {
   readonly gcode: string[] = [];
+  private gcodeStore: { message: string; time: number; type: "command" | "response" }[] = [];
   readonly uploads: string[] = [];
   readonly files: Record<string, FakeFile> = structuredClone(SAMPLE_FILES);
   readonly jobs: FakeJob[] = [
@@ -137,6 +176,9 @@ export class FakeMoonraker {
       },
       ...(options.creality ? { "output_pin fan0": { value: 0 } } : { fan: { speed: 0 } }),
       "heater_fan hotend_fan": { speed: 0 },
+      ...Object.fromEntries(
+        Object.values(MACROS).map((macro) => [`gcode_macro ${macro.name}`, {}]),
+      ),
       exclude_object: { objects: [], excluded_objects: [], current_object: null },
     };
     if (options.printing) this.startPrint(options.printing.fileName, options.printing.progress);
@@ -396,6 +438,12 @@ export class FakeMoonraker {
           this.update({ exclude_object: { excluded_objects: excluded } });
           break;
         }
+        default: {
+          const name = command.toUpperCase();
+          const macro = Object.values(MACROS).find((m) => m.name === name);
+          if (macro) this.respond(`// Running ${macro.name}`);
+          else if (!GCODE_HELP[name]) return `Unknown command:"${name}"`;
+        }
       }
     }
     this.update({
@@ -437,6 +485,15 @@ export class FakeMoonraker {
     for (const [name, fields] of Object.entries(changes))
       this.objects[name] = { ...this.objects[name], ...fields };
     this.notify("notify_status_update", [changes, Date.now() / 1000]);
+  }
+
+  /** A console line: broadcast like Klipper's gcode responses and kept in the gcode store. */
+  private respond(line: string) {
+    this.gcodeStore = [
+      ...this.gcodeStore,
+      { message: line, time: now(), type: "response" as const },
+    ].slice(-1000);
+    this.notify("notify_gcode_response", [line]);
   }
 
   private notify(method: string, params: unknown[]) {
@@ -483,8 +540,27 @@ export class FakeMoonraker {
         case "printer.objects.query":
           return reply({
             eventtime: Date.now() / 1000,
-            status: { configfile: { settings: { "output_pin fan0": { pwm: true, scale: 255 } } } },
+            status: {
+              configfile: {
+                settings: { "output_pin fan0": { pwm: true, scale: 255 } },
+                config: Object.fromEntries(
+                  Object.entries(MACROS).map(([key, { description, gcode }]) => [
+                    key,
+                    { ...(description ? { description } : {}), gcode },
+                  ]),
+                ),
+              },
+            },
           });
+        case "printer.gcode.help":
+          return reply({
+            ...GCODE_HELP,
+            ...Object.fromEntries(
+              Object.values(MACROS).map((m) => [m.name, m.description ?? "G-Code macro"]),
+            ),
+          });
+        case "server.gcode_store":
+          return reply({ gcode_store: this.gcodeStore.slice(-Number(params.count ?? 1000)) });
         case "printer.objects.subscribe": {
           if (klippyState !== "ready") return fail(503, "Klippy not ready");
           const status: Objects = {};
@@ -603,11 +679,14 @@ export class FakeMoonraker {
             ],
           });
         case "printer.gcode.script": {
+          this.gcodeStore.push({ message: String(params.script), time: now(), type: "command" });
           const error = this.runGcode(String(params.script));
-          if (error) return fail(400, error);
+          if (error) {
+            this.respond(`!! ${error}`);
+            return fail(400, error);
+          }
           this.gcode.push(String(params.script));
-          this.notify("notify_gcode_response", [`// ${params.script}`]);
-          this.notify("notify_gcode_response", ["ok"]);
+          this.respond("ok");
           return reply("ok");
         }
         default:

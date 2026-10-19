@@ -277,6 +277,17 @@ export const en = {
     sortDuration: "Print time",
     layerHeight: "Layer height",
   },
+  console: {
+    clear: "Clear",
+    reuse: "Copy to the input",
+    suggestions: "Matching commands",
+  },
+  macros: {
+    title: "Macros",
+    withParams: "Run {name} with parameters",
+    defaultsHint: "Empty fields use the macro's defaults.",
+    run: "Run",
+  },
   history: {
     title: "History",
     empty: "No prints yet.",

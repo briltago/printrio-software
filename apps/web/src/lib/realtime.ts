@@ -3,17 +3,36 @@ import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useSyncExternalStore } from "react";
 import { groupsQuery, printersQuery } from "./queries.ts";
 
-const MAX_CONSOLE_LINES = 300;
-const consoleLines = new Map<string, string[]>();
-const consoleListeners = new Set<() => void>();
-
-export function appendConsole(printerId: string, line: string) {
-  const lines = [...(consoleLines.get(printerId) ?? []), line].slice(-MAX_CONSOLE_LINES);
-  consoleLines.set(printerId, lines);
-  for (const listener of consoleListeners) listener();
+export interface ConsoleLine {
+  kind: "command" | "response";
+  message: string;
 }
 
-const EMPTY: string[] = [];
+const MAX_CONSOLE_LINES = 500;
+const consoleLines = new Map<string, ConsoleLine[]>();
+const consoleListeners = new Set<() => void>();
+const notifyConsole = () => {
+  for (const listener of consoleListeners) listener();
+};
+
+export function appendConsole(printerId: string, line: ConsoleLine) {
+  const lines = [...(consoleLines.get(printerId) ?? []), line].slice(-MAX_CONSOLE_LINES);
+  consoleLines.set(printerId, lines);
+  notifyConsole();
+}
+
+/** Replaces the buffer with the printer's backlog (which already contains everything streamed so far). */
+export function seedConsole(printerId: string, lines: ConsoleLine[]) {
+  consoleLines.set(printerId, lines.slice(-MAX_CONSOLE_LINES));
+  notifyConsole();
+}
+
+export function clearConsole(printerId: string) {
+  consoleLines.set(printerId, []);
+  notifyConsole();
+}
+
+const EMPTY: ConsoleLine[] = [];
 export function useConsole(printerId: string) {
   return useSyncExternalStore(
     (listener) => {
@@ -40,7 +59,7 @@ function handle(queryClient: QueryClient, message: RealtimeMessage) {
         : data,
     );
   } else if (message.type === "printer.console") {
-    appendConsole(message.printerId, message.line);
+    appendConsole(message.printerId, { kind: "response", message: message.line });
   }
 }
 

@@ -1,7 +1,7 @@
 import type { PrinterCommand } from "@printrio/shared";
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import {
   Dialog,
   EmptyState,
@@ -10,8 +10,10 @@ import {
   ProgressBar,
   StateBadge,
 } from "../components.tsx";
+import { ConsolePanel } from "../features/console-panel.tsx";
 import { FilesPanel } from "../features/files-panel.tsx";
 import { HistoryPanel } from "../features/history-panel.tsx";
+import { MacrosPanel } from "../features/macros-panel.tsx";
 import { ObjectExclusion } from "../features/object-exclusion.tsx";
 import { Panel } from "../features/panel.tsx";
 import { PrinterForm } from "../features/printer-form.tsx";
@@ -23,7 +25,6 @@ import { useT } from "../i18n/index.tsx";
 import { api } from "../lib/api.ts";
 import { formatDuration, formatFilament, formatPercent } from "../lib/format.ts";
 import { groupsQuery, printersQuery } from "../lib/queries.ts";
-import { appendConsole, useConsole } from "../lib/realtime.ts";
 import { meQuery } from "../lib/session.ts";
 
 export function PrinterPage() {
@@ -216,6 +217,11 @@ export function PrinterPage() {
               connected={connected}
             />
           )}
+          <MacrosPanel
+            printerId={printer.id}
+            connected={connected}
+            disabled={!connected || !printer.withinLimit}
+          />
         </div>
       </div>
 
@@ -234,7 +240,11 @@ export function PrinterPage() {
         />
       </div>
 
-      <Console printerId={printer.id} disabled={!connected || !printer.withinLimit} />
+      <ConsolePanel
+        printerId={printer.id}
+        connected={connected}
+        disabled={!connected || !printer.withinLimit}
+      />
 
       <Dialog open={editing} onClose={() => setEditing(false)} title={t("printer.editTitle")}>
         <PrinterForm
@@ -253,61 +263,5 @@ function Stat({ label, value }: { label: string; value: string }) {
       <dt className="text-xs text-subtle">{label}</dt>
       <dd className="mt-0.5 font-semibold">{value}</dd>
     </div>
-  );
-}
-
-function Console({ printerId, disabled }: { printerId: string; disabled: boolean }) {
-  const t = useT();
-  const lines = useConsole(printerId);
-  const [script, setScript] = useState("");
-  const outputRef = useRef<HTMLPreElement>(null);
-  const send = useMutation({
-    mutationFn: (value: string) =>
-      api(`/api/printers/${printerId}/commands`, {
-        method: "POST",
-        body: { action: "gcode", script: value },
-      }),
-  });
-
-  useEffect(() => {
-    const output = outputRef.current;
-    if (output && lines.length) output.scrollTop = output.scrollHeight;
-  }, [lines]);
-
-  const onSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    const value = script.trim();
-    if (!value) return;
-    appendConsole(printerId, `> ${value}`);
-    send.mutate(value);
-    setScript("");
-  };
-
-  return (
-    <Panel id="console" title={t("printer.console")} className="mt-4">
-      <pre
-        ref={outputRef}
-        className="h-48 overflow-auto rounded-[10px] border border-line bg-sidebar p-3 font-mono text-xs leading-relaxed text-muted"
-        aria-live="polite"
-      >
-        {lines.length ? lines.join("\n") : t("printer.consoleEmpty")}
-      </pre>
-      <FormError error={send.error} />
-      <form onSubmit={onSubmit} className="mt-3 flex gap-2">
-        <input
-          className="input font-mono"
-          value={script}
-          onChange={(event) => setScript(event.target.value)}
-          placeholder={t("printer.consolePlaceholder")}
-          aria-label={t("printer.consolePlaceholder")}
-          disabled={disabled}
-          autoComplete="off"
-          spellCheck={false}
-        />
-        <button type="submit" className="btn btn-secondary" disabled={disabled || send.isPending}>
-          {t("printer.send")}
-        </button>
-      </form>
-    </Panel>
   );
 }

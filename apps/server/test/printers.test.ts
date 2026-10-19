@@ -432,6 +432,19 @@ describe("files and history", () => {
     expect(history.totals.jobs).toBe(3);
     expect((await api("GET", `/api/printers/${id}/history?limit=999`)).statusCode).toBe(400);
   });
+
+  it("returns the console backlog, macros and G-code commands", async () => {
+    const { id } = await connectedPrinter();
+    await api("POST", `/api/printers/${id}/commands`, { action: "gcode", script: "M117 Hi" });
+    const backlog = (await api("GET", `/api/printers/${id}/console`, undefined, operator)).json();
+    expect(backlog.entries.at(0)).toMatchObject({ kind: "command", message: "M117 Hi" });
+    expect(Number.isNaN(Date.parse(backlog.entries.at(0).time))).toBe(false);
+    expect((await api("GET", `/api/printers/${id}/console?count=0`)).statusCode).toBe(400);
+
+    const list = (await api("GET", `/api/printers/${id}/macros`, undefined, operator)).json();
+    expect(list.macros.map((m: { name: string }) => m.name)).toContain("PRINT_START");
+    expect(list.commands.map((c: { name: string }) => c.name)).toContain("G28");
+  });
 });
 
 describe("groups", () => {

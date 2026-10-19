@@ -29,7 +29,7 @@ interface PrinterRoutesOptions {
 
 const idParams = z.object({ id: z.uuid() });
 const orderSchema = z.object({ ids: z.array(z.uuid()).max(10_000) });
-const TEST_TIMEOUT_MS = 8_000;
+const TEST_TIMEOUT_MS = 15_000;
 
 export function printerRoutes(app: FastifyInstance, options: PrinterRoutesOptions) {
   const { db, manager, secrets, factories, onChange } = options;

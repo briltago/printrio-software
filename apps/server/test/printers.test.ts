@@ -91,7 +91,7 @@ describe("connection test", () => {
     const res = await api("POST", "/api/printers/test", { url: "http://127.0.0.1:1" });
     expect(res.json()).toMatchObject({
       ok: false,
-      error: expect.stringMatching(/Could not reach/),
+      error: expect.stringMatching(/Nothing is listening|No response/),
     });
   });
 

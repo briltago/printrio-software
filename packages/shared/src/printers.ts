@@ -18,7 +18,21 @@ export const temperatureSchema = z.object({
   current: z.number(),
   target: z.number().nullable(),
   controllable: z.boolean(),
+  /** Heater duty cycle 0–1; null for sensors. */
+  power: z.number().nullable(),
 });
+
+export const fanIdSchema = z
+  .string()
+  .regex(/^(fan|fan_generic [A-Za-z0-9_-]+|output_pin [A-Za-z0-9_-]+)$/, "Unknown fan.");
+
+export const fanSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  speed: z.number(),
+  controllable: z.boolean(),
+});
+export type FanDto = z.infer<typeof fanSchema>;
 
 /** Heaters whose target can be set (Klipper object names). */
 export const heaterIdSchema = z
@@ -72,7 +86,6 @@ export const motionStatusSchema = z.object({
   zOffset: z.number(),
   speedFactor: z.number(),
   flowFactor: z.number(),
-  fanSpeed: z.number().nullable(),
 });
 export type MotionStatusDto = z.infer<typeof motionStatusSchema>;
 
@@ -88,6 +101,7 @@ export const printerStatusSchema = z.object({
   temperatures: z.array(temperatureSchema),
   job: printProgressSchema.nullable(),
   motion: motionStatusSchema.nullable(),
+  fans: z.array(fanSchema),
   exclusion: objectExclusionSchema.nullable(),
   updatedAt: z.iso.datetime(),
 });
@@ -178,7 +192,7 @@ export const printerCommandSchema = z.discriminatedUnion("action", [
   /** Factors: 1 = 100 %. */
   z.object({ action: z.literal("speed_factor"), factor: z.number().min(0.1).max(3) }),
   z.object({ action: z.literal("flow_factor"), factor: z.number().min(0.5).max(1.5) }),
-  z.object({ action: z.literal("fan_speed"), speed: z.number().min(0).max(1) }),
+  z.object({ action: z.literal("fan_speed"), fan: fanIdSchema, speed: z.number().min(0).max(1) }),
   z.object({
     action: z.literal("exclude_object"),
     // Klipper object names are single tokens; reject anything that could inject G-code.

@@ -4,7 +4,11 @@ import { FakeMoonraker } from "./fake-moonraker.ts";
 
 const printers = [
   { name: "Voron 2.4", printing: { fileName: "enclosure_panel_left.gcode", progress: 0.42 } },
-  { name: "Ender 3 V3", printing: { fileName: "3DBenchy.gcode", progress: 0.76 } },
+  {
+    name: "Ender 3 V3 KE",
+    printing: { fileName: "3DBenchy.gcode", progress: 0.76 },
+    creality: true,
+  },
   { name: "Voron Trident", printing: undefined },
   { name: "Prusa MK3S (Klipper)", printing: { fileName: "spool_holder.gcode", progress: 0.08 } },
   { name: "RatRig V-Core", printing: undefined },
@@ -17,6 +21,7 @@ for (const [index, printer] of printers.entries()) {
     port: basePort + index,
     hostname: printer.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
     printing: printer.printing,
+    creality: "creality" in printer ? printer.creality : false,
     progressPerTick: 0.0015,
   });
   console.log(`${printer.name.padEnd(22)} ${await fake.start()}`);

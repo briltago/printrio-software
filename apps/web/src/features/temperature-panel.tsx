@@ -1,6 +1,5 @@
 import type { PrinterCommand, PrinterStatusDto } from "@printrio/shared";
 import { useMutation } from "@tanstack/react-query";
-import { useState } from "react";
 import { FormError } from "../components.tsx";
 import { useT } from "../i18n/index.tsx";
 import { api } from "../lib/api.ts";
@@ -8,6 +7,7 @@ import { formatTemp, heaterName } from "../lib/format.ts";
 import { useStoredState } from "../lib/stored-state.ts";
 import { useTemperatureHistory } from "../lib/temperature-history.ts";
 import { Panel } from "./panel.tsx";
+import { TargetControl } from "./target-control.tsx";
 import { seriesColor, TemperatureChart } from "./temperature-chart.tsx";
 
 /** Chart windows; 1 minute is a live view, longer ranges show trends. */
@@ -86,7 +86,7 @@ export function TemperaturePanel({
               <th scope="col" className="pb-2 text-right font-semibold">
                 {t("temps.actual")}
               </th>
-              <th scope="col" className="w-28 pb-2 text-right font-semibold">
+              <th scope="col" className="w-36 pb-2 text-right font-semibold">
                 {t("temps.target")}
               </th>
             </tr>
@@ -101,7 +101,27 @@ export function TemperaturePanel({
                       className="inline-block h-0.5 w-3.5 rounded"
                       style={{ background: seriesColor(index) }}
                     />
-                    {heaterName(t, temp.name)}
+                    <span>
+                      {heaterName(t, temp.name)}
+                      {temp.power !== null && (temp.target ?? 0) > 0 && (
+                        <span
+                          className="mt-1 block h-[3px] w-14 overflow-hidden rounded-full bg-line"
+                          aria-hidden="true"
+                          title={`${t("temps.power", { name: heaterName(t, temp.name) })}: ${Math.round(temp.power * 100)} %`}
+                        >
+                          <span
+                            className="block h-full rounded-full bg-warning"
+                            style={{ width: `${Math.round(temp.power * 100)}%` }}
+                          />
+                        </span>
+                      )}
+                      {temp.power !== null && (temp.target ?? 0) > 0 && (
+                        <span className="sr-only">
+                          {t("temps.power", { name: heaterName(t, temp.name) })}:{" "}
+                          {Math.round(temp.power * 100)} %
+                        </span>
+                      )}
+                    </span>
                   </span>
                 </th>
                 <td className="py-2 text-right text-base font-semibold tabular-nums">
@@ -109,12 +129,12 @@ export function TemperaturePanel({
                 </td>
                 <td className="py-2 text-right">
                   {temp.controllable ? (
-                    <TargetInput
-                      key={`${temp.id}-${temp.target}`}
-                      label={t("temps.setTarget", { name: heaterName(t, temp.name) })}
-                      value={temp.target ?? 0}
+                    <TargetControl
+                      heaterId={temp.id}
+                      heaterLabel={heaterName(t, temp.name)}
+                      target={temp.target ?? 0}
                       disabled={!connected}
-                      onCommit={(value) => setTarget(temp.id, value)}
+                      onSet={(value) => setTarget(temp.id, value)}
                     />
                   ) : (
                     <span className="text-subtle">—</span>
@@ -160,44 +180,5 @@ export function TemperaturePanel({
         />
       </div>
     </Panel>
-  );
-}
-
-/** Commits on Enter or blur; shows the live target otherwise. */
-function TargetInput({
-  label,
-  value,
-  disabled,
-  onCommit,
-}: {
-  label: string;
-  value: number;
-  disabled: boolean;
-  onCommit: (value: number) => void;
-}) {
-  const [draft, setDraft] = useState(String(Math.round(value)));
-  const commit = () => {
-    const next = Number(draft);
-    if (Number.isFinite(next) && next >= 0 && next <= 500 && next !== Math.round(value))
-      onCommit(next);
-    else setDraft(String(Math.round(value)));
-  };
-  return (
-    <input
-      type="number"
-      inputMode="numeric"
-      min={0}
-      max={500}
-      className="input w-24 py-1 text-right tabular-nums"
-      aria-label={label}
-      value={draft}
-      disabled={disabled}
-      onChange={(event) => setDraft(event.target.value)}
-      onBlur={commit}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") event.currentTarget.blur();
-        if (event.key === "Escape") setDraft(String(Math.round(value)));
-      }}
-    />
   );
 }

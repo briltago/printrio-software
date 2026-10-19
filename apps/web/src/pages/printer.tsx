@@ -206,7 +206,12 @@ export function PrinterPage() {
             connected={connected}
           />
           {status.motion && (
-            <TuningPanel printerId={printer.id} motion={status.motion} connected={connected} />
+            <TuningPanel
+              printerId={printer.id}
+              motion={status.motion}
+              fans={status.fans}
+              connected={connected}
+            />
           )}
         </div>
       </div>

@@ -24,3 +24,10 @@ export function heaterName(t: Translate, name: string) {
   if (extra) return t("heaters.extruderN", { n: Number(extra[1]) + 1 });
   return name.replace(/_/g, " ");
 }
+
+/** "fan" is Klipper's part cooling fan; other fans keep their configured name, tidied up. */
+export function fanName(t: Translate, id: string, name: string) {
+  if (id === "fan") return t("tuning.partFan");
+  const words = name.replace(/_/g, " ").replace(/([a-z])(\d+)$/i, "$1 $2");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}

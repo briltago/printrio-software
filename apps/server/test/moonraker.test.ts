@@ -111,7 +111,14 @@ describe("toPrinterStatus", () => {
       remainingSeconds: 1800,
     });
     expect(status.temperatures).toEqual([
-      { id: "extruder", name: "extruder", current: 215, target: 215, controllable: true },
+      {
+        id: "extruder",
+        name: "extruder",
+        current: 215,
+        target: 215,
+        controllable: true,
+        power: null,
+      },
     ]);
   });
 });
@@ -200,13 +207,21 @@ describe("MoonrakerDriver", () => {
       ["extruder", "temperature_sensor mcu_temp"],
     );
     expect(status.temperatures).toEqual([
-      { id: "extruder", name: "extruder", current: 200, target: 210, controllable: true },
+      {
+        id: "extruder",
+        name: "extruder",
+        current: 200,
+        target: 210,
+        controllable: true,
+        power: null,
+      },
       {
         id: "temperature_sensor mcu_temp",
         name: "mcu_temp",
         current: 38,
         target: null,
         controllable: false,
+        power: null,
       },
     ]);
   });
@@ -248,7 +263,6 @@ describe("MoonrakerDriver", () => {
       homedAxes: [],
       zOffset: 0,
       speedFactor: 1,
-      fanSpeed: 0,
     });
 
     await expect(driver.jog("x", 10)).rejects.toThrow(/Must home axis first/);
@@ -262,8 +276,6 @@ describe("MoonrakerDriver", () => {
     await driver.adjustZOffset(-0.025);
     await driver.setSpeedFactor(1.25);
     await driver.setFlowFactor(0.95);
-    await driver.setFanSpeed(0.5);
-    await driver.setFanSpeed(0);
     await driver.motorsOff();
     expect(fake.gcode).toEqual([
       "G28",
@@ -272,8 +284,6 @@ describe("MoonrakerDriver", () => {
       "SET_GCODE_OFFSET Z_ADJUST=-0.025 MOVE=1",
       "M220 S125",
       "M221 S95",
-      "M106 S128",
-      "M107",
       "M84",
     ]);
     const status = await driver.getStatus();
@@ -282,8 +292,40 @@ describe("MoonrakerDriver", () => {
       zOffset: -0.025,
       speedFactor: 1.25,
       flowFactor: 0.95,
-      fanSpeed: 0,
     });
+  });
+
+  it("controls the standard part fan and lists automatic fans read-only", async () => {
+    const { fake, url, driver } = await setup();
+    await driver.connect({ url });
+    expect((await driver.getStatus()).fans).toEqual([
+      { id: "fan", name: "fan", speed: 0, controllable: true },
+      { id: "heater_fan hotend_fan", name: "hotend_fan", speed: 0, controllable: false },
+    ]);
+    const spinning = nextStatus(
+      driver,
+      (s) => s.fans.find((f) => f.id === "fan")?.speed === 128 / 255,
+    );
+    await driver.setFanSpeed("fan", 0.5);
+    await spinning;
+    await driver.setFanSpeed("fan", 0);
+    await expect(driver.setFanSpeed("heater_fan hotend_fan", 1)).rejects.toThrow(
+      /not a controllable fan/,
+    );
+    expect(fake.gcode).toEqual(["M106 S128", "M107"]);
+  });
+
+  it("drives Creality's output_pin part fan with SET_PIN in the configured scale", async () => {
+    const { fake, url, driver } = await setup({ creality: true });
+    await driver.connect({ url });
+    expect((await driver.getStatus()).fans.map((f) => f.id)).toEqual([
+      "output_pin fan0",
+      "heater_fan hotend_fan",
+    ]);
+    const spinning = nextStatus(driver, (s) => Math.abs((s.fans[0]?.speed ?? 0) - 0.53) < 0.001);
+    await driver.setFanSpeed("output_pin fan0", 0.53);
+    await spinning;
+    expect(fake.gcode).toEqual(["SET_PIN PIN=fan0 VALUE=135.15"]);
   });
 
   it("lists printable objects during a print and excludes them", async () => {

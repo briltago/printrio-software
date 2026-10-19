@@ -81,6 +81,16 @@
     outline: 2px solid var(--color-accent-2);
     outline-offset: 3px;
   }
+  /* Number inputs: no browser spinners; dedicated −/+ controls are used where stepping helps. */
+  input[type="number"] {
+    appearance: textfield;
+    -moz-appearance: textfield;
+  }
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
 }
 
 @layer components {

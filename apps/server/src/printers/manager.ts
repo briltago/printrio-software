@@ -37,6 +37,7 @@ const offline = (message: string | null = null): PrinterStatus => ({
   temperatures: [],
   job: null,
   motion: null,
+  fans: [],
   exclusion: null,
   updatedAt: new Date(),
 });
@@ -119,7 +120,7 @@ export class PrinterManager extends EventEmitter<PrinterManagerEvents> {
       case "flow_factor":
         return driver.setFlowFactor(command.factor);
       case "fan_speed":
-        return driver.setFanSpeed(command.speed);
+        return driver.setFanSpeed(command.fan, command.speed);
       case "exclude_object":
         return driver.excludeObject(command.name);
     }

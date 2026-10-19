@@ -1,0 +1,16 @@
+{
+  "name": "@printrio/sdk",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only WITH Printrio-Module-Exception",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@printrio/shared": "workspace:*"
+  }
+}

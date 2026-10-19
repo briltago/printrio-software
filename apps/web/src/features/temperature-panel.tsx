@@ -5,9 +5,18 @@ import { FormError } from "../components.tsx";
 import { useT } from "../i18n/index.tsx";
 import { api } from "../lib/api.ts";
 import { formatTemp, heaterName } from "../lib/format.ts";
+import { useStoredState } from "../lib/stored-state.ts";
 import { useTemperatureHistory } from "../lib/temperature-history.ts";
 import { Panel } from "./panel.tsx";
 import { seriesColor, TemperatureChart } from "./temperature-chart.tsx";
+
+/** Chart windows; 1 minute is a live view, longer ranges show trends. */
+const RANGES = [
+  { id: "1m", label: "1 min", ms: 60_000 },
+  { id: "10m", label: "10 min", ms: 10 * 60_000 },
+  { id: "20m", label: "20 min", ms: 20 * 60_000 },
+] as const;
+type RangeId = (typeof RANGES)[number]["id"];
 
 /** Material presets: nozzle / bed targets in °C. */
 const PRESETS = [
@@ -27,6 +36,8 @@ export function TemperaturePanel({
 }) {
   const t = useT();
   const series = useTemperatureHistory(printerId, temperatures, connected);
+  const [rangeId, setRangeId] = useStoredState<RangeId>("printrio-temp-range", "1m");
+  const range = RANGES.find((r) => r.id === rangeId) ?? RANGES[0];
   const command = useMutation({
     mutationFn: (body: PrinterCommand) =>
       api(`/api/printers/${printerId}/commands`, { method: "POST", body }),
@@ -42,7 +53,26 @@ export function TemperaturePanel({
   };
 
   return (
-    <Panel id="temperatures" title={t("temps.title")}>
+    <Panel
+      id="temperatures"
+      title={t("temps.title")}
+      actions={
+        <fieldset className="flex rounded-[9px] border border-line p-0.5">
+          <legend className="sr-only">{t("temps.range")}</legend>
+          {RANGES.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              aria-pressed={option.id === range.id}
+              onClick={() => setRangeId(option.id)}
+              className={`rounded-[7px] px-2 py-0.5 text-[11px] font-semibold ${option.id === range.id ? "bg-accent/15 text-text" : "text-muted hover:text-text"}`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </fieldset>
+      }
+    >
       <FormError error={command.error} />
       {temperatures.length === 0 ? (
         <p className="text-sm text-muted">—</p>
@@ -126,6 +156,7 @@ export function TemperaturePanel({
         <TemperatureChart
           series={series}
           order={temperatures.map(({ id, name }) => ({ id, name }))}
+          windowMs={range.ms}
         />
       </div>
     </Panel>

@@ -50,11 +50,11 @@ export function WebcamPanel({ printerId, connected }: { printerId: string; conne
     </div>
   );
 
+  // The webcam is optional: without a configured camera the panel is not shown at all.
+  if (!connected || isError || !cam) return null;
+
   let body: React.ReactNode;
-  if (!connected || isError) body = <p className="text-sm text-muted">{t("webcam.unavailable")}</p>;
-  else if (!data) body = <div className="aspect-video animate-pulse rounded-[10px] bg-sidebar" />;
-  else if (!cam) body = <p className="text-sm text-muted">{t("webcam.none")}</p>;
-  else if (cam.mode === "unsupported")
+  if (cam.mode === "unsupported")
     body = (
       <p className="text-sm text-muted">{t("webcam.unsupported", { service: cam.service })}</p>
     );

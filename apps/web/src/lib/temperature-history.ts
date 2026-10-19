@@ -3,8 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { api } from "./api.ts";
 
+/** Longest selectable chart window; older samples are dropped. */
 export const HISTORY_WINDOW_MS = 20 * 60 * 1000;
-const SAMPLE_MS = 1000;
+/** Moonraker pushes heater updates about every 250 ms; keep each one for a smooth live chart. */
+const SAMPLE_MS = 250;
 
 export interface Sample {
   t: number;
@@ -13,7 +15,7 @@ export interface Sample {
 }
 export type SeriesMap = Record<string, Sample[]>;
 
-/** Seeds from Moonraker's temperature store, then appends live readings (≤ 1 sample/s, 20-minute window). */
+/** Seeds from Moonraker's temperature store, then appends every live websocket reading (20-minute buffer). */
 export function useTemperatureHistory(
   printerId: string,
   temperatures: PrinterStatusDto["temperatures"],

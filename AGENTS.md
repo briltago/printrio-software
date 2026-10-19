@@ -18,3 +18,8 @@ record agreed product and architecture decisions. Update them when a decision ch
 - Server routes get integration tests in `apps/server/test` (Fastify `inject`
   against a real PostgreSQL test database).
 - Before committing: `pnpm lint && pnpm typecheck && pnpm test && pnpm build`.
+
+## Attribution
+- Never mention the AI assistant or its vendor anywhere in the repositories:
+  no co-author or session trailers in commits, no "generated with" footers in
+  PRs, no assistant name in branch names, code, comments or docs.

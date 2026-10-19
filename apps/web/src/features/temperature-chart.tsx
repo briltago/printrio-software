@@ -1,23 +1,37 @@
 import { type PointerEvent, useEffect, useState } from "react";
 import { useT } from "../i18n/index.tsx";
 import { formatTemp, heaterName } from "../lib/format.ts";
-import { HISTORY_WINDOW_MS, type Sample, type SeriesMap } from "../lib/temperature-history.ts";
+import type { Sample, SeriesMap } from "../lib/temperature-history.ts";
 
 const HEIGHT = 180;
 const PAD = { top: 10, right: 12, bottom: 22, left: 36 };
 
 export const seriesColor = (index: number) => `var(--color-series-${(index % 4) + 1})`;
 
+const MAX_POINTS = 600;
+/** Keeps long windows cheap to draw: at most MAX_POINTS evenly spaced samples (always keeping the newest). */
+function thin(samples: Sample[]) {
+  if (samples.length <= MAX_POINTS) return samples;
+  const step = Math.ceil(samples.length / MAX_POINTS);
+  return samples.filter((_, i) => i % step === 0 || i === samples.length - 1);
+}
+
+const formatAgo = (ms: number) =>
+  ms < 60_000 ? `${Math.round(ms / 1000)}s` : `${Math.round(ms / 60_000)}m`;
+
 /**
- * Line chart of the last 20 minutes: solid = actual, dashed = target, one colour
+ * Line chart of the selected window ending now: solid = actual, dashed = target, one colour
  * per heater in the fixed order of the heater list. Crosshair + tooltip on hover.
  */
 export function TemperatureChart({
   series,
   order,
+  windowMs,
 }: {
   series: SeriesMap;
   order: { id: string; name: string }[];
+  /** Visible time range ending now. */
+  windowMs: number;
 }) {
   const t = useT();
   // Callback ref: the wrapper only exists once there is data, so observe it when it mounts.
@@ -32,8 +46,8 @@ export function TemperatureChart({
     return () => observer.disconnect();
   }, [wrap]);
 
-  const now = Math.max(Date.now(), ...Object.values(series).map((s) => s.at(-1)?.t ?? 0));
-  const start = now - HISTORY_WINDOW_MS;
+  const now = Date.now();
+  const start = now - windowMs;
   const all = order.flatMap(({ id }) => series[id] ?? []).filter((s) => s.t >= start);
   if (all.length < 2)
     return <p className="py-10 text-center text-sm text-subtle">{t("temps.chartEmpty")}</p>;
@@ -42,7 +56,7 @@ export function TemperatureChart({
   const yMax = Math.max(50, Math.ceil((peak * 1.08) / 50) * 50);
   const plotW = Math.max(10, width - PAD.left - PAD.right);
   const plotH = HEIGHT - PAD.top - PAD.bottom;
-  const x = (time: number) => PAD.left + ((time - start) / HISTORY_WINDOW_MS) * plotW;
+  const x = (time: number) => PAD.left + ((time - start) / windowMs) * plotW;
   const y = (value: number) => PAD.top + plotH - (value / yMax) * plotH;
   const path = (samples: Sample[], pick: (s: Sample) => number | null) => {
     let d = "";
@@ -56,11 +70,11 @@ export function TemperatureChart({
   const yTicks = Array.from({ length: yMax / 50 + 1 }, (_, i) => i * 50).filter(
     (_v, i, list) => list.length <= 7 || i % 2 === 0,
   );
-  const xTicks = [20, 15, 10, 5, 0];
+  const xTicks = [4, 3, 2, 1, 0].map((step) => (windowMs / 4) * step);
 
   const onMove = (event: PointerEvent<SVGSVGElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
-    const time = start + ((event.clientX - rect.left - PAD.left) / plotW) * HISTORY_WINDOW_MS;
+    const time = start + ((event.clientX - rect.left - PAD.left) / plotW) * windowMs;
     setHoverT(Math.min(now, Math.max(start, time)));
   };
   const nearest = (samples: Sample[] | undefined, time: number) =>
@@ -84,7 +98,7 @@ export function TemperatureChart({
         width="100%"
         height={HEIGHT}
         role="img"
-        aria-label={t("temps.chart", { minutes: 20 })}
+        aria-label={t("temps.chart", { range: formatAgo(windowMs) })}
         onPointerMove={onMove}
         onPointerLeave={() => setHoverT(null)}
         className="block touch-none"
@@ -111,20 +125,20 @@ export function TemperatureChart({
             </text>
           </g>
         ))}
-        {xTicks.map((minutes) => (
+        {xTicks.map((ago, index) => (
           <text
-            key={minutes}
-            x={x(now - minutes * 60_000)}
+            key={ago}
+            x={x(now - ago)}
             y={HEIGHT - 6}
-            textAnchor={minutes === 20 ? "start" : minutes === 0 ? "end" : "middle"}
+            textAnchor={index === 0 ? "start" : ago === 0 ? "end" : "middle"}
             fontSize={10}
             fill="var(--color-subtle)"
           >
-            {minutes === 0 ? t("temps.now") : `−${minutes}m`}
+            {ago === 0 ? t("temps.now") : `−${formatAgo(ago)}`}
           </text>
         ))}
         {order.map(({ id }, index) => {
-          const samples = (series[id] ?? []).filter((s) => s.t >= start);
+          const samples = thin((series[id] ?? []).filter((s) => s.t >= start - 1000));
           return (
             <g
               key={id}
@@ -160,9 +174,9 @@ export function TemperatureChart({
           style={{ left: tooltipLeft }}
         >
           <p className="mb-1.5 text-subtle">
-            {Math.round((now - hoverT) / 60_000) === 0
+            {now - hoverT < 1000
               ? t("temps.now")
-              : t("temps.minutesAgo", { m: Math.round((now - hoverT) / 60_000) })}
+              : t("temps.ago", { time: formatAgo(now - hoverT) })}
           </p>
           {readout.map(({ id, name, index, sample }) => (
             <p key={id} className="flex items-center gap-2">

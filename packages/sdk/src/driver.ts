@@ -30,6 +30,46 @@ export interface FanStatus {
   controllable: boolean;
 }
 
+export interface PrintFile {
+  /** Path relative to the printer's G-code root, e.g. "parts/bracket.gcode". */
+  path: string;
+  size: number;
+  modified: Date;
+  /** Slicer metadata, when the printer provides it. */
+  estimatedSeconds: number | null;
+  filamentMm: number | null;
+  filamentGrams: number | null;
+  layerHeight: number | null;
+  objectHeight: number | null;
+  slicer: string | null;
+  /** Largest thumbnail, relative to the printer's G-code root. */
+  thumbnailPath: string | null;
+}
+
+export interface FileListing {
+  directories: string[];
+  files: PrintFile[];
+}
+
+export type JobStatus = "completed" | "cancelled" | "error" | "interrupted" | "in_progress";
+
+export interface PrintJob {
+  id: string;
+  fileName: string;
+  status: JobStatus;
+  startedAt: Date;
+  endedAt: Date | null;
+  printSeconds: number;
+  filamentMm: number;
+  thumbnailPath: string | null;
+}
+
+export interface PrintTotals {
+  jobs: number;
+  printSeconds: number;
+  filamentMm: number;
+}
+
 export interface TemperatureHistory {
   /** Seconds between samples. */
   intervalSeconds: number;
@@ -120,8 +160,15 @@ export interface PrinterDriver {
   /** Fired once when an established connection drops; the host decides when to reconnect. */
   onDisconnect(listener: () => void): () => void;
 
-  uploadFile(name: string, data: AsyncIterable<Uint8Array>): Promise<void>;
-  startPrint(fileName: string): Promise<void>;
+  /** Uploads into the G-code root; `path` may include sub-directories. */
+  uploadFile(path: string, data: AsyncIterable<Uint8Array>): Promise<void>;
+  startPrint(path: string): Promise<void>;
+  /** `directory` is relative to the G-code root ("" = root). */
+  listFiles(directory: string): Promise<FileListing>;
+  deleteFile(path: string): Promise<void>;
+  /** Raw bytes of a file under the G-code root (used for thumbnails). */
+  readFile(path: string): Promise<{ contentType: string; body: AsyncIterable<Uint8Array> }>;
+  listJobs(limit: number, offset: number): Promise<{ jobs: PrintJob[]; totals: PrintTotals }>;
   pause(): Promise<void>;
   resume(): Promise<void>;
   cancel(): Promise<void>;

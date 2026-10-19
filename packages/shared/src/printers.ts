@@ -1,5 +1,19 @@
 import { z } from "zod";
 
+/** Paths under the printer's G-code root: no absolute paths, no "..", no control characters. */
+export const gcodePathSchema = z
+  .string()
+  .min(1)
+  .max(1024)
+  .refine(
+    (path) =>
+      !path.startsWith("/") && !path.split("/").some((part) => part === ".." || part === ""),
+    "Invalid path.",
+  )
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are exactly what paths must not contain.
+  .refine((path) => !/[\u0000-\u001f\u007f]/.test(path), "Invalid path.");
+export const gcodeDirectorySchema = z.union([z.literal(""), gcodePathSchema]);
+
 export const printerStateSchema = z.enum([
   "offline",
   "connecting",
@@ -188,6 +202,7 @@ export const printerCommandSchema = z.discriminatedUnion("action", [
       .refine((d) => d !== 0, "Distance must not be zero."),
   }),
   z.object({ action: z.literal("motors_off") }),
+  z.object({ action: z.literal("start_print"), path: gcodePathSchema }),
   z.object({ action: z.literal("z_offset"), delta: z.number().min(-1).max(1) }),
   /** Factors: 1 = 100 %. */
   z.object({ action: z.literal("speed_factor"), factor: z.number().min(0.1).max(3) }),
@@ -220,3 +235,52 @@ export const realtimeMessageSchema = z.discriminatedUnion("type", [
   }),
 ]);
 export type RealtimeMessage = z.infer<typeof realtimeMessageSchema>;
+
+export const printFileSchema = z.object({
+  path: z.string(),
+  name: z.string(),
+  size: z.number(),
+  modified: z.iso.datetime(),
+  estimatedSeconds: z.number().nullable(),
+  filamentMm: z.number().nullable(),
+  filamentGrams: z.number().nullable(),
+  layerHeight: z.number().nullable(),
+  objectHeight: z.number().nullable(),
+  slicer: z.string().nullable(),
+  hasThumbnail: z.boolean(),
+});
+export type PrintFileDto = z.infer<typeof printFileSchema>;
+
+export const fileListingSchema = z.object({
+  directory: z.string(),
+  directories: z.array(z.string()),
+  files: z.array(printFileSchema),
+});
+export type FileListingDto = z.infer<typeof fileListingSchema>;
+
+export const jobStatusSchema = z.enum([
+  "completed",
+  "cancelled",
+  "error",
+  "interrupted",
+  "in_progress",
+]);
+export type JobStatus = z.infer<typeof jobStatusSchema>;
+
+export const printJobSchema = z.object({
+  id: z.string(),
+  fileName: z.string(),
+  status: jobStatusSchema,
+  startedAt: z.iso.datetime(),
+  endedAt: z.iso.datetime().nullable(),
+  printSeconds: z.number(),
+  filamentMm: z.number(),
+  hasThumbnail: z.boolean(),
+});
+export type PrintJobDto = z.infer<typeof printJobSchema>;
+
+export const jobHistorySchema = z.object({
+  jobs: z.array(printJobSchema),
+  totals: z.object({ jobs: z.number(), printSeconds: z.number(), filamentMm: z.number() }),
+});
+export type JobHistoryDto = z.infer<typeof jobHistorySchema>;

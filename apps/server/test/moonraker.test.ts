@@ -376,6 +376,63 @@ describe("MoonrakerDriver", () => {
     expect((await driver.getStatus()).state).toBe("offline");
   });
 
+  it("lists G-code files with slicer metadata and thumbnails, per directory", async () => {
+    const { url, driver } = await setup();
+    await driver.connect({ url });
+    const root = await driver.listFiles("");
+    expect(root.directories).toEqual(["parts"]);
+    expect(root.files.map((f) => f.path).sort()).toEqual([
+      "3DBenchy.gcode",
+      "enclosure_panel_left.gcode",
+    ]);
+    const benchy = root.files.find((f) => f.path === "3DBenchy.gcode");
+    expect(benchy).toMatchObject({
+      estimatedSeconds: 5820,
+      filamentMm: 4210,
+      filamentGrams: 12.6,
+      slicer: "OrcaSlicer",
+      thumbnailPath: ".thumbs/3DBenchy-300x300.png",
+    });
+    const parts = await driver.listFiles("parts");
+    expect(parts.files[0]).toMatchObject({
+      path: "parts/bracket_v3.gcode",
+      thumbnailPath: "parts/.thumbs/bracket_v3-300x300.png",
+    });
+    const thumbnail = await driver.readFile("parts/.thumbs/bracket_v3-300x300.png");
+    expect(thumbnail.contentType).toBe("image/png");
+  });
+
+  it("starts, deletes and uploads files into sub-directories", async () => {
+    const { fake, url, driver } = await setup();
+    await driver.connect({ url });
+    await expect(driver.startPrint("missing.gcode")).rejects.toThrow(/does not exist/);
+    const printing = nextStatus(driver, (s) => s.state === "printing");
+    await driver.startPrint("3DBenchy.gcode");
+    expect((await printing).job?.fileName).toBe("3DBenchy.gcode");
+    await driver.deleteFile("parts/bracket_v3.gcode");
+    expect((await driver.listFiles("parts")).files).toEqual([]);
+    async function* data() {
+      yield new TextEncoder().encode("G28\n");
+    }
+    await driver.uploadFile("parts/new.gcode", data());
+    expect(fake.uploads).toEqual(["parts/new.gcode"]);
+    expect((await driver.listFiles("parts")).files.map((f) => f.path)).toEqual(["parts/new.gcode"]);
+  });
+
+  it("reads print history and totals", async () => {
+    const { url, driver } = await setup();
+    await driver.connect({ url });
+    const { jobs, totals } = await driver.listJobs(10, 0);
+    expect(jobs.map((j) => j.status)).toEqual(["error", "cancelled", "completed"]);
+    expect(jobs[0]).toMatchObject({
+      fileName: "parts/bracket_v3.gcode",
+      printSeconds: 260,
+      filamentMm: 180,
+    });
+    expect(totals).toEqual({ jobs: 3, printSeconds: 7950, filamentMm: 5695 });
+    expect((await driver.listJobs(1, 1)).jobs.map((j) => j.id)).toEqual(["000002"]);
+  });
+
   it("uploads files through the HTTP API", async () => {
     const { fake, url, driver } = await setup();
     await driver.connect({ url });

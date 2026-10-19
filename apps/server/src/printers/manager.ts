@@ -113,6 +113,8 @@ export class PrinterManager extends EventEmitter<PrinterManagerEvents> {
         return driver.jog(command.axis, command.distance);
       case "motors_off":
         return driver.motorsOff();
+      case "start_print":
+        return driver.startPrint(command.path);
       case "z_offset":
         return driver.adjustZOffset(command.delta);
       case "speed_factor":

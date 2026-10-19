@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { createTranslator } from "../i18n/index.tsx";
-import { fanName, formatDuration, formatFilament, formatPercent, heaterName } from "./format.ts";
+import {
+  fanName,
+  formatBytes,
+  formatDuration,
+  formatFilament,
+  formatFilamentAmount,
+  formatPercent,
+  formatRelativeTime,
+  heaterName,
+} from "./format.ts";
 
 const t = createTranslator("en");
 
@@ -35,5 +44,16 @@ describe("formatting", () => {
     expect(fanName(t, "fan", "fan")).toBe("Part fan");
     expect(fanName(t, "output_pin fan0", "fan0")).toBe("Fan 0");
     expect(fanName(t, "heater_fan hotend_fan", "hotend_fan")).toBe("Hotend fan");
+  });
+
+  it("formats file sizes, filament amounts and relative times", () => {
+    expect(formatBytes(512)).toBe("512 B");
+    expect(formatBytes(2_480_133)).toBe("2.4 MB");
+    expect(formatFilamentAmount(12.6, 4210)).toBe("13 g");
+    expect(formatFilamentAmount(4.9, null)).toBe("4.9 g");
+    expect(formatFilamentAmount(null, 4210)).toBe("4.21 m");
+    const now = Date.parse("2026-10-19T12:00:00Z");
+    expect(formatRelativeTime("2026-10-19T09:00:00Z", now)).toBe("3 hours ago");
+    expect(formatRelativeTime("2026-10-18T12:00:00Z", now)).toBe("yesterday");
   });
 });

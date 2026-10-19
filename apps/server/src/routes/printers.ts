@@ -173,8 +173,8 @@ export function printerRoutes(app: FastifyInstance, options: PrinterRoutesOption
     if (!params || !command) return;
     const printer = (await listPrinters()).find((p) => p.id === params.id);
     if (!printer) return reply.code(404).send({ error: "Printer not found." });
-    // Safety commands always work; G-code can start prints, so it respects the plan limit.
-    if (command.action === "gcode" && !printer.withinLimit) {
+    // Safety commands always work; starting prints (directly or via G-code) respects the plan limit.
+    if ((command.action === "gcode" || command.action === "start_print") && !printer.withinLimit) {
       return reply.code(403).send({
         error: "This printer is outside your plan's printer limit.",
         code: "printer_limit",
@@ -240,6 +240,18 @@ export function printerRoutes(app: FastifyInstance, options: PrinterRoutesOption
     onChange();
     return { ok: true };
   });
+}
+
+/** Whether a printer may start jobs under the current plan (printers beyond the limit are monitor-only). */
+export async function printerWithinLimit(db: Database, id: string) {
+  const limit = effectiveLimits(null).printers;
+  if (limit === null) return true;
+  const rows = await db
+    .select({ id: printers.id })
+    .from(printers)
+    .orderBy(asc(printers.position), asc(printers.createdAt));
+  const index = rows.findIndex((row) => row.id === id);
+  return index !== -1 && index < limit;
 }
 
 /** Connects every stored printer; called once on startup. */

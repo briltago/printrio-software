@@ -10,6 +10,8 @@ import {
   ProgressBar,
   StateBadge,
 } from "../components.tsx";
+import { FilesPanel } from "../features/files-panel.tsx";
+import { HistoryPanel } from "../features/history-panel.tsx";
 import { ObjectExclusion } from "../features/object-exclusion.tsx";
 import { Panel } from "../features/panel.tsx";
 import { PrinterForm } from "../features/printer-form.tsx";
@@ -67,6 +69,7 @@ export function PrinterPage() {
   const { status } = printer;
   const job = status.job;
   const connected = status.state !== "offline" && status.state !== "connecting";
+  const canPrint = status.state === "idle" && printer.withinLimit;
   const confirmThen = (message: string, body: PrinterCommand) => {
     if (window.confirm(message)) command.mutate(body);
   };
@@ -214,6 +217,21 @@ export function PrinterPage() {
             />
           )}
         </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+        <FilesPanel
+          printerId={printer.id}
+          printerName={printer.name}
+          canPrint={canPrint}
+          connected={connected}
+        />
+        <HistoryPanel
+          printerId={printer.id}
+          state={status.state}
+          canPrint={canPrint}
+          connected={connected}
+        />
       </div>
 
       <Console printerId={printer.id} disabled={!connected || !printer.withinLimit} />

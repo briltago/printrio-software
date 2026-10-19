@@ -11,11 +11,45 @@ export const printerStateSchema = z.enum([
 export type PrinterState = z.infer<typeof printerStateSchema>;
 
 export const temperatureSchema = z.object({
-  /** Heater or sensor name, e.g. "extruder", "heater_bed", "chamber". */
+  /** Stable id used for commands, e.g. "extruder", "heater_generic chamber". */
+  id: z.string(),
+  /** Display name, e.g. "extruder", "heater_bed", "chamber", "mcu_temp". */
   name: z.string(),
   current: z.number(),
   target: z.number().nullable(),
+  controllable: z.boolean(),
 });
+
+/** Heaters whose target can be set (Klipper object names). */
+export const heaterIdSchema = z
+  .string()
+  .regex(/^(extruder\d*|heater_bed|heater_generic [A-Za-z0-9_-]+)$/);
+export const MAX_HEATER_TARGET = 500;
+
+export const temperatureHistorySchema = z.object({
+  intervalSeconds: z.number(),
+  series: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      temperatures: z.array(z.number()),
+      targets: z.array(z.number()).nullable(),
+    }),
+  ),
+});
+export type TemperatureHistoryDto = z.infer<typeof temperatureHistorySchema>;
+
+export const webcamSchema = z.object({
+  index: z.number().int(),
+  name: z.string(),
+  service: z.string(),
+  /** How the UI shows it: a proxied MJPEG stream, polled snapshots, or not at all. */
+  mode: z.enum(["mjpeg", "snapshot", "unsupported"]),
+  flipHorizontal: z.boolean(),
+  flipVertical: z.boolean(),
+  rotation: z.number(),
+});
+export type WebcamDto = z.infer<typeof webcamSchema>;
 
 export const printProgressSchema = z.object({
   fileName: z.string(),
@@ -100,6 +134,11 @@ export const printerCommandSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("cancel") }),
   z.object({ action: z.literal("emergency_stop") }),
   z.object({ action: z.literal("gcode"), script: z.string().trim().min(1).max(2000) }),
+  z.object({
+    action: z.literal("set_temperature"),
+    heater: heaterIdSchema,
+    target: z.number().min(0).max(MAX_HEATER_TARGET),
+  }),
 ]);
 export type PrinterCommand = z.infer<typeof printerCommandSchema>;
 

@@ -190,6 +190,33 @@ export const en = {
   placeholder: {
     text: "This section is part of the roadmap and arrives in a later release.",
   },
+  panels: {
+    collapse: "Collapse {name}",
+    expand: "Expand {name}",
+  },
+  webcam: {
+    title: "Webcam",
+    none: "No webcam is configured in Moonraker.",
+    unsupported:
+      "{service} streams can't be shown yet. Configure an MJPEG stream or a snapshot URL in Moonraker.",
+    unavailable: "The webcam isn't available right now.",
+    fullscreen: "Full screen",
+    select: "Camera",
+  },
+  temps: {
+    title: "Temperatures",
+    heater: "Heater",
+    actual: "Actual",
+    target: "Target",
+    setTarget: "Set {name} target in °C",
+    presets: "Presets",
+    cooldown: "Cool down",
+    chart: "Temperature history, last {minutes} minutes",
+    chartEmpty: "Collecting temperature history…",
+    minutesAgo: "{m} min ago",
+    now: "now",
+    off: "off",
+  },
   heaters: {
     extruder: "Nozzle",
     extruderN: "Nozzle {n}",

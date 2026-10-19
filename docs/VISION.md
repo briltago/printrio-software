@@ -92,6 +92,20 @@ add-on packs of +5 up to 20; Business includes 20 and is billed per additional
 printer. This avoids forcing a 10-printer farm without a team into Business,
 and keeps the licence model simple: limits are numbers in the signed licence.
 
+### Replacing Mainsail / Fluidd
+
+Goal: nobody needs Mainsail or Fluidd next to Printrio. Delivered in stages so
+the product stays usable at every step:
+
+| Stage | Scope | Result |
+| ----- | ----- | ------ |
+| **A — Daily operation** | Webcam, temperatures (targets, presets, 20-min chart), motion (home, jog, motors off, Z babystep), speed/flow/fan, exclude object, files on the printer (thumbnails, start, upload), print history, console (history, autocomplete), macros | Mainsail only needed for maintenance |
+| **B — Printer administration** | Config editor (`printer.cfg` etc.) with backup and Klipper restart, firmware/Klipper restart, logs, bed mesh view, update manager, power devices, system info | Mainsail no longer needed |
+| **C — Long tail** | Timelapse, input shaper graphs, other niche tools — by user demand | Feature parity where it matters |
+
+Admin-only for everything that can break a printer (config editing, restarts,
+updates); config writes always keep a backup.
+
 ### One app from one printer to a farm
 
 The same workspace adapts to its size instead of shipping separate products:

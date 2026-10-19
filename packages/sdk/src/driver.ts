@@ -7,10 +7,33 @@
 export type PrinterState = "offline" | "connecting" | "idle" | "printing" | "paused" | "error";
 
 export interface TemperatureReading {
-  /** Heater or sensor name, e.g. "extruder", "heater_bed", "chamber". */
+  /** Stable id used for commands, e.g. "extruder", "heater_bed", "heater_generic chamber". */
+  id: string;
+  /** Display name, e.g. "extruder", "heater_bed", "chamber", "mcu_temp". */
   name: string;
   current: number;
   target: number | null;
+  /** True for heaters whose target can be set; false for passive sensors. */
+  controllable: boolean;
+}
+
+export interface TemperatureHistory {
+  /** Seconds between samples. */
+  intervalSeconds: number;
+  /** Oldest sample first; `targets` is null for sensors. */
+  series: { id: string; name: string; temperatures: number[]; targets: number[] | null }[];
+}
+
+export interface Webcam {
+  name: string;
+  /** e.g. "mjpegstreamer", "mjpegstreamer-adaptive", "webrtc-camerastreamer". */
+  service: string;
+  /** Absolute URLs, resolved against the printer host. */
+  streamUrl: string | null;
+  snapshotUrl: string | null;
+  flipHorizontal: boolean;
+  flipVertical: boolean;
+  rotation: number;
 }
 
 export interface PrintProgress {
@@ -64,6 +87,9 @@ export interface PrinterDriver {
   cancel(): Promise<void>;
   emergencyStop(): Promise<void>;
   sendGcode(script: string): Promise<void>;
+  setTemperature(heaterId: string, target: number): Promise<void>;
+  getTemperatureHistory(): Promise<TemperatureHistory>;
+  listWebcams(): Promise<Webcam[]>;
 }
 
 export interface PrinterDriverFactory {

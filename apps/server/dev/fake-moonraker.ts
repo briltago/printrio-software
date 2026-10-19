@@ -53,6 +53,15 @@ export class FakeMoonraker {
       display_status: { progress: 0, message: null },
       extruder: { temperature: 24.5, target: 0 },
       heater_bed: { temperature: 23.8, target: 0 },
+      toolhead: { homed_axes: "", axis_minimum: [0, 0, -2, 0], axis_maximum: [250, 250, 230, 0] },
+      gcode_move: {
+        gcode_position: [0, 0, 0, 0],
+        homing_origin: [0, 0, 0, 0],
+        speed_factor: 1,
+        extrude_factor: 1,
+      },
+      fan: { speed: 0 },
+      exclude_object: { objects: [], excluded_objects: [], current_object: null },
     };
     if (options.printing) this.startPrint(options.printing.fileName, options.printing.progress);
     // Ten minutes of plausible history so charts have something to draw immediately.
@@ -197,6 +206,85 @@ export class FakeMoonraker {
     this.update(update);
   }
 
+  /** Applies the G-code the driver sends; returns a Klipper-style error message on failure. */
+  private runGcode(script: string): string | null {
+    let relative = false;
+    const move = { ...this.objects.gcode_move } as Record<string, unknown>;
+    const toolhead = { ...this.objects.toolhead } as Record<string, unknown>;
+    const position = [...(move.gcode_position as number[])];
+    const origin = [...(move.homing_origin as number[])];
+    const axes = ["X", "Y", "Z"];
+    for (const line of script.split("\n").map((l) => l.trim())) {
+      const [command = "", ...args] = line.split(/\s+/);
+      const arg = (key: string) =>
+        args.find((a) => a.toUpperCase().startsWith(key))?.slice(key.length);
+      switch (command.toUpperCase()) {
+        case "SET_HEATER_TEMPERATURE": {
+          const heater = arg("HEATER=");
+          if (heater && this.objects[heater])
+            this.update({ [heater]: { target: Number(arg("TARGET=")) } });
+          break;
+        }
+        case "G28": {
+          const homing = args.length ? args.map((a) => a.toLowerCase()) : ["x", "y", "z"];
+          toolhead.homed_axes = [...new Set([...String(toolhead.homed_axes), ...homing])]
+            .sort()
+            .join("");
+          for (const axis of homing) position[axes.indexOf(axis.toUpperCase())] = 0;
+          break;
+        }
+        case "G91":
+          relative = true;
+          break;
+        case "G90":
+          relative = false;
+          break;
+        case "G1":
+          for (const [i, axis] of axes.entries()) {
+            const value = arg(axis);
+            if (value === undefined) continue;
+            if (!String(toolhead.homed_axes).includes(axis.toLowerCase())) {
+              return "Must home axis first: 0.000 0.000 0.000 [0.000]";
+            }
+            position[i] = relative ? Number(position[i]) + Number(value) : Number(value);
+          }
+          break;
+        case "M84":
+          toolhead.homed_axes = "";
+          break;
+        case "SET_GCODE_OFFSET":
+          origin[2] = Math.round((Number(origin[2]) + Number(arg("Z_ADJUST=") ?? 0)) * 1000) / 1000;
+          break;
+        case "M220":
+          move.speed_factor = Number(arg("S")) / 100;
+          break;
+        case "M221":
+          move.extrude_factor = Number(arg("S")) / 100;
+          break;
+        case "M106":
+          this.update({ fan: { speed: Number(arg("S")) / 255 } });
+          break;
+        case "M107":
+          this.update({ fan: { speed: 0 } });
+          break;
+        case "EXCLUDE_OBJECT": {
+          const exclusion = this.objects.exclude_object ?? {};
+          const excluded = [
+            ...((exclusion.excluded_objects as string[]) ?? []),
+            String(arg("NAME=")),
+          ];
+          this.update({ exclude_object: { excluded_objects: excluded } });
+          break;
+        }
+      }
+    }
+    this.update({
+      toolhead,
+      gcode_move: { ...move, gcode_position: position, homing_origin: origin },
+    });
+    return null;
+  }
+
   private startPrint(fileName: string, progress = 0) {
     const objects: Objects = {
       print_stats: {
@@ -210,6 +298,14 @@ export class FakeMoonraker {
       display_status: { progress },
       extruder: { target: 215, temperature: progress > 0 ? 214.6 : 24.5 },
       heater_bed: { target: 60, temperature: progress > 0 ? 59.8 : 23.8 },
+      toolhead: { ...this.objects.toolhead, homed_axes: "xyz" },
+      gcode_move: { ...this.objects.gcode_move, gcode_position: [125.4, 98.2, 12.6, 0] },
+      fan: { speed: 1 },
+      exclude_object: {
+        objects: [{ name: "PART_1" }, { name: "PART_2" }, { name: "PART_3" }],
+        excluded_objects: [],
+        current_object: "PART_2",
+      },
     };
     for (const [name, fields] of Object.entries(objects))
       this.objects[name] = { ...this.objects[name], ...fields };
@@ -306,18 +402,14 @@ export class FakeMoonraker {
               },
             ],
           });
-        case "printer.gcode.script":
-          {
-            const heater = /^SET_HEATER_TEMPERATURE HEATER=(\S+) TARGET=([\d.]+)$/.exec(
-              String(params.script),
-            );
-            if (heater?.[1] && this.objects[heater[1]])
-              this.update({ [heater[1]]: { target: Number(heater[2]) } });
-          }
+        case "printer.gcode.script": {
+          const error = this.runGcode(String(params.script));
+          if (error) return fail(400, error);
           this.gcode.push(String(params.script));
           this.notify("notify_gcode_response", [`// ${params.script}`]);
           this.notify("notify_gcode_response", ["ok"]);
           return reply("ok");
+        }
         default:
           return fail(-32601, `Method not found: ${method}`);
       }

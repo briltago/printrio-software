@@ -46,11 +46,39 @@ export interface PrintProgress {
   filamentUsedMm: number;
 }
 
+export type Axis = "x" | "y" | "z";
+
+export interface MotionStatus {
+  /** G-code position (what the user commanded), in mm. */
+  position: Record<Axis, number>;
+  homedAxes: Axis[];
+  /** Axis limits from the printer config, when known. */
+  min: Record<Axis, number> | null;
+  max: Record<Axis, number> | null;
+  /** Current Z offset (babystepping), mm. */
+  zOffset: number;
+  /** 1 = 100 %. */
+  speedFactor: number;
+  flowFactor: number;
+  /** Part cooling fan, 0–1; null when the printer has no fan object. */
+  fanSpeed: number | null;
+}
+
+export interface ObjectExclusion {
+  objects: string[];
+  excluded: string[];
+  current: string | null;
+}
+
 export interface PrinterStatus {
   state: PrinterState;
   message: string | null;
   temperatures: TemperatureReading[];
   job: PrintProgress | null;
+  /** Null until known (e.g. while Klipper is starting). */
+  motion: MotionStatus | null;
+  /** Objects of the current print that can be skipped (Klipper exclude_object); null when unsupported. */
+  exclusion: ObjectExclusion | null;
   updatedAt: Date;
 }
 
@@ -88,6 +116,19 @@ export interface PrinterDriver {
   emergencyStop(): Promise<void>;
   sendGcode(script: string): Promise<void>;
   setTemperature(heaterId: string, target: number): Promise<void>;
+  /** Homes the given axes; an empty list homes all. */
+  home(axes: Axis[]): Promise<void>;
+  /** Relative move of one axis in mm. */
+  jog(axis: Axis, distance: number): Promise<void>;
+  motorsOff(): Promise<void>;
+  /** Babystep: adds `delta` mm to the Z offset. */
+  adjustZOffset(delta: number): Promise<void>;
+  /** Factors: 1 = 100 %. */
+  setSpeedFactor(factor: number): Promise<void>;
+  setFlowFactor(factor: number): Promise<void>;
+  /** 0–1 */
+  setFanSpeed(speed: number): Promise<void>;
+  excludeObject(name: string): Promise<void>;
   getTemperatureHistory(): Promise<TemperatureHistory>;
   listWebcams(): Promise<Webcam[]>;
 }

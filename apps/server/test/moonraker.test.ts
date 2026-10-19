@@ -241,6 +241,68 @@ describe("MoonrakerDriver", () => {
     });
   });
 
+  it("reports motion status and runs motion commands as Klipper G-code", async () => {
+    const { fake, url, driver } = await setup();
+    await driver.connect({ url });
+    expect((await driver.getStatus()).motion).toMatchObject({
+      homedAxes: [],
+      zOffset: 0,
+      speedFactor: 1,
+      fanSpeed: 0,
+    });
+
+    await expect(driver.jog("x", 10)).rejects.toThrow(/Must home axis first/);
+    const homed = nextStatus(driver, (s) => s.motion?.homedAxes.length === 3);
+    await driver.home([]);
+    await homed;
+    const moved = nextStatus(driver, (s) => s.motion?.position.x === 10);
+    await driver.jog("x", 10);
+    await moved;
+    await driver.home(["x", "y"]);
+    await driver.adjustZOffset(-0.025);
+    await driver.setSpeedFactor(1.25);
+    await driver.setFlowFactor(0.95);
+    await driver.setFanSpeed(0.5);
+    await driver.setFanSpeed(0);
+    await driver.motorsOff();
+    expect(fake.gcode).toEqual([
+      "G28",
+      "G91\nG1 X10 F6000\nG90",
+      "G28 X Y",
+      "SET_GCODE_OFFSET Z_ADJUST=-0.025 MOVE=1",
+      "M220 S125",
+      "M221 S95",
+      "M106 S128",
+      "M107",
+      "M84",
+    ]);
+    const status = await driver.getStatus();
+    expect(status.motion).toMatchObject({
+      homedAxes: [],
+      zOffset: -0.025,
+      speedFactor: 1.25,
+      flowFactor: 0.95,
+      fanSpeed: 0,
+    });
+  });
+
+  it("lists printable objects during a print and excludes them", async () => {
+    const { fake, url, driver } = await setup({
+      printing: { fileName: "plate.gcode", progress: 0.3 },
+    });
+    await driver.connect({ url });
+    expect((await driver.getStatus()).exclusion).toEqual({
+      objects: ["PART_1", "PART_2", "PART_3"],
+      excluded: [],
+      current: "PART_2",
+    });
+    const excluded = nextStatus(driver, (s) => s.exclusion?.excluded.includes("PART_3") ?? false);
+    await driver.excludeObject("PART_3");
+    await excluded;
+    expect(fake.gcode).toEqual(["EXCLUDE_OBJECT NAME=PART_3"]);
+    await expect(driver.excludeObject("PART_1;M112")).rejects.toThrow(/Invalid object name/);
+  });
+
   it("forwards G-code and console output", async () => {
     const { fake, url, driver } = await setup();
     await driver.connect({ url });

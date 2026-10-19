@@ -1,44 +1,50 @@
-import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
-import { api } from "../lib/api.ts";
-import { meQuery } from "../lib/session.ts";
+const STATS = [
+  { label: "Printers ready", value: "0", unit: "/0", foot: "Fleet status" },
+  { label: "Active prints", value: "0", unit: "", foot: "Across 0 printers" },
+  { label: "Filament inventory", value: "—", unit: "", foot: "No spools yet" },
+  { label: "Print time", value: "—", unit: "", foot: "This week" },
+];
 
 export function DashboardPage() {
-  const { data: user } = useSuspenseQuery(meQuery);
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
-  const logout = useMutation({
-    mutationFn: () => api("/api/auth/logout", { method: "POST" }),
-    onSuccess: async () => {
-      queryClient.clear();
-      await navigate({ to: "/login" });
-    },
-  });
-
   return (
-    <div className="min-h-screen">
-      <header className="flex items-center justify-between border-b border-border px-6 py-4">
-        <div className="flex items-center gap-3">
-          <img src="/icon.png" alt="" className="h-7 w-7" />
-          <span className="font-semibold">Printrio</span>
+    <main className="mx-auto max-w-6xl p-6 md:p-8">
+      <p className="kicker">Workspace</p>
+      <h1 className="mt-2 text-3xl font-semibold tracking-tight">Operations overview</h1>
+
+      <section aria-label="Statistics" className="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
+        {STATS.map((stat) => (
+          <div key={stat.label} className="card p-4">
+            <p className="text-xs text-subtle">{stat.label}</p>
+            <p className="mt-1 text-3xl font-semibold tracking-[-0.06em]">
+              {stat.value}
+              <span className="ml-1 text-sm font-normal tracking-normal text-subtle">
+                {stat.unit}
+              </span>
+            </p>
+            <p className="mt-1 text-xs text-subtle">{stat.foot}</p>
+          </div>
+        ))}
+      </section>
+
+      <section className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+        <div className="card p-5">
+          <h2 className="border-line border-b pb-3 text-sm font-semibold">Printers</h2>
+          <div className="py-10 text-center">
+            <p className="font-medium">No printers connected yet</p>
+            <p className="mt-1 text-sm text-muted">
+              Klipper printers connect through Moonraker. Adding printers arrives with the Moonraker
+              driver.
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-4 text-sm">
-          <span className="text-muted">{user?.displayName}</span>
-          <button
-            type="button"
-            onClick={() => logout.mutate()}
-            className="text-accent hover:underline"
-          >
-            Sign out
-          </button>
+        <div className="card p-5">
+          <h2 className="border-line border-b pb-3 text-sm font-semibold">Filament inventory</h2>
+          <div className="py-10 text-center">
+            <p className="font-medium">No spools yet</p>
+            <p className="mt-1 text-sm text-muted">Track every spool and its remaining weight.</p>
+          </div>
         </div>
-      </header>
-      <main className="mx-auto max-w-5xl p-6">
-        <h1 className="text-2xl font-semibold">Printers</h1>
-        <div className="mt-6 rounded-2xl border border-dashed border-border p-10 text-center text-muted">
-          No printers yet. Printer connections arrive with the Moonraker driver.
-        </div>
-      </main>
-    </div>
+      </section>
+    </main>
   );
 }

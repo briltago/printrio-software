@@ -1,5 +1,7 @@
 import type {
   Axis,
+  FileListing,
+  JobStatus,
   MotionStatus,
   ObjectExclusion,
   PrinterConnection,
@@ -8,6 +10,8 @@ import type {
   PrinterInfo,
   PrinterState,
   PrinterStatus,
+  PrintFile,
+  PrintJob,
   TemperatureHistory,
   TemperatureReading,
   Webcam,
@@ -299,6 +303,79 @@ export async function probeMoonraker(connection: PrinterConnection) {
   }
 }
 
+const GCODE_EXTENSIONS = /\.(gcode|g|gco|ufp)$/i;
+
+interface MoonrakerFile {
+  filename: string;
+  modified: number;
+  size: number;
+  estimated_time?: number;
+  filament_total?: number;
+  filament_weight_total?: number;
+  layer_height?: number;
+  object_height?: number;
+  slicer?: string;
+  thumbnails?: { width: number; height: number; relative_path: string }[];
+}
+
+interface MoonrakerJob {
+  job_id: string;
+  filename: string;
+  status: string;
+  start_time: number;
+  end_time: number | null;
+  print_duration: number;
+  filament_used: number;
+  metadata?: { thumbnails?: MoonrakerFile["thumbnails"] };
+}
+
+const optionalNumber = (value: unknown) =>
+  typeof value === "number" && Number.isFinite(value) ? value : null;
+const directoryOf = (path: string) =>
+  path.includes("/") ? path.slice(0, path.lastIndexOf("/") + 1) : "";
+
+/** Largest thumbnail; its path is relative to the G-code file's directory. */
+function largestThumbnail(directory: string, thumbnails: MoonrakerFile["thumbnails"]) {
+  const best = [...(thumbnails ?? [])].sort((a, b) => b.width * b.height - a.width * a.height)[0];
+  return best ? `${directory}${best.relative_path}` : null;
+}
+
+function toPrintFile(prefix: string, file: MoonrakerFile): PrintFile {
+  return {
+    path: `${prefix}${file.filename}`,
+    size: file.size,
+    modified: new Date(file.modified * 1000),
+    estimatedSeconds: optionalNumber(file.estimated_time),
+    filamentMm: optionalNumber(file.filament_total),
+    filamentGrams: optionalNumber(file.filament_weight_total),
+    layerHeight: optionalNumber(file.layer_height),
+    objectHeight: optionalNumber(file.object_height),
+    slicer: file.slicer ?? null,
+    thumbnailPath: largestThumbnail(prefix, file.thumbnails),
+  };
+}
+
+const JOB_STATUS: Record<string, JobStatus> = {
+  completed: "completed",
+  cancelled: "cancelled",
+  error: "error",
+  in_progress: "in_progress",
+};
+
+function toPrintJob(job: MoonrakerJob): PrintJob {
+  return {
+    id: job.job_id,
+    fileName: job.filename,
+    // klippy_shutdown, klippy_disconnect, server_exit, interrupted
+    status: JOB_STATUS[job.status] ?? "interrupted",
+    startedAt: new Date(job.start_time * 1000),
+    endedAt: job.end_time ? new Date(job.end_time * 1000) : null,
+    printSeconds: job.print_duration ?? 0,
+    filamentMm: job.filament_used ?? 0,
+    thumbnailPath: largestThumbnail(directoryOf(job.filename), job.metadata?.thumbnails),
+  };
+}
+
 export class MoonrakerDriver implements PrinterDriver {
   readonly id = "moonraker";
 
@@ -385,23 +462,84 @@ export class MoonrakerDriver implements PrinterDriver {
     return () => this.disconnectListeners.delete(listener);
   }
 
-  async uploadFile(name: string, data: AsyncIterable<Uint8Array>): Promise<void> {
+  async uploadFile(path: string, data: AsyncIterable<Uint8Array>): Promise<void> {
     if (!this.connection) throw new MoonrakerError("Not connected.");
     const chunks: Uint8Array[] = [];
     for await (const chunk of data) chunks.push(chunk);
+    const slash = path.lastIndexOf("/");
     const form = new FormData();
     form.append("root", "gcodes");
-    form.append("file", new Blob(chunks.map((chunk) => new Uint8Array(chunk))), name);
+    if (slash > 0) form.append("path", path.slice(0, slash));
+    form.append(
+      "file",
+      new Blob(chunks.map((chunk) => new Uint8Array(chunk))),
+      path.slice(slash + 1),
+    );
     const res = await fetch(`${this.connection.url}/server/files/upload`, {
       method: "POST",
-      headers: this.connection.apiKey ? { "X-Api-Key": this.connection.apiKey } : {},
+      headers: this.authHeaders(),
       body: form,
     });
     if (!res.ok) throw new MoonrakerError(`Upload failed (${res.status}).`);
   }
 
-  async startPrint(fileName: string) {
-    await this.call("printer.print.start", { filename: fileName });
+  async startPrint(path: string) {
+    await this.call("printer.print.start", { filename: path });
+  }
+
+  async listFiles(directory: string): Promise<FileListing> {
+    const result = (await this.call("server.files.get_directory", {
+      path: directory ? `gcodes/${directory}` : "gcodes",
+      extended: true,
+    })) as { dirs?: { dirname: string }[]; files?: MoonrakerFile[] };
+    const prefix = directory ? `${directory}/` : "";
+    return {
+      // Hidden directories hold thumbnails (.thumbs) and slicer caches.
+      directories: (result.dirs ?? [])
+        .map((dir) => dir.dirname)
+        .filter((name) => !name.startsWith("."))
+        .sort(),
+      files: (result.files ?? [])
+        .filter((file) => GCODE_EXTENSIONS.test(file.filename))
+        .map((file) => toPrintFile(prefix, file)),
+    };
+  }
+
+  async deleteFile(path: string) {
+    await this.call("server.files.delete_file", { path: `gcodes/${path}` });
+  }
+
+  async readFile(path: string) {
+    if (!this.connection) throw new MoonrakerError("Not connected.");
+    const encoded = path.split("/").map(encodeURIComponent).join("/");
+    const res = await fetch(`${this.connection.url}/server/files/gcodes/${encoded}`, {
+      headers: this.authHeaders(),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok || !res.body) throw new MoonrakerError(`File not available (${res.status}).`);
+    return {
+      contentType: res.headers.get("content-type") ?? "application/octet-stream",
+      body: res.body as unknown as AsyncIterable<Uint8Array>,
+    };
+  }
+
+  async listJobs(limit: number, offset: number) {
+    const [history, totals] = (await Promise.all([
+      this.call("server.history.list", { limit, start: offset, order: "desc" }),
+      this.call("server.history.totals"),
+    ])) as [{ jobs?: MoonrakerJob[] }, { job_totals?: Record<string, number> }];
+    return {
+      jobs: (history.jobs ?? []).map(toPrintJob),
+      totals: {
+        jobs: Number(totals.job_totals?.total_jobs ?? 0),
+        printSeconds: Number(totals.job_totals?.total_print_time ?? 0),
+        filamentMm: Number(totals.job_totals?.total_filament_used ?? 0),
+      },
+    };
+  }
+
+  private authHeaders(): Record<string, string> {
+    return this.connection?.apiKey ? { "X-Api-Key": this.connection.apiKey } : {};
   }
   async pause() {
     await this.call("printer.print.pause");

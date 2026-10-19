@@ -306,7 +306,10 @@ describe("motion and tuning commands", () => {
     expect((await send({ action: "jog", axis: "z", distance: 0 })).statusCode).toBe(400);
     expect((await send({ action: "jog", axis: "e", distance: 5 })).statusCode).toBe(400);
     expect((await send({ action: "flow_factor", factor: 3 })).statusCode).toBe(400);
-    expect((await send({ action: "fan_speed", speed: 1.5 })).statusCode).toBe(400);
+    expect((await send({ action: "fan_speed", fan: "fan", speed: 1.5 })).statusCode).toBe(400);
+    expect((await send({ action: "fan_speed", fan: "fan; M112", speed: 0.5 })).statusCode).toBe(
+      400,
+    );
     expect((await send({ action: "exclude_object", name: "A;M112" })).statusCode).toBe(400);
     expect(fake.gcode).toEqual(["G28", "G91\nG1 Z0.1 F600\nG90"]);
   });

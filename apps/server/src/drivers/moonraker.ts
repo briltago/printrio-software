@@ -34,10 +34,19 @@ const BASE_OBJECTS: Record<string, string[] | null> = {
 const OPTIONAL_OBJECTS: Record<string, string[]> = {
   toolhead: ["homed_axes", "axis_minimum", "axis_maximum"],
   gcode_move: ["gcode_position", "homing_origin", "speed_factor", "extrude_factor"],
-  fan: ["speed"],
   exclude_object: ["objects", "excluded_objects", "current_object"],
 };
 const AXES: Axis[] = ["x", "y", "z"];
+
+/**
+ * Fans: the standard part fan, generic and automatic fans, and output pins
+ * named like fans — Creality firmware drives its part fan as `output_pin fan0`.
+ */
+const FAN_PATTERN = /^(fan|fan_generic .+|heater_fan .+|controller_fan .+|output_pin \S*fan\S*)$/i;
+const isControllableFan = (id: string) => /^(fan|fan_generic .+|output_pin .+)$/.test(id);
+const fanFields = (id: string) => (id.startsWith("output_pin ") ? ["value"] : ["speed"]);
+const fanDisplayName = (id: string) =>
+  id.replace(/^(fan_generic|heater_fan|controller_fan|output_pin) /, "");
 /** Jog feed rates in mm/min, as in Mainsail's defaults. */
 const JOG_FEED = { xy: 6000, z: 600 };
 const num = (value: number) => String(Math.round(value * 1000) / 1000);
@@ -61,7 +70,6 @@ export function toWebSocketUrl(httpUrl: string): string {
   return url.toString();
 }
 
-/** Maps Klipper object state to the driver-neutral status. Exported for tests. */
 /** Nozzles first, then the bed, other heaters, and passive sensors (MCU, chamber) last. */
 function heaterRank(name: string) {
   if (name.startsWith("extruder")) return 0;
@@ -74,7 +82,12 @@ export function sortHeaters(names: string[]) {
   return [...names].sort((a, b) => heaterRank(a) - heaterRank(b) || a.localeCompare(b));
 }
 
-export function toPrinterStatus(objects: KlipperObjects, heaters: string[]): PrinterStatus {
+/** Maps Klipper object state to the driver-neutral status. Exported for tests. */
+export function toPrinterStatus(
+  objects: KlipperObjects,
+  heaters: string[],
+  fans: string[] = [],
+): PrinterStatus {
   const webhooks = objects.webhooks ?? {};
   const printStats = objects.print_stats ?? {};
   const klippyState = String(webhooks.state ?? "startup");
@@ -105,6 +118,22 @@ export function toPrinterStatus(objects: KlipperObjects, heaters: string[]): Pri
         current: heater.temperature,
         target,
         controllable: isControllable(name),
+        power: typeof heater.power === "number" ? heater.power : null,
+      },
+    ];
+  });
+
+  const fanStatuses = fans.flatMap((id) => {
+    const fan = objects[id];
+    if (!fan) return [];
+    // output_pin reports `value` already normalised to 0–1 by Klipper (value / scale).
+    const speed = Number(id.startsWith("output_pin ") ? fan.value : fan.speed);
+    return [
+      {
+        id,
+        name: fanDisplayName(id),
+        speed: Number.isFinite(speed) ? speed : 0,
+        controllable: isControllableFan(id),
       },
     ];
   });
@@ -135,6 +164,7 @@ export function toPrinterStatus(objects: KlipperObjects, heaters: string[]): Pri
     temperatures,
     job,
     motion: toMotion(objects),
+    fans: fanStatuses,
     exclusion: state === "printing" || state === "paused" ? toExclusion(objects) : null,
     updatedAt: new Date(),
   };
@@ -159,7 +189,6 @@ function toMotion(objects: KlipperObjects): MotionStatus | null {
     zOffset: xyz(move.homing_origin)?.z ?? 0,
     speedFactor: Number(move.speed_factor ?? 1),
     flowFactor: Number(move.extrude_factor ?? 1),
-    fanSpeed: objects.fan ? Number(objects.fan.speed ?? 0) : null,
   };
 }
 
@@ -279,6 +308,8 @@ export class MoonrakerDriver implements PrinterDriver {
   private pending = new Map<number, Pending>();
   private objects: KlipperObjects = {};
   private heaters: string[] = [];
+  private fans: string[] = [];
+  private pinScales: Record<string, number> = {};
   private status: PrinterStatus = toPrinterStatus({}, []);
   private info: PrinterInfo = { hostname: null, firmwareState: null };
   private statusListeners = new Set<(status: PrinterStatus) => void>();
@@ -414,8 +445,19 @@ export class MoonrakerDriver implements PrinterDriver {
   async setFlowFactor(factor: number) {
     await this.sendGcode(`M221 S${Math.round(factor * 100)}`);
   }
-  async setFanSpeed(speed: number) {
-    await this.sendGcode(speed <= 0 ? "M107" : `M106 S${Math.round(Math.min(1, speed) * 255)}`);
+  async setFanSpeed(fanId: string, speed: number) {
+    if (!this.fans.includes(fanId) || !isControllableFan(fanId))
+      throw new MoonrakerError(`"${fanId}" is not a controllable fan.`);
+    const clamped = Math.min(1, Math.max(0, speed));
+    if (fanId === "fan") {
+      await this.sendGcode(clamped === 0 ? "M107" : `M106 S${Math.round(clamped * 255)}`);
+    } else if (fanId.startsWith("fan_generic ")) {
+      await this.sendGcode(`SET_FAN_SPEED FAN=${fanDisplayName(fanId)} SPEED=${num(clamped)}`);
+    } else {
+      // SET_PIN takes the value in the pin's configured scale (Creality: scale 255).
+      const scale = this.pinScales[fanId] ?? 1;
+      await this.sendGcode(`SET_PIN PIN=${fanDisplayName(fanId)} VALUE=${num(clamped * scale)}`);
+    }
   }
   async excludeObject(name: string) {
     if (!/^[^\s;"'\\]+$/.test(name)) throw new MoonrakerError("Invalid object name.");
@@ -472,7 +514,16 @@ export class MoonrakerDriver implements PrinterDriver {
     const list = (await this.call("printer.objects.list")) as { objects: string[] };
     this.heaters = list.objects.filter((name) => HEATER_PATTERN.test(name));
     const objects: Record<string, string[] | null> = { ...BASE_OBJECTS };
-    for (const heater of this.heaters) objects[heater] = ["temperature", "target"];
+    for (const heater of this.heaters) {
+      objects[heater] = isControllable(heater)
+        ? ["temperature", "target", "power"]
+        : ["temperature", "target"];
+    }
+    this.fans = list.objects.filter((name) => FAN_PATTERN.test(name));
+    for (const fan of this.fans) objects[fan] = fanFields(fan);
+    this.pinScales = await this.readPinScales(
+      this.fans.filter((fan) => fan.startsWith("output_pin ")),
+    );
     for (const [name, fields] of Object.entries(OPTIONAL_OBJECTS)) {
       if (list.objects.includes(name)) objects[name] = fields;
     }
@@ -483,8 +534,22 @@ export class MoonrakerDriver implements PrinterDriver {
     this.publish();
   }
 
+  /** `scale` of output pins from the printer config (default 1), needed to convert 0–1 to SET_PIN values. */
+  private async readPinScales(pins: string[]): Promise<Record<string, number>> {
+    if (pins.length === 0) return {};
+    const result = (await this.call("printer.objects.query", {
+      objects: { configfile: ["settings"] },
+    }).catch(() => null)) as {
+      status?: { configfile?: { settings?: Record<string, { scale?: number }> } };
+    } | null;
+    const settings = result?.status?.configfile?.settings ?? {};
+    return Object.fromEntries(
+      pins.map((pin) => [pin, Number(settings[pin.toLowerCase()]?.scale ?? 1) || 1]),
+    );
+  }
+
   private publish() {
-    this.status = toPrinterStatus(this.objects, this.heaters);
+    this.status = toPrinterStatus(this.objects, this.heaters, this.fans);
     for (const listener of this.statusListeners) listener(this.status);
   }
 

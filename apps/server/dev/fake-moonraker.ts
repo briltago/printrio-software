@@ -18,6 +18,8 @@ export interface FakeMoonrakerOptions {
   printing?: { fileName: string; progress: number };
   /** Simulation tick; 0 disables the timer (tests drive state explicitly). */
   tickMs?: number;
+  /** Creality-style fans: part fan as `output_pin fan0` (scale 255) instead of `[fan]`. */
+  creality?: boolean;
   /** Progress added per tick while printing. */
   progressPerTick?: number;
 }
@@ -60,7 +62,8 @@ export class FakeMoonraker {
         speed_factor: 1,
         extrude_factor: 1,
       },
-      fan: { speed: 0 },
+      ...(options.creality ? { "output_pin fan0": { value: 0 } } : { fan: { speed: 0 } }),
+      "heater_fan hotend_fan": { speed: 0 },
       exclude_object: { objects: [], excluded_objects: [], current_object: null },
     };
     if (options.printing) this.startPrint(options.printing.fileName, options.printing.progress);
@@ -172,9 +175,21 @@ export class FakeMoonraker {
       Math.round(
         (current + (Math.max(target, 22) - current) * 0.25 + (Math.random() - 0.5) * 0.4) * 10,
       ) / 10;
+    // Duty cycle: high while far below target, settling around 30–40 % once there.
+    const power = (current: number, target: number) =>
+      target <= 0
+        ? 0
+        : Math.round(Math.min(1, Math.max(0.3, (target - current) / 20 + 0.35)) * 100) / 100;
     const update: Objects = {
-      extruder: { temperature: approach(Number(extruder.temperature), Number(extruder.target)) },
-      heater_bed: { temperature: approach(Number(bed.temperature), Number(bed.target)) },
+      extruder: {
+        temperature: approach(Number(extruder.temperature), Number(extruder.target)),
+        power: power(Number(extruder.temperature), Number(extruder.target)),
+      },
+      heater_bed: {
+        temperature: approach(Number(bed.temperature), Number(bed.target)),
+        power: power(Number(bed.temperature), Number(bed.target)),
+      },
+      "heater_fan hotend_fan": { speed: Number(extruder.temperature) > 50 ? 1 : 0 },
     };
     for (const name of HEATERS) {
       const entry = this.history[name];
@@ -267,6 +282,16 @@ export class FakeMoonraker {
         case "M107":
           this.update({ fan: { speed: 0 } });
           break;
+        case "SET_FAN_SPEED":
+          this.update({ [`fan_generic ${arg("FAN=")}`]: { speed: Number(arg("SPEED=")) } });
+          break;
+        case "SET_PIN": {
+          const pin = `output_pin ${arg("PIN=")}`;
+          if (!this.objects[pin]) return `Unknown pin ${arg("PIN=")}`;
+          // Klipper reports output_pin value normalised by the configured scale.
+          this.update({ [pin]: { value: Number(arg("VALUE=")) / 255 } });
+          break;
+        }
         case "EXCLUDE_OBJECT": {
           const exclusion = this.objects.exclude_object ?? {};
           const excluded = [
@@ -300,7 +325,8 @@ export class FakeMoonraker {
       heater_bed: { target: 60, temperature: progress > 0 ? 59.8 : 23.8 },
       toolhead: { ...this.objects.toolhead, homed_axes: "xyz" },
       gcode_move: { ...this.objects.gcode_move, gcode_position: [125.4, 98.2, 12.6, 0] },
-      fan: { speed: 1 },
+      ...(this.options.creality ? { "output_pin fan0": { value: 1 } } : { fan: { speed: 1 } }),
+      "heater_fan hotend_fan": { speed: 1 },
       exclude_object: {
         objects: [{ name: "PART_1" }, { name: "PART_2" }, { name: "PART_3" }],
         excluded_objects: [],
@@ -358,6 +384,11 @@ export class FakeMoonraker {
         case "printer.objects.list":
           if (klippyState !== "ready") return fail(503, "Klippy not ready");
           return reply({ objects: Object.keys(this.objects) });
+        case "printer.objects.query":
+          return reply({
+            eventtime: Date.now() / 1000,
+            status: { configfile: { settings: { "output_pin fan0": { pwm: true, scale: 255 } } } },
+          });
         case "printer.objects.subscribe": {
           if (klippyState !== "ready") return fail(503, "Klippy not ready");
           const status: Objects = {};

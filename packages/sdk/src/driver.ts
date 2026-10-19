@@ -15,6 +15,19 @@ export interface TemperatureReading {
   target: number | null;
   /** True for heaters whose target can be set; false for passive sensors. */
   controllable: boolean;
+  /** Heater duty cycle 0–1; null for sensors. */
+  power: number | null;
+}
+
+export interface FanStatus {
+  /** Stable id used for commands, e.g. "fan", "fan_generic aux", "output_pin fan0". */
+  id: string;
+  /** Display name, e.g. "fan", "aux", "fan0". */
+  name: string;
+  /** 0–1 */
+  speed: number;
+  /** False for automatic fans (heater_fan, controller_fan). */
+  controllable: boolean;
 }
 
 export interface TemperatureHistory {
@@ -60,8 +73,6 @@ export interface MotionStatus {
   /** 1 = 100 %. */
   speedFactor: number;
   flowFactor: number;
-  /** Part cooling fan, 0–1; null when the printer has no fan object. */
-  fanSpeed: number | null;
 }
 
 export interface ObjectExclusion {
@@ -77,6 +88,7 @@ export interface PrinterStatus {
   job: PrintProgress | null;
   /** Null until known (e.g. while Klipper is starting). */
   motion: MotionStatus | null;
+  fans: FanStatus[];
   /** Objects of the current print that can be skipped (Klipper exclude_object); null when unsupported. */
   exclusion: ObjectExclusion | null;
   updatedAt: Date;
@@ -126,8 +138,8 @@ export interface PrinterDriver {
   /** Factors: 1 = 100 %. */
   setSpeedFactor(factor: number): Promise<void>;
   setFlowFactor(factor: number): Promise<void>;
-  /** 0–1 */
-  setFanSpeed(speed: number): Promise<void>;
+  /** 0–1; only for fans reported as controllable. */
+  setFanSpeed(fanId: string, speed: number): Promise<void>;
   excludeObject(name: string): Promise<void>;
   getTemperatureHistory(): Promise<TemperatureHistory>;
   listWebcams(): Promise<Webcam[]>;

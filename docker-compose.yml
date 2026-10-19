@@ -1,0 +1,34 @@
+# Printrio — self-hosted stack. Copy .env.example to .env and set a strong POSTGRES_PASSWORD.
+services:
+  printrio:
+    image: ghcr.io/briltago/printrio:latest
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://printrio:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/printrio
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    ports:
+      - "${PRINTRIO_PORT:-3000}:3000"
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: printrio
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: printrio
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U printrio -d printrio"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:

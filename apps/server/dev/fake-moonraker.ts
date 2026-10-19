@@ -50,6 +50,21 @@ export class FakeMoonraker {
     if (options.printing) this.startPrint(options.printing.fileName, options.printing.progress);
 
     this.server = createServer((req, res) => {
+      if (req.method === "GET" && req.url === "/server/info") {
+        if (options.apiKey && req.headers["x-api-key"] !== options.apiKey) {
+          res
+            .writeHead(401, { "Content-Type": "application/json" })
+            .end(JSON.stringify({ error: { code: 401, message: "Unauthorized" } }));
+          return;
+        }
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            result: { klippy_state: this.objects.webhooks?.state, moonraker_version: "fake" },
+          }),
+        );
+        return;
+      }
       if (req.method === "POST" && req.url?.startsWith("/server/files/upload")) {
         if (options.apiKey && req.headers["x-api-key"] !== options.apiKey) {
           res.writeHead(401).end();

@@ -1,7 +1,14 @@
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import type { PrinterStatus } from "@printrio/sdk";
 import { afterEach, describe, expect, it } from "vitest";
 import { FakeMoonraker } from "../dev/fake-moonraker.ts";
-import { MoonrakerDriver, toPrinterStatus, toWebSocketUrl } from "../src/drivers/moonraker.ts";
+import {
+  MoonrakerDriver,
+  sortHeaters,
+  toPrinterStatus,
+  toWebSocketUrl,
+} from "../src/drivers/moonraker.ts";
 
 const fakes: FakeMoonraker[] = [];
 const drivers: MoonrakerDriver[] = [];
@@ -36,6 +43,26 @@ describe("toWebSocketUrl", () => {
     expect(toWebSocketUrl("https://farm.example/printer1/")).toBe(
       "wss://farm.example/printer1/websocket",
     );
+  });
+});
+
+describe("sortHeaters", () => {
+  it("lists nozzles, bed, other heaters, then sensors", () => {
+    expect(
+      sortHeaters([
+        "temperature_sensor mcu_temp",
+        "heater_bed",
+        "extruder1",
+        "heater_generic chamber",
+        "extruder",
+      ]),
+    ).toEqual([
+      "extruder",
+      "extruder1",
+      "heater_bed",
+      "heater_generic chamber",
+      "temperature_sensor mcu_temp",
+    ]);
   });
 });
 
@@ -78,9 +105,10 @@ describe("MoonrakerDriver", () => {
     expect(status.temperatures.map((t) => t.name)).toEqual(["extruder", "heater_bed"]);
   });
 
-  it("rejects a wrong API key", async () => {
+  it("rejects a wrong or missing API key with a clear message", async () => {
     const { url, driver } = await setup({ apiKey: "secret" });
-    await expect(driver.connect({ url, apiKey: "wrong" })).rejects.toThrow(/Unauthorized/);
+    await expect(driver.connect({ url, apiKey: "wrong" })).rejects.toThrow(/rejected the API key/);
+    await expect(new MoonrakerDriver().connect({ url })).rejects.toThrow(/requires authentication/);
   });
 
   it("accepts the right API key", async () => {
@@ -89,9 +117,34 @@ describe("MoonrakerDriver", () => {
     expect((await driver.getStatus()).state).toBe("idle");
   });
 
-  it("fails fast when nothing listens at the address", async () => {
-    const driver = new MoonrakerDriver();
-    await expect(driver.connect({ url: "http://127.0.0.1:1" })).rejects.toThrow(/Could not reach/);
+  it("explains https:// pointed at Moonraker's plain HTTP port", async () => {
+    const { url } = await setup();
+    const https = url.replace("http://", "https://");
+    await expect(new MoonrakerDriver().connect({ url: https })).rejects.toThrow(
+      /Use http:\/\/ instead of https:\/\//,
+    );
+  });
+
+  it("explains a port where nothing listens", async () => {
+    const server = createServer().listen(0, "127.0.0.1");
+    await new Promise((resolve) => server.once("listening", resolve));
+    const port = (server.address() as AddressInfo).port;
+    await new Promise((resolve) => server.close(resolve));
+    await expect(
+      new MoonrakerDriver().connect({ url: `http://127.0.0.1:${port}` }),
+    ).rejects.toThrow(/Nothing is listening/);
+  });
+
+  it("explains a web server that isn't Moonraker", async () => {
+    const server = createServer((_req, res) =>
+      res.writeHead(404).end("<html>Fluidd</html>"),
+    ).listen(0, "127.0.0.1");
+    await new Promise((resolve) => server.once("listening", resolve));
+    const port = (server.address() as AddressInfo).port;
+    await expect(
+      new MoonrakerDriver().connect({ url: `http://127.0.0.1:${port}` }),
+    ).rejects.toThrow(/isn't Moonraker/);
+    server.close();
   });
 
   it("streams live progress and controls a print", async () => {

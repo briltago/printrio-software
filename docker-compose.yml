@@ -12,6 +12,8 @@ services:
     environment:
       DATABASE_URL: postgres://printrio:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/printrio
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    volumes:
+      - printrio-data:/data
     ports:
       - "${PRINTRIO_PORT:-3000}:3000"
 
@@ -31,4 +33,5 @@ services:
       retries: 10
 
 volumes:
+  printrio-data:
   postgres-data:

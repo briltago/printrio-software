@@ -1,10 +1,11 @@
 import { loginRequestSchema, setupRequestSchema, type User } from "@printrio/shared";
 import { count, sql } from "drizzle-orm";
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import { getDummyHash, hashPassword, verifyPassword } from "../auth/password.ts";
 import { createSession, deleteSession, findSessionUser, SESSION_COOKIE } from "../auth/sessions.ts";
 import type { Database } from "../db/client.ts";
 import { users } from "../db/schema.ts";
+import { requireUser } from "./guards.ts";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -92,8 +93,4 @@ export function authRoutes(app: FastifyInstance, { db, cookieSecure }: AuthOptio
   });
 
   app.get("/api/auth/me", { preHandler: requireUser }, async (request) => request.user);
-}
-
-export async function requireUser(request: FastifyRequest, reply: FastifyReply) {
-  if (!request.user) return reply.code(401).send({ error: "Authentication required." });
 }

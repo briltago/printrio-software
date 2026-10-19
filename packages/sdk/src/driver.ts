@@ -37,19 +37,32 @@ export interface PrinterConnection {
   apiKey?: string;
 }
 
+export interface PrinterInfo {
+  hostname: string | null;
+  /** Firmware/host state as reported by the printer, e.g. Klipper's "ready". */
+  firmwareState: string | null;
+}
+
 export interface PrinterDriver {
   /** Stable driver id, e.g. "moonraker". */
   readonly id: string;
+  /** Resolves once connected and the first status is known; rejects if the printer is unreachable. */
   connect(connection: PrinterConnection): Promise<void>;
   disconnect(): Promise<void>;
+  getInfo(): Promise<PrinterInfo>;
   getStatus(): Promise<PrinterStatus>;
   onStatus(listener: (status: PrinterStatus) => void): () => void;
+  /** Console output (G-code responses), if the ecosystem provides it. */
+  onConsole(listener: (line: string) => void): () => void;
+  /** Fired once when an established connection drops; the host decides when to reconnect. */
+  onDisconnect(listener: () => void): () => void;
 
   uploadFile(name: string, data: AsyncIterable<Uint8Array>): Promise<void>;
   startPrint(fileName: string): Promise<void>;
   pause(): Promise<void>;
   resume(): Promise<void>;
   cancel(): Promise<void>;
+  emergencyStop(): Promise<void>;
   sendGcode(script: string): Promise<void>;
 }
 

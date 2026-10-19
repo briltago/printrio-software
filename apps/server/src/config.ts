@@ -12,6 +12,12 @@ const configSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((value) => value === "true"),
+  /**
+   * Secret used to encrypt printer credentials at rest (min. 32 characters).
+   * When unset, one is generated on first start and stored in DATA_DIR.
+   */
+  APP_SECRET: z.string().min(32).optional(),
+  DATA_DIR: z.string().default("./data"),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
 });
 

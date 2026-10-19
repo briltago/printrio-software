@@ -92,6 +92,15 @@ add-on packs of +5 up to 20; Business includes 20 and is billed per additional
 printer. This avoids forcing a 10-printer farm without a team into Business,
 and keeps the licence model simple: limits are numbers in the signed licence.
 
+### One app from one printer to a farm
+
+The same workspace adapts to its size instead of shipping separate products:
+
+- **Usage mode** chosen in the first-run wizard ("one or two printers" / "print farm") presets the sidebar; it can be changed later.
+- **Start page**: automatic by default — a single printer opens its own page, several open the fleet overview; configurable.
+- **Fleet view** scales from a handful of cards to compact tiles and a sortable list for large farms, with groups (rooms, sites) and tags.
+- **Sidebar** sections can be hidden and reordered in Settings, so a hobbyist never sees order management unless they want it.
+
 ## 6. Business model
 
 - **Subscription** (monthly / yearly), billed per instance.
@@ -105,7 +114,7 @@ and keeps the licence model simple: limits are numbers in the signed licence.
 | Phase | Scope |
 | ----- | ----- |
 | **F0 — Foundation** | Monorepo, CI, Docker Compose, PostgreSQL, authentication and users, module SDK skeleton, docs |
-| **F1 — Core (Free)** | Moonraker driver, fleet dashboard, printer control, webcam, files + slicer upload, history, spools + Spoolman import, job costing, simple orders |
+| **F1 — Core (Free)** | ✅ Moonraker driver, live status, printer control + console; ✅ first-run wizard (usage mode, first printer); ✅ single-printer and fleet views (cards / compact / list, groups, tags, filters); ✅ configurable sidebar, light/dark theme, user management, Ctrl+K palette. Next: webcam, files + slicer upload, history, spools + Spoolman import, job costing, simple orders |
 | **F2 — Licensing + Pro** | `printrio-licensing` service, activation, signed module delivery; Pro: fleet queue, auto-assignment, orders+, notifications |
 | **F3 — Beta for the waitlist** | Backups/export, update mechanism, onboarding, docs on printrio.app |
 | **Later** | Automations, Business module, PrusaLink / Bambu / OctoPrint drivers, AI failure detection, remote access relay |

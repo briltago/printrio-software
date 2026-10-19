@@ -16,8 +16,13 @@ cp .env.example .env        # set POSTGRES_PASSWORD
 docker compose up -d --build
 ```
 
-Open `http://<host>:3000` and create the administrator account. When Printrio is
-served over HTTPS (reverse proxy, Tailscale Serve, …) set `COOKIE_SECURE=true`.
+Open `http://<host>:3000`, create the administrator account and follow the
+setup wizard to add your first Klipper printer (Moonraker address, usually
+`http://<printer-ip>:7125`). When Printrio is served over HTTPS (reverse proxy,
+Tailscale Serve, …) set `COOKIE_SECURE=true`.
+
+Printer API keys are encrypted with a secret stored in the `printrio-data`
+volume (or `APP_SECRET` if you set one). Back it up together with the database.
 
 ## Development
 
@@ -27,6 +32,7 @@ Requirements: Node.js 22, pnpm 10 (`corepack enable`), PostgreSQL 16.
 pnpm install
 cp apps/server/.env.example apps/server/.env   # point DATABASE_URL at your database
 pnpm dev            # server on :3000, web UI on :5173 (proxies /api)
+pnpm --filter @printrio/server dev:printers   # six simulated Klipper printers on :7125–7130
 ```
 
 | Command          | What it does |

@@ -78,6 +78,30 @@ Slicer upload: the server implements the OctoPrint-compatible upload endpoint
 (`/api/files/local`) that OrcaSlicer, PrusaSlicer and Cura already support, so
 slicers can send directly to Printrio.
 
+### Live data
+
+`PrinterManager` keeps one driver connection per printer and reconnects with
+exponential backoff (1 s → 30 s). Browsers subscribe to `/api/ws` (session
+required) and receive `printer.status`, `printer.console` and
+`printers.changed` messages (`realtimeMessageSchema` in `packages/shared`);
+the web app writes them straight into the TanStack Query cache.
+
+### Workspace settings
+
+Instance-wide settings (usage mode, start page, sidebar order/visibility,
+onboarding state) live in `instance_settings` as one validated JSON document
+(`workspaceSettingsSchema`). Per-browser preferences (theme, fleet view mode)
+stay in `localStorage`.
+
+### Web app conventions
+
+- All UI strings go through `useT()` (`apps/web/src/i18n`). English is the only
+  locale today; another language is a file shaped like `en.ts`.
+- Theme tokens are CSS variables; `<html data-theme="light|dark">` switches them
+  (see `docs/DESIGN.md`).
+- `pnpm dev:printers` (in `apps/server`) starts six simulated Moonraker printers
+  for UI work; tests use the same simulator.
+
 ## 6. Modules (Pro / Business)
 
 - A module is a JavaScript bundle implementing `PrintrioModule` from
@@ -127,7 +151,11 @@ Payment provider webhooks (Paddle / Lemon Squeezy) update subscriptions in
   token in an `HttpOnly`, `SameSite=Lax` cookie (`Secure` when served over HTTPS).
 - First-run setup creates the initial admin; setup is closed once a user exists.
 - All input validated with Zod; no secrets in source; config via environment.
-- Printer credentials (API keys) encrypted at rest with an instance key.
+- Printer credentials (API keys) encrypted at rest (AES-256-GCM) with
+  `APP_SECRET`, or a secret generated on first start in `DATA_DIR`
+  (`/data` volume in Docker). Back up that volume together with the database.
+- Admins manage printers, users and settings; operators run printers. At least
+  one administrator always remains.
 
 ## 9. Licensing of the core
 

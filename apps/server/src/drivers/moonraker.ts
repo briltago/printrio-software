@@ -1,4 +1,7 @@
 import type {
+  Axis,
+  MotionStatus,
+  ObjectExclusion,
   PrinterConnection,
   PrinterDriver,
   PrinterDriverFactory,
@@ -27,6 +30,18 @@ const BASE_OBJECTS: Record<string, string[] | null> = {
   virtual_sdcard: ["progress"],
   display_status: ["progress", "message"],
 };
+/** Optional objects: subscribed only when the printer has them. */
+const OPTIONAL_OBJECTS: Record<string, string[]> = {
+  toolhead: ["homed_axes", "axis_minimum", "axis_maximum"],
+  gcode_move: ["gcode_position", "homing_origin", "speed_factor", "extrude_factor"],
+  fan: ["speed"],
+  exclude_object: ["objects", "excluded_objects", "current_object"],
+};
+const AXES: Axis[] = ["x", "y", "z"];
+/** Jog feed rates in mm/min, as in Mainsail's defaults. */
+const JOG_FEED = { xy: 6000, z: 600 };
+const num = (value: number) => String(Math.round(value * 1000) / 1000);
+
 const HEATER_PATTERN = /^(extruder\d*|heater_bed|heater_generic .+|temperature_sensor .+)$/;
 
 type KlipperObjects = Record<string, Record<string, unknown>>;
@@ -114,7 +129,53 @@ export function toPrinterStatus(objects: KlipperObjects, heaters: string[]): Pri
       ? String(webhooks.state_message ?? "") || null
       : String(printStats.message ?? objects.display_status?.message ?? "") || null;
 
-  return { state, message, temperatures, job, updatedAt: new Date() };
+  return {
+    state,
+    message,
+    temperatures,
+    job,
+    motion: toMotion(objects),
+    exclusion: state === "printing" || state === "paused" ? toExclusion(objects) : null,
+    updatedAt: new Date(),
+  };
+}
+
+const xyz = (value: unknown): Record<Axis, number> | null =>
+  Array.isArray(value) && value.length >= 3
+    ? { x: Number(value[0]), y: Number(value[1]), z: Number(value[2]) }
+    : null;
+
+function toMotion(objects: KlipperObjects): MotionStatus | null {
+  const move = objects.gcode_move;
+  const toolhead = objects.toolhead;
+  const position = xyz(move?.gcode_position);
+  if (!move || !toolhead || !position) return null;
+  const homed = String(toolhead.homed_axes ?? "");
+  return {
+    position,
+    homedAxes: AXES.filter((axis) => homed.includes(axis)),
+    min: xyz(toolhead.axis_minimum),
+    max: xyz(toolhead.axis_maximum),
+    zOffset: xyz(move.homing_origin)?.z ?? 0,
+    speedFactor: Number(move.speed_factor ?? 1),
+    flowFactor: Number(move.extrude_factor ?? 1),
+    fanSpeed: objects.fan ? Number(objects.fan.speed ?? 0) : null,
+  };
+}
+
+function toExclusion(objects: KlipperObjects): ObjectExclusion | null {
+  const exclusion = objects.exclude_object;
+  if (!exclusion || !Array.isArray(exclusion.objects) || exclusion.objects.length === 0)
+    return null;
+  return {
+    objects: exclusion.objects
+      .map((object: { name?: string }) => String(object.name ?? ""))
+      .filter(Boolean),
+    excluded: Array.isArray(exclusion.excluded_objects)
+      ? exclusion.excluded_objects.map(String)
+      : [],
+    current: exclusion.current_object ? String(exclusion.current_object) : null,
+  };
 }
 
 const isControllable = (name: string) => /^(extruder\d*|heater_bed|heater_generic .+)$/.test(name);
@@ -333,6 +394,34 @@ export class MoonrakerDriver implements PrinterDriver {
     );
   }
 
+  async home(axes: Axis[]) {
+    await this.sendGcode(`G28${axes.map((axis) => ` ${axis.toUpperCase()}`).join("")}`);
+  }
+  async jog(axis: Axis, distance: number) {
+    const feed = axis === "z" ? JOG_FEED.z : JOG_FEED.xy;
+    // Relative move, then back to absolute positioning (same sequence as Mainsail).
+    await this.sendGcode(`G91\nG1 ${axis.toUpperCase()}${num(distance)} F${feed}\nG90`);
+  }
+  async motorsOff() {
+    await this.sendGcode("M84");
+  }
+  async adjustZOffset(delta: number) {
+    await this.sendGcode(`SET_GCODE_OFFSET Z_ADJUST=${num(delta)} MOVE=1`);
+  }
+  async setSpeedFactor(factor: number) {
+    await this.sendGcode(`M220 S${Math.round(factor * 100)}`);
+  }
+  async setFlowFactor(factor: number) {
+    await this.sendGcode(`M221 S${Math.round(factor * 100)}`);
+  }
+  async setFanSpeed(speed: number) {
+    await this.sendGcode(speed <= 0 ? "M107" : `M106 S${Math.round(Math.min(1, speed) * 255)}`);
+  }
+  async excludeObject(name: string) {
+    if (!/^[^\s;"'\\]+$/.test(name)) throw new MoonrakerError("Invalid object name.");
+    await this.sendGcode(`EXCLUDE_OBJECT NAME=${name}`);
+  }
+
   async getTemperatureHistory(): Promise<TemperatureHistory> {
     const store = (await this.call("server.temperature_store", {
       include_monitors: false,
@@ -384,6 +473,9 @@ export class MoonrakerDriver implements PrinterDriver {
     this.heaters = list.objects.filter((name) => HEATER_PATTERN.test(name));
     const objects: Record<string, string[] | null> = { ...BASE_OBJECTS };
     for (const heater of this.heaters) objects[heater] = ["temperature", "target"];
+    for (const [name, fields] of Object.entries(OPTIONAL_OBJECTS)) {
+      if (list.objects.includes(name)) objects[name] = fields;
+    }
     const result = (await this.call("printer.objects.subscribe", { objects })) as {
       status: KlipperObjects;
     };

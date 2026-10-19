@@ -10,9 +10,12 @@ import {
   ProgressBar,
   StateBadge,
 } from "../components.tsx";
+import { ObjectExclusion } from "../features/object-exclusion.tsx";
 import { Panel } from "../features/panel.tsx";
 import { PrinterForm } from "../features/printer-form.tsx";
 import { TemperaturePanel } from "../features/temperature-panel.tsx";
+import { ToolheadPanel } from "../features/toolhead-panel.tsx";
+import { TuningPanel } from "../features/tuning-panel.tsx";
 import { WebcamPanel } from "../features/webcam-panel.tsx";
 import { useT } from "../i18n/index.tsx";
 import { api } from "../lib/api.ts";
@@ -143,6 +146,9 @@ export function PrinterPage() {
             ) : (
               <p className="text-sm text-muted">{t("printer.noJob")}</p>
             )}
+            {status.exclusion && (
+              <ObjectExclusion printerId={printer.id} exclusion={status.exclusion} />
+            )}
             <div className="mt-6 flex flex-wrap gap-2 border-line border-t pt-4">
               {status.state === "printing" && (
                 <button
@@ -189,6 +195,9 @@ export function PrinterPage() {
               </button>
             </div>
           </Panel>
+          {status.motion && (
+            <ToolheadPanel printerId={printer.id} motion={status.motion} state={status.state} />
+          )}
         </div>
         <div className="grid min-w-0 content-start gap-4">
           <TemperaturePanel
@@ -196,6 +205,9 @@ export function PrinterPage() {
             temperatures={status.temperatures}
             connected={connected}
           />
+          {status.motion && (
+            <TuningPanel printerId={printer.id} motion={status.motion} connected={connected} />
+          )}
         </div>
       </div>
 

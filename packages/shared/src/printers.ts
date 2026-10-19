@@ -60,11 +60,35 @@ export const printProgressSchema = z.object({
   filamentUsedMm: z.number(),
 });
 
+export const axisSchema = z.enum(["x", "y", "z"]);
+export type Axis = z.infer<typeof axisSchema>;
+const xyz = z.object({ x: z.number(), y: z.number(), z: z.number() });
+
+export const motionStatusSchema = z.object({
+  position: xyz,
+  homedAxes: z.array(axisSchema),
+  min: xyz.nullable(),
+  max: xyz.nullable(),
+  zOffset: z.number(),
+  speedFactor: z.number(),
+  flowFactor: z.number(),
+  fanSpeed: z.number().nullable(),
+});
+export type MotionStatusDto = z.infer<typeof motionStatusSchema>;
+
+export const objectExclusionSchema = z.object({
+  objects: z.array(z.string()),
+  excluded: z.array(z.string()),
+  current: z.string().nullable(),
+});
+
 export const printerStatusSchema = z.object({
   state: printerStateSchema,
   message: z.string().nullable(),
   temperatures: z.array(temperatureSchema),
   job: printProgressSchema.nullable(),
+  motion: motionStatusSchema.nullable(),
+  exclusion: objectExclusionSchema.nullable(),
   updatedAt: z.iso.datetime(),
 });
 export type PrinterStatusDto = z.infer<typeof printerStatusSchema>;
@@ -138,6 +162,31 @@ export const printerCommandSchema = z.discriminatedUnion("action", [
     action: z.literal("set_temperature"),
     heater: heaterIdSchema,
     target: z.number().min(0).max(MAX_HEATER_TARGET),
+  }),
+  z.object({ action: z.literal("home"), axes: z.array(axisSchema).max(3) }),
+  z.object({
+    action: z.literal("jog"),
+    axis: axisSchema,
+    distance: z
+      .number()
+      .min(-500)
+      .max(500)
+      .refine((d) => d !== 0, "Distance must not be zero."),
+  }),
+  z.object({ action: z.literal("motors_off") }),
+  z.object({ action: z.literal("z_offset"), delta: z.number().min(-1).max(1) }),
+  /** Factors: 1 = 100 %. */
+  z.object({ action: z.literal("speed_factor"), factor: z.number().min(0.1).max(3) }),
+  z.object({ action: z.literal("flow_factor"), factor: z.number().min(0.5).max(1.5) }),
+  z.object({ action: z.literal("fan_speed"), speed: z.number().min(0).max(1) }),
+  z.object({
+    action: z.literal("exclude_object"),
+    // Klipper object names are single tokens; reject anything that could inject G-code.
+    name: z
+      .string()
+      .min(1)
+      .max(200)
+      .regex(/^[^\s;"'\\]+$/),
   }),
 ]);
 export type PrinterCommand = z.infer<typeof printerCommandSchema>;

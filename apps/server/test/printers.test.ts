@@ -1,0 +1,259 @@
+import type { AddressInfo } from "node:net";
+import type { Printer, PrinterStatusDto, RealtimeMessage } from "@printrio/shared";
+import { sql } from "drizzle-orm";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import WebSocket from "ws";
+import { FakeMoonraker } from "../dev/fake-moonraker.ts";
+import { createTestApp, sessionCookie } from "./helpers.ts";
+
+let ctx: Awaited<ReturnType<typeof createTestApp>>;
+let admin: string;
+let operator: string;
+const fakes: FakeMoonraker[] = [];
+
+beforeAll(async () => {
+  ctx = await createTestApp();
+  const setup = await ctx.app.inject({
+    method: "POST",
+    url: "/api/setup",
+    payload: {
+      email: "admin@example.com",
+      displayName: "Admin",
+      password: "correct horse battery",
+    },
+  });
+  admin = sessionCookie(setup.headers["set-cookie"]);
+  await ctx.app.inject({
+    method: "POST",
+    url: "/api/users",
+    headers: { cookie: admin },
+    payload: {
+      email: "op@example.com",
+      displayName: "Operator",
+      password: "operator password",
+      role: "operator",
+    },
+  });
+  const login = await ctx.app.inject({
+    method: "POST",
+    url: "/api/auth/login",
+    payload: { email: "op@example.com", password: "operator password" },
+  });
+  operator = sessionCookie(login.headers["set-cookie"]);
+});
+
+afterEach(async () => {
+  // Delete through the API so the manager drops its connections too.
+  for (const printer of await listPrinters()) await api("DELETE", `/api/printers/${printer.id}`);
+  await ctx.db.execute(sql`delete from printer_groups`);
+  await Promise.all(fakes.splice(0).map((fake) => fake.stop()));
+});
+
+afterAll(async () => {
+  await ctx.close();
+});
+
+async function fakePrinter(options: ConstructorParameters<typeof FakeMoonraker>[0] = {}) {
+  const fake = new FakeMoonraker({ tickMs: 0, ...options });
+  fakes.push(fake);
+  await fake.start();
+  return fake;
+}
+
+const api = (
+  method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE",
+  url: string,
+  payload?: object,
+  cookie = admin,
+) => ctx.app.inject({ method, url, payload, headers: { cookie } });
+
+async function listPrinters(cookie = admin): Promise<Printer[]> {
+  return (await api("GET", "/api/printers", undefined, cookie)).json().printers;
+}
+
+async function waitForState(id: string, state: PrinterStatusDto["state"]) {
+  for (let i = 0; i < 100; i++) {
+    const printer = (await listPrinters()).find((p) => p.id === id);
+    if (printer?.status.state === state) return printer;
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  throw new Error(`Printer never reached ${state}`);
+}
+
+describe("connection test", () => {
+  it("reports hostname and Klipper state for a reachable printer", async () => {
+    const fake = await fakePrinter({ hostname: "voron" });
+    const res = await api("POST", "/api/printers/test", { url: fake.url });
+    expect(res.json()).toEqual({ ok: true, hostname: "voron", klippyState: "ready", error: null });
+  });
+
+  it("explains failures instead of throwing", async () => {
+    const res = await api("POST", "/api/printers/test", { url: "http://127.0.0.1:1" });
+    expect(res.json()).toMatchObject({
+      ok: false,
+      error: expect.stringMatching(/Could not reach/),
+    });
+  });
+
+  it("is admin only", async () => {
+    expect(
+      (await api("POST", "/api/printers/test", { url: "http://127.0.0.1:1" }, operator)).statusCode,
+    ).toBe(403);
+  });
+});
+
+describe("printers", () => {
+  it("adds a printer, connects it and exposes live status", async () => {
+    const fake = await fakePrinter({ printing: { fileName: "benchy.gcode", progress: 0.5 } });
+    const res = await api("POST", "/api/printers", {
+      name: "Voron 2.4",
+      url: `${fake.url}/`,
+      tags: ["petg"],
+    });
+    expect(res.statusCode).toBe(201);
+    const created = res.json() as Printer;
+    expect(created).toMatchObject({
+      name: "Voron 2.4",
+      url: fake.url,
+      tags: ["petg"],
+      hasApiKey: false,
+      withinLimit: true,
+    });
+    const printing = await waitForState(created.id, "printing");
+    expect(printing.status.job?.fileName).toBe("benchy.gcode");
+  });
+
+  it("stores API keys encrypted and never returns them", async () => {
+    const fake = await fakePrinter({ apiKey: "moonraker-secret" });
+    const res = await api("POST", "/api/printers", {
+      name: "Secure",
+      url: fake.url,
+      apiKey: "moonraker-secret",
+    });
+    expect(JSON.stringify(res.json())).not.toContain("moonraker-secret");
+    expect(res.json().hasApiKey).toBe(true);
+    const stored = await ctx.db.execute(sql`select api_key_encrypted from printers`);
+    expect(String(stored[0]?.api_key_encrypted)).not.toContain("moonraker-secret");
+    await waitForState(res.json().id, "idle");
+  });
+
+  it("enforces the Free plan printer limit", async () => {
+    const fake = await fakePrinter();
+    for (let i = 0; i < 3; i++) {
+      expect(
+        (await api("POST", "/api/printers", { name: `P${i}`, url: fake.url })).statusCode,
+      ).toBe(201);
+    }
+    const res = await api("POST", "/api/printers", { name: "P4", url: fake.url });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe("printer_limit");
+  });
+
+  it("only lets admins change printers", async () => {
+    expect(
+      (await api("POST", "/api/printers", { name: "X", url: "http://127.0.0.1:1" }, operator))
+        .statusCode,
+    ).toBe(403);
+  });
+
+  it("runs commands from operators and forwards G-code", async () => {
+    const fake = await fakePrinter({ printing: { fileName: "cube.gcode", progress: 0.2 } });
+    const { id } = (await api("POST", "/api/printers", { name: "Ender", url: fake.url })).json();
+    await waitForState(id, "printing");
+    expect(
+      (await api("POST", `/api/printers/${id}/commands`, { action: "pause" }, operator)).statusCode,
+    ).toBe(200);
+    await waitForState(id, "paused");
+    await api(
+      "POST",
+      `/api/printers/${id}/commands`,
+      { action: "gcode", script: "M117 Hello" },
+      operator,
+    );
+    expect(fake.gcode).toEqual(["M117 Hello"]);
+    expect(
+      (await api("POST", `/api/printers/${id}/commands`, { action: "explode" })).statusCode,
+    ).toBe(400);
+  });
+
+  it("returns 409 for commands to a disconnected printer", async () => {
+    const { id } = (
+      await api("POST", "/api/printers", { name: "Gone", url: "http://127.0.0.1:1" })
+    ).json();
+    expect(
+      (await api("POST", `/api/printers/${id}/commands`, { action: "pause" })).statusCode,
+    ).toBe(409);
+  });
+
+  it("reconnects after the printer host comes back", async () => {
+    const fake = await fakePrinter();
+    const { id } = (await api("POST", "/api/printers", { name: "Flaky", url: fake.url })).json();
+    await waitForState(id, "idle");
+    fake.dropConnections();
+    await waitForState(id, "idle");
+  });
+
+  it("updates, reorders and deletes printers", async () => {
+    const fake = await fakePrinter();
+    const a = (await api("POST", "/api/printers", { name: "A", url: fake.url })).json();
+    const b = (await api("POST", "/api/printers", { name: "B", url: fake.url })).json();
+    expect(
+      (await api("PATCH", `/api/printers/${a.id}`, { name: "A2", tags: ["pla"] })).json(),
+    ).toMatchObject({ name: "A2", tags: ["pla"] });
+    await api("PUT", "/api/printers/order", { ids: [b.id, a.id] });
+    expect((await listPrinters()).map((p) => p.name)).toEqual(["B", "A2"]);
+    expect((await api("DELETE", `/api/printers/${a.id}`)).statusCode).toBe(200);
+    expect((await listPrinters()).map((p) => p.name)).toEqual(["B"]);
+  });
+});
+
+describe("groups", () => {
+  it("creates groups, assigns printers and clears assignments on delete", async () => {
+    const group = (await api("POST", "/api/printer-groups", { name: "Workshop" })).json();
+    expect((await api("POST", "/api/printer-groups", { name: "workshop" })).statusCode).toBe(409);
+    const printer = (
+      await api("POST", "/api/printers", {
+        name: "P",
+        url: "http://127.0.0.1:1",
+        groupId: group.id,
+      })
+    ).json();
+    expect(printer.groupId).toBe(group.id);
+    await api("DELETE", `/api/printer-groups/${group.id}`);
+    expect((await listPrinters())[0]?.groupId).toBeNull();
+  });
+});
+
+describe("realtime", () => {
+  it("requires a session and pushes status snapshots and updates", async () => {
+    await ctx.app.listen({ port: 0, host: "127.0.0.1" });
+    const port = (ctx.app.server.address() as AddressInfo).port;
+    const url = `ws://127.0.0.1:${port}/api/ws`;
+
+    const anonymous = new WebSocket(url);
+    const rejected = await new Promise<number>((resolve) =>
+      anonymous.on("unexpected-response", (_req, res) => resolve(res.statusCode ?? 0)),
+    );
+    expect(rejected).toBe(401);
+
+    const fake = await fakePrinter();
+    const { id } = (await api("POST", "/api/printers", { name: "Live", url: fake.url })).json();
+    await waitForState(id, "idle");
+
+    const socket = new WebSocket(url, { headers: { cookie: operator } });
+    const messages: RealtimeMessage[] = [];
+    socket.on("message", (data) => messages.push(JSON.parse(String(data))));
+    await new Promise((resolve) => socket.on("open", resolve));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(messages).toContainEqual(
+      expect.objectContaining({ type: "printer.status", printerId: id }),
+    );
+
+    await api("POST", `/api/printers/${id}/commands`, { action: "gcode", script: "G28" });
+    await api("PATCH", `/api/printers/${id}`, { name: "Live 2" });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(messages).toContainEqual({ type: "printer.console", printerId: id, line: "ok" });
+    expect(messages).toContainEqual({ type: "printers.changed" });
+    socket.close();
+  });
+});

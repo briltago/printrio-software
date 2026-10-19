@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { type WebSocket, WebSocketServer } from "ws";
@@ -23,6 +24,10 @@ export interface FakeMoonrakerOptions {
 
 type Objects = Record<string, Record<string, unknown>>;
 
+const WEBCAM_FRAME = readFileSync(new URL("./fake-webcam.jpg", import.meta.url));
+const HISTORY_SIZE = 1200;
+const HEATERS = ["extruder", "heater_bed"] as const;
+
 export class FakeMoonraker {
   readonly gcode: string[] = [];
   readonly uploads: string[] = [];
@@ -31,6 +36,8 @@ export class FakeMoonraker {
   private clients = new Set<WebSocket>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private objects: Objects;
+  /** Moonraker's temperature_store: one sample per tick, newest last. */
+  private history: Record<string, { temperatures: number[]; targets: number[] }> = {};
 
   constructor(private options: FakeMoonrakerOptions = {}) {
     this.objects = {
@@ -48,8 +55,36 @@ export class FakeMoonraker {
       heater_bed: { temperature: 23.8, target: 0 },
     };
     if (options.printing) this.startPrint(options.printing.fileName, options.printing.progress);
+    // Ten minutes of plausible history so charts have something to draw immediately.
+    for (const name of HEATERS) {
+      const target = Number(this.objects[name]?.target ?? 0);
+      const temperatures = Array.from({ length: 600 }, (_, i) => {
+        const settled =
+          target > 0 ? Math.min(target, 24 + (target - 24) * Math.min(1, i / 180)) : 24;
+        return Math.round((settled + Math.sin(i / 7) * 0.4) * 10) / 10;
+      });
+      this.history[name] = { temperatures, targets: temperatures.map(() => target) };
+    }
 
     this.server = createServer((req, res) => {
+      if (req.method === "GET" && req.url === "/webcam/?action=snapshot") {
+        res
+          .writeHead(200, { "Content-Type": "image/jpeg", "Content-Length": WEBCAM_FRAME.length })
+          .end(WEBCAM_FRAME);
+        return;
+      }
+      if (req.method === "GET" && req.url === "/webcam/?action=stream") {
+        const boundary = "frame";
+        res.writeHead(200, { "Content-Type": `multipart/x-mixed-replace; boundary=${boundary}` });
+        const send = () =>
+          res.write(
+            `--${boundary}\r\nContent-Type: image/jpeg\r\nContent-Length: ${WEBCAM_FRAME.length}\r\n\r\n`,
+          ) && res.write(Buffer.concat([WEBCAM_FRAME, Buffer.from("\r\n")]));
+        send();
+        const timer = setInterval(send, 500);
+        req.on("close", () => clearInterval(timer));
+        return;
+      }
       if (req.method === "GET" && req.url === "/server/info") {
         if (options.apiKey && req.headers["x-api-key"] !== options.apiKey) {
           res
@@ -132,6 +167,16 @@ export class FakeMoonraker {
       extruder: { temperature: approach(Number(extruder.temperature), Number(extruder.target)) },
       heater_bed: { temperature: approach(Number(bed.temperature), Number(bed.target)) },
     };
+    for (const name of HEATERS) {
+      const entry = this.history[name];
+      if (!entry) continue;
+      entry.temperatures = [...entry.temperatures, Number(update[name]?.temperature)].slice(
+        -HISTORY_SIZE,
+      );
+      entry.targets = [...entry.targets, Number(this.objects[name]?.target ?? 0)].slice(
+        -HISTORY_SIZE,
+      );
+    }
     if (stats.state === "printing") {
       const progress = Math.min(
         1,
@@ -244,7 +289,31 @@ export class FakeMoonraker {
         case "printer.emergency_stop":
           this.setKlippyState("shutdown");
           return reply("ok");
+        case "server.temperature_store":
+          return reply(this.history);
+        case "server.webcams.list":
+          return reply({
+            webcams: [
+              {
+                name: "Nozzle cam",
+                enabled: true,
+                service: "mjpegstreamer",
+                stream_url: `${this.url}/webcam/?action=stream`,
+                snapshot_url: `${this.url}/webcam/?action=snapshot`,
+                flip_horizontal: false,
+                flip_vertical: false,
+                rotation: 0,
+              },
+            ],
+          });
         case "printer.gcode.script":
+          {
+            const heater = /^SET_HEATER_TEMPERATURE HEATER=(\S+) TARGET=([\d.]+)$/.exec(
+              String(params.script),
+            );
+            if (heater?.[1] && this.objects[heater[1]])
+              this.update({ [heater[1]]: { target: Number(heater[2]) } });
+          }
           this.gcode.push(String(params.script));
           this.notify("notify_gcode_response", [`// ${params.script}`]);
           this.notify("notify_gcode_response", ["ok"]);

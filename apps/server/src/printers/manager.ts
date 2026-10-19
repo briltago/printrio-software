@@ -102,7 +102,16 @@ export class PrinterManager extends EventEmitter<PrinterManagerEvents> {
         return driver.emergencyStop();
       case "gcode":
         return driver.sendGcode(command.script);
+      case "set_temperature":
+        return driver.setTemperature(command.heater, command.target);
     }
+  }
+
+  /** The connected driver, for read-only queries (history, webcams). */
+  connected(id: string) {
+    const driver = this.entries.get(id)?.driver;
+    if (!driver) throw new PrinterNotConnectedError("The printer is not connected.");
+    return driver;
   }
 
   async stop() {

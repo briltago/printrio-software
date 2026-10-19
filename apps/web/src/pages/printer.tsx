@@ -10,16 +10,13 @@ import {
   ProgressBar,
   StateBadge,
 } from "../components.tsx";
+import { Panel } from "../features/panel.tsx";
 import { PrinterForm } from "../features/printer-form.tsx";
+import { TemperaturePanel } from "../features/temperature-panel.tsx";
+import { WebcamPanel } from "../features/webcam-panel.tsx";
 import { useT } from "../i18n/index.tsx";
 import { api } from "../lib/api.ts";
-import {
-  formatDuration,
-  formatFilament,
-  formatPercent,
-  formatTemp,
-  heaterName,
-} from "../lib/format.ts";
+import { formatDuration, formatFilament, formatPercent } from "../lib/format.ts";
 import { groupsQuery, printersQuery } from "../lib/queries.ts";
 import { appendConsole, useConsole } from "../lib/realtime.ts";
 import { meQuery } from "../lib/session.ts";
@@ -113,108 +110,93 @@ export function PrinterPage() {
       )}
       <FormError error={command.error ?? remove.error} />
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
-        <section className="card p-5" aria-labelledby="job-title">
-          <h2 id="job-title" className="text-sm font-semibold">
-            {t("printer.job")}
-          </h2>
-          {job ? (
-            <div className="mt-4">
-              <div className="flex items-end justify-between gap-3">
-                <p className="truncate text-muted">{job.fileName}</p>
-                <p className="text-3xl font-semibold tracking-[-0.06em]">
-                  {formatPercent(job.progress)}
-                </p>
+      <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+        <div className="grid min-w-0 content-start gap-4">
+          <WebcamPanel printerId={printer.id} connected={connected} />
+          <Panel id="job" title={t("printer.job")}>
+            {job ? (
+              <div>
+                <div className="flex items-end justify-between gap-3">
+                  <p className="truncate text-muted">{job.fileName}</p>
+                  <p className="text-3xl font-semibold tracking-[-0.06em]">
+                    {formatPercent(job.progress)}
+                  </p>
+                </div>
+                <div className="mt-3">
+                  <ProgressBar value={job.progress} label={t("printer.progress")} />
+                </div>
+                <dl className="mt-5 grid grid-cols-3 gap-3 text-sm">
+                  <Stat
+                    label={t("printer.elapsed")}
+                    value={formatDuration(t, job.elapsedSeconds)}
+                  />
+                  <Stat
+                    label={t("printer.remaining")}
+                    value={formatDuration(t, job.remainingSeconds)}
+                  />
+                  <Stat
+                    label={t("printer.filamentUsed")}
+                    value={formatFilament(job.filamentUsedMm)}
+                  />
+                </dl>
               </div>
-              <div className="mt-3">
-                <ProgressBar value={job.progress} label={t("printer.progress")} />
-              </div>
-              <dl className="mt-5 grid grid-cols-3 gap-3 text-sm">
-                <Stat label={t("printer.elapsed")} value={formatDuration(t, job.elapsedSeconds)} />
-                <Stat
-                  label={t("printer.remaining")}
-                  value={formatDuration(t, job.remainingSeconds)}
-                />
-                <Stat
-                  label={t("printer.filamentUsed")}
-                  value={formatFilament(job.filamentUsedMm)}
-                />
-              </dl>
-            </div>
-          ) : (
-            <p className="mt-4 text-sm text-muted">{t("printer.noJob")}</p>
-          )}
-          <div className="mt-6 flex flex-wrap gap-2 border-line border-t pt-4">
-            {status.state === "printing" && (
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => command.mutate({ action: "pause" })}
-              >
-                {t("printer.pause")}
-              </button>
+            ) : (
+              <p className="text-sm text-muted">{t("printer.noJob")}</p>
             )}
-            {status.state === "paused" && (
+            <div className="mt-6 flex flex-wrap gap-2 border-line border-t pt-4">
+              {status.state === "printing" && (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => command.mutate({ action: "pause" })}
+                >
+                  {t("printer.pause")}
+                </button>
+              )}
+              {status.state === "paused" && (
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={() => command.mutate({ action: "resume" })}
+                >
+                  {t("printer.resume")}
+                </button>
+              )}
+              {(status.state === "printing" || status.state === "paused") && (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() =>
+                    confirmThen(t("printer.cancelConfirm", { name: printer.name }), {
+                      action: "cancel",
+                    })
+                  }
+                >
+                  {t("printer.cancelPrint")}
+                </button>
+              )}
               <button
                 type="button"
-                className="btn btn-primary btn-sm"
-                onClick={() => command.mutate({ action: "resume" })}
-              >
-                {t("printer.resume")}
-              </button>
-            )}
-            {(status.state === "printing" || status.state === "paused") && (
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
+                className="btn btn-danger btn-sm ml-auto"
+                disabled={!connected}
                 onClick={() =>
-                  confirmThen(t("printer.cancelConfirm", { name: printer.name }), {
-                    action: "cancel",
+                  confirmThen(t("printer.emergencyConfirm", { name: printer.name }), {
+                    action: "emergency_stop",
                   })
                 }
               >
-                {t("printer.cancelPrint")}
+                {t("printer.emergencyStop")}
               </button>
-            )}
-            <button
-              type="button"
-              className="btn btn-danger btn-sm ml-auto"
-              disabled={!connected}
-              onClick={() =>
-                confirmThen(t("printer.emergencyConfirm", { name: printer.name }), {
-                  action: "emergency_stop",
-                })
-              }
-            >
-              {t("printer.emergencyStop")}
-            </button>
-          </div>
-        </section>
-
-        <section className="card p-5" aria-labelledby="temps-title">
-          <h2 id="temps-title" className="text-sm font-semibold">
-            {t("printer.temperatures")}
-          </h2>
-          {status.temperatures.length === 0 ? (
-            <p className="mt-4 text-sm text-muted">—</p>
-          ) : (
-            <ul className="mt-3 divide-y divide-line">
-              {status.temperatures.map((temp) => (
-                <li key={temp.name} className="flex items-baseline justify-between py-2.5">
-                  <span className="text-sm text-muted">{heaterName(t, temp.name)}</span>
-                  <span>
-                    <span className="text-lg font-semibold">{formatTemp(temp.current)}</span>
-                    {temp.target ? (
-                      <span className="ml-2 text-xs text-subtle">
-                        {t("printer.target", { value: formatTemp(temp.target) })}
-                      </span>
-                    ) : null}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+            </div>
+          </Panel>
+        </div>
+        <div className="grid min-w-0 content-start gap-4">
+          <TemperaturePanel
+            printerId={printer.id}
+            temperatures={status.temperatures}
+            connected={connected}
+          />
+        </div>
       </div>
 
       <Console printerId={printer.id} disabled={!connected || !printer.withinLimit} />
@@ -267,13 +249,10 @@ function Console({ printerId, disabled }: { printerId: string; disabled: boolean
   };
 
   return (
-    <section className="card mt-4 p-5" aria-labelledby="console-title">
-      <h2 id="console-title" className="text-sm font-semibold">
-        {t("printer.console")}
-      </h2>
+    <Panel id="console" title={t("printer.console")} className="mt-4">
       <pre
         ref={outputRef}
-        className="mt-3 h-48 overflow-auto rounded-[10px] border border-line bg-sidebar p-3 font-mono text-xs leading-relaxed text-muted"
+        className="h-48 overflow-auto rounded-[10px] border border-line bg-sidebar p-3 font-mono text-xs leading-relaxed text-muted"
         aria-live="polite"
       >
         {lines.length ? lines.join("\n") : t("printer.consoleEmpty")}
@@ -294,6 +273,6 @@ function Console({ printerId, disabled }: { printerId: string; disabled: boolean
           {t("printer.send")}
         </button>
       </form>
-    </section>
+    </Panel>
   );
 }

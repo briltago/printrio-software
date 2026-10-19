@@ -4,7 +4,9 @@ import type { PrinterStatus } from "@printrio/sdk";
 import { afterEach, describe, expect, it } from "vitest";
 import { FakeMoonraker } from "../dev/fake-moonraker.ts";
 import {
+  heaterParam,
   MoonrakerDriver,
+  resolveWebcamUrl,
   sortHeaters,
   toPrinterStatus,
   toWebSocketUrl,
@@ -43,6 +45,23 @@ describe("toWebSocketUrl", () => {
     expect(toWebSocketUrl("https://farm.example/printer1/")).toBe(
       "wss://farm.example/printer1/websocket",
     );
+  });
+});
+
+describe("webcam and heater helpers", () => {
+  it("resolves relative webcam URLs against the printer's web server, not Moonraker's port", () => {
+    expect(resolveWebcamUrl("http://10.0.0.201:7125", "/webcam/?action=stream")).toBe(
+      "http://10.0.0.201/webcam/?action=stream",
+    );
+    expect(
+      resolveWebcamUrl("http://10.0.0.201:7125", "http://10.0.0.201:8080/?action=stream"),
+    ).toBe("http://10.0.0.201:8080/?action=stream");
+    expect(resolveWebcamUrl("http://10.0.0.201:7125", "")).toBeNull();
+  });
+
+  it("uses the short name for heater_generic objects", () => {
+    expect(heaterParam("heater_generic chamber")).toBe("chamber");
+    expect(heaterParam("extruder")).toBe("extruder");
   });
 });
 
@@ -91,7 +110,9 @@ describe("toPrinterStatus", () => {
       progress: 0.25,
       remainingSeconds: 1800,
     });
-    expect(status.temperatures).toEqual([{ name: "extruder", current: 215, target: 215 }]);
+    expect(status.temperatures).toEqual([
+      { id: "extruder", name: "extruder", current: 215, target: 215, controllable: true },
+    ]);
   });
 });
 
@@ -167,6 +188,57 @@ describe("MoonrakerDriver", () => {
     const idle = nextStatus(driver, (s) => s.state === "idle");
     await driver.cancel();
     expect((await idle).job).toBeNull();
+  });
+
+  it("marks heaters controllable and sensors not", async () => {
+    const status = toPrinterStatus(
+      {
+        webhooks: { state: "ready" },
+        extruder: { temperature: 200, target: 210 },
+        "temperature_sensor mcu_temp": { temperature: 38 },
+      },
+      ["extruder", "temperature_sensor mcu_temp"],
+    );
+    expect(status.temperatures).toEqual([
+      { id: "extruder", name: "extruder", current: 200, target: 210, controllable: true },
+      {
+        id: "temperature_sensor mcu_temp",
+        name: "mcu_temp",
+        current: 38,
+        target: null,
+        controllable: false,
+      },
+    ]);
+  });
+
+  it("sets heater targets and rejects non-heaters", async () => {
+    const { fake, url, driver } = await setup();
+    await driver.connect({ url });
+    const heated = nextStatus(
+      driver,
+      (s) => s.temperatures.find((t) => t.id === "heater_bed")?.target === 60,
+    );
+    await driver.setTemperature("heater_bed", 60);
+    await heated;
+    expect(fake.gcode).toEqual(["SET_HEATER_TEMPERATURE HEATER=heater_bed TARGET=60"]);
+    await expect(driver.setTemperature("temperature_sensor mcu_temp", 50)).rejects.toThrow(
+      /not a heater/,
+    );
+  });
+
+  it("reads temperature history and webcams", async () => {
+    const { url, driver } = await setup({ printing: { fileName: "x.gcode", progress: 0.5 } });
+    await driver.connect({ url });
+    const history = await driver.getTemperatureHistory();
+    expect(history.series.map((s) => s.id)).toEqual(["extruder", "heater_bed"]);
+    expect(history.series[0]?.temperatures.length).toBe(600);
+    expect(history.series[0]?.targets?.at(-1)).toBe(215);
+    const [cam] = await driver.listWebcams();
+    expect(cam).toMatchObject({
+      name: "Nozzle cam",
+      service: "mjpegstreamer",
+      streamUrl: `${url}/webcam/?action=stream`,
+    });
   });
 
   it("forwards G-code and console output", async () => {

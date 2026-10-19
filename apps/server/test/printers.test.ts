@@ -207,6 +207,94 @@ describe("printers", () => {
   });
 });
 
+describe("temperatures and webcams", () => {
+  it("sets temperatures through commands and validates heater names and range", async () => {
+    const fake = await fakePrinter();
+    const { id } = (await api("POST", "/api/printers", { name: "Heat", url: fake.url })).json();
+    await waitForState(id, "idle");
+    expect(
+      (
+        await api(
+          "POST",
+          `/api/printers/${id}/commands`,
+          { action: "set_temperature", heater: "extruder", target: 215 },
+          operator,
+        )
+      ).statusCode,
+    ).toBe(200);
+    expect(fake.gcode).toEqual(["SET_HEATER_TEMPERATURE HEATER=extruder TARGET=215"]);
+    expect(
+      (
+        await api("POST", `/api/printers/${id}/commands`, {
+          action: "set_temperature",
+          heater: "extruder; G28",
+          target: 200,
+        })
+      ).statusCode,
+    ).toBe(400);
+    expect(
+      (
+        await api("POST", `/api/printers/${id}/commands`, {
+          action: "set_temperature",
+          heater: "extruder",
+          target: 900,
+        })
+      ).statusCode,
+    ).toBe(400);
+  });
+
+  it("returns temperature history and webcams without exposing camera URLs", async () => {
+    const fake = await fakePrinter();
+    const { id } = (await api("POST", "/api/printers", { name: "Cam", url: fake.url })).json();
+    await waitForState(id, "idle");
+    const history = (
+      await api("GET", `/api/printers/${id}/temperatures`, undefined, operator)
+    ).json();
+    expect(history.series.map((s: { name: string }) => s.name)).toEqual(["extruder", "heater_bed"]);
+    const webcams = (await api("GET", `/api/printers/${id}/webcams`, undefined, operator)).json();
+    expect(webcams).toEqual({
+      webcams: [
+        {
+          index: 0,
+          name: "Nozzle cam",
+          service: "mjpegstreamer",
+          mode: "mjpeg",
+          flipHorizontal: false,
+          flipVertical: false,
+          rotation: 0,
+        },
+      ],
+    });
+    expect(JSON.stringify(webcams)).not.toContain(fake.url);
+  });
+
+  it("proxies webcam snapshots for signed-in users only", async () => {
+    const fake = await fakePrinter();
+    const { id } = (await api("POST", "/api/printers", { name: "Snap", url: fake.url })).json();
+    await waitForState(id, "idle");
+    const snapshot = await api(
+      "GET",
+      `/api/printers/${id}/webcams/0/snapshot`,
+      undefined,
+      operator,
+    );
+    expect(snapshot.statusCode).toBe(200);
+    expect(snapshot.headers["content-type"]).toBe("image/jpeg");
+    expect(snapshot.rawPayload.subarray(0, 2)).toEqual(Buffer.from([0xff, 0xd8]));
+    expect(
+      (await api("GET", `/api/printers/${id}/webcams/0/snapshot`, undefined, "")).statusCode,
+    ).toBe(401);
+    expect((await api("GET", `/api/printers/${id}/webcams/5/snapshot`)).statusCode).toBe(404);
+  });
+
+  it("returns 409 for media of a disconnected printer", async () => {
+    const { id } = (
+      await api("POST", "/api/printers", { name: "Off", url: "http://127.0.0.1:9" })
+    ).json();
+    expect((await api("GET", `/api/printers/${id}/temperatures`)).statusCode).toBe(409);
+  });
+});
+
 describe("groups", () => {
   it("creates groups, assigns printers and clears assignments on delete", async () => {
     const group = (await api("POST", "/api/printer-groups", { name: "Workshop" })).json();

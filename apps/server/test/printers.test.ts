@@ -295,6 +295,36 @@ describe("temperatures and webcams", () => {
   });
 });
 
+describe("motion and tuning commands", () => {
+  it("validates motion and tuning commands before they reach the printer", async () => {
+    const fake = await fakePrinter();
+    const { id } = (await api("POST", "/api/printers", { name: "Move", url: fake.url })).json();
+    await waitForState(id, "idle");
+    const send = (body: object) => api("POST", `/api/printers/${id}/commands`, body, operator);
+    expect((await send({ action: "home", axes: [] })).statusCode).toBe(200);
+    expect((await send({ action: "jog", axis: "z", distance: 0.1 })).statusCode).toBe(200);
+    expect((await send({ action: "jog", axis: "z", distance: 0 })).statusCode).toBe(400);
+    expect((await send({ action: "jog", axis: "e", distance: 5 })).statusCode).toBe(400);
+    expect((await send({ action: "flow_factor", factor: 3 })).statusCode).toBe(400);
+    expect((await send({ action: "fan_speed", speed: 1.5 })).statusCode).toBe(400);
+    expect((await send({ action: "exclude_object", name: "A;M112" })).statusCode).toBe(400);
+    expect(fake.gcode).toEqual(["G28", "G91\nG1 Z0.1 F600\nG90"]);
+  });
+
+  it("returns the printer's error when a move is not allowed", async () => {
+    const fake = await fakePrinter();
+    const { id } = (await api("POST", "/api/printers", { name: "Unhomed", url: fake.url })).json();
+    await waitForState(id, "idle");
+    const res = await api("POST", `/api/printers/${id}/commands`, {
+      action: "jog",
+      axis: "x",
+      distance: 10,
+    });
+    expect(res.statusCode).toBe(502);
+    expect(res.json().error).toMatch(/Must home axis first/);
+  });
+});
+
 describe("groups", () => {
   it("creates groups, assigns printers and clears assignments on delete", async () => {
     const group = (await api("POST", "/api/printer-groups", { name: "Workshop" })).json();

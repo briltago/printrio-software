@@ -36,6 +36,8 @@ const offline = (message: string | null = null): PrinterStatus => ({
   message,
   temperatures: [],
   job: null,
+  motion: null,
+  exclusion: null,
   updatedAt: new Date(),
 });
 
@@ -104,6 +106,22 @@ export class PrinterManager extends EventEmitter<PrinterManagerEvents> {
         return driver.sendGcode(command.script);
       case "set_temperature":
         return driver.setTemperature(command.heater, command.target);
+      case "home":
+        return driver.home(command.axes);
+      case "jog":
+        return driver.jog(command.axis, command.distance);
+      case "motors_off":
+        return driver.motorsOff();
+      case "z_offset":
+        return driver.adjustZOffset(command.delta);
+      case "speed_factor":
+        return driver.setSpeedFactor(command.factor);
+      case "flow_factor":
+        return driver.setFlowFactor(command.factor);
+      case "fan_speed":
+        return driver.setFanSpeed(command.speed);
+      case "exclude_object":
+        return driver.excludeObject(command.name);
     }
   }
 

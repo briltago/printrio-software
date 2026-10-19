@@ -15,7 +15,8 @@ import type {
  */
 
 const REQUEST_TIMEOUT_MS = 10_000;
-const CONNECT_TIMEOUT_MS = 8_000;
+const CONNECT_TIMEOUT_MS = 6_000;
+const PROBE_TIMEOUT_MS = 5_000;
 
 /** Klipper objects we read status from; heaters/sensors are discovered at runtime. */
 const BASE_OBJECTS: Record<string, string[] | null> = {
@@ -44,6 +45,18 @@ export function toWebSocketUrl(httpUrl: string): string {
 }
 
 /** Maps Klipper object state to the driver-neutral status. Exported for tests. */
+/** Nozzles first, then the bed, other heaters, and passive sensors (MCU, chamber) last. */
+function heaterRank(name: string) {
+  if (name.startsWith("extruder")) return 0;
+  if (name === "heater_bed") return 1;
+  if (name.startsWith("heater_generic")) return 2;
+  return 3;
+}
+
+export function sortHeaters(names: string[]) {
+  return [...names].sort((a, b) => heaterRank(a) - heaterRank(b) || a.localeCompare(b));
+}
+
 export function toPrinterStatus(objects: KlipperObjects, heaters: string[]): PrinterStatus {
   const webhooks = objects.webhooks ?? {};
   const printStats = objects.print_stats ?? {};
@@ -64,7 +77,7 @@ export function toPrinterStatus(objects: KlipperObjects, heaters: string[]): Pri
             : "idle";
   }
 
-  const temperatures: TemperatureReading[] = heaters.flatMap((name) => {
+  const temperatures: TemperatureReading[] = sortHeaters(heaters).flatMap((name) => {
     const heater = objects[name];
     if (!heater || typeof heater.temperature !== "number") return [];
     const target = typeof heater.target === "number" ? heater.target : null;
@@ -104,6 +117,69 @@ function mergeObjects(target: KlipperObjects, update: KlipperObjects) {
   }
 }
 
+const TLS_MISMATCH = /^(ERR_SSL_|EPROTO)/;
+const UNTRUSTED_CERT = new Set([
+  "DEPTH_ZERO_SELF_SIGNED_CERT",
+  "SELF_SIGNED_CERT_IN_CHAIN",
+  "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
+  "UNABLE_TO_GET_ISSUER_CERT_LOCALLY",
+  "CERT_HAS_EXPIRED",
+  "ERR_TLS_CERT_ALTNAME_INVALID",
+]);
+
+/** Throws a MoonrakerError with an actionable explanation when the address is not a reachable Moonraker. */
+export async function probeMoonraker(connection: PrinterConnection) {
+  const url = new URL(connection.url);
+  const port = url.port || (url.protocol === "https:" ? "443" : "80");
+  let res: Response;
+  try {
+    res = await fetch(`${connection.url}/server/info`, {
+      headers: connection.apiKey ? { "X-Api-Key": connection.apiKey } : {},
+      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+    });
+  } catch (error) {
+    const code = String((error as { cause?: { code?: string } }).cause?.code ?? "");
+    if (url.protocol === "https:" && TLS_MISMATCH.test(code)) {
+      throw new MoonrakerError(
+        `The printer doesn't use HTTPS on port ${port}. Use http:// instead of https://.`,
+      );
+    }
+    if (UNTRUSTED_CERT.has(code)) {
+      throw new MoonrakerError(
+        "The printer's HTTPS certificate isn't trusted. Use http:// on your local network, or a trusted certificate.",
+      );
+    }
+    if (code === "ECONNREFUSED") {
+      throw new MoonrakerError(
+        `Nothing is listening on ${url.hostname}:${port}. Check that Moonraker is running and the port (usually 7125).`,
+      );
+    }
+    if (code === "ENOTFOUND" || code === "EAI_AGAIN") {
+      throw new MoonrakerError(
+        `The name "${url.hostname}" could not be resolved. Try the printer's IP address.`,
+      );
+    }
+    throw new MoonrakerError(
+      `No response from ${url.hostname}:${port}. Check the address, and that the machine running Printrio can reach the printer's network (for a hosted server, use Tailscale).`,
+    );
+  }
+  if (res.status === 401 || res.status === 403) {
+    throw new MoonrakerError(
+      connection.apiKey
+        ? "Moonraker rejected the API key."
+        : "Moonraker requires authentication. Add an API key, or add Printrio's address to trusted_clients in moonraker.conf.",
+    );
+  }
+  const body = (await res.json().catch(() => null)) as {
+    result?: { klippy_state?: unknown };
+  } | null;
+  if (!res.ok || !body?.result) {
+    throw new MoonrakerError(
+      `Something answered on port ${port}, but it isn't Moonraker. Moonraker usually uses port 7125 (the web interface runs on a different port).`,
+    );
+  }
+}
+
 export class MoonrakerDriver implements PrinterDriver {
   readonly id = "moonraker";
 
@@ -123,6 +199,8 @@ export class MoonrakerDriver implements PrinterDriver {
   async connect(connection: PrinterConnection): Promise<void> {
     this.connection = connection;
     this.closedByUs = false;
+    // A plain HTTP request first: its errors say much more than a failed websocket.
+    await probeMoonraker(connection);
     const socket = new WebSocket(toWebSocketUrl(connection.url));
     this.socket = socket;
 

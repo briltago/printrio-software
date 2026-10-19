@@ -328,6 +328,112 @@ describe("motion and tuning commands", () => {
   });
 });
 
+describe("files and history", () => {
+  async function connectedPrinter() {
+    const fake = await fakePrinter();
+    const { id } = (await api("POST", "/api/printers", { name: "Files", url: fake.url })).json();
+    await waitForState(id, "idle");
+    return { fake, id };
+  }
+  const multipart = (name: string, content: string) => {
+    const boundary = "----printrio";
+    return {
+      boundary,
+      body: `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${name}"\r\nContent-Type: application/octet-stream\r\n\r\n${content}\r\n--${boundary}--\r\n`,
+    };
+  };
+  const upload = (id: string, name: string, query = "") => {
+    const { boundary, body } = multipart(name, "G28\nG1 X10\n");
+    return ctx.app.inject({
+      method: "POST",
+      url: `/api/printers/${id}/files${query}`,
+      headers: { cookie: operator, "content-type": `multipart/form-data; boundary=${boundary}` },
+      payload: body,
+    });
+  };
+
+  it("lists files and directories without exposing printer paths for thumbnails", async () => {
+    const { id } = await connectedPrinter();
+    const listing = (await api("GET", `/api/printers/${id}/files`, undefined, operator)).json();
+    expect(listing.directories).toEqual(["parts"]);
+    expect(listing.files.find((f: { name: string }) => f.name === "3DBenchy.gcode")).toMatchObject({
+      hasThumbnail: true,
+      estimatedSeconds: 5820,
+    });
+    expect(JSON.stringify(listing)).not.toContain(".thumbs");
+    expect(
+      (await api("GET", `/api/printers/${id}/files?dir=parts`, undefined, operator)).json().files[0]
+        .path,
+    ).toBe("parts/bracket_v3.gcode");
+  });
+
+  it("serves thumbnails looked up by G-code file and rejects path traversal", async () => {
+    const { id } = await connectedPrinter();
+    const thumb = await api(
+      "GET",
+      `/api/printers/${id}/files/thumbnail?path=parts/bracket_v3.gcode`,
+      undefined,
+      operator,
+    );
+    expect(thumb.statusCode).toBe(200);
+    expect(thumb.headers["content-type"]).toBe("image/png");
+    expect(
+      (await api("GET", `/api/printers/${id}/files/thumbnail?path=../printer.cfg`)).statusCode,
+    ).toBe(400);
+    expect((await api("GET", `/api/printers/${id}/files?dir=../config`)).statusCode).toBe(400);
+    expect(
+      (await api("GET", `/api/printers/${id}/files/thumbnail?path=missing.gcode`)).statusCode,
+    ).toBe(404);
+  });
+
+  it("uploads G-code (optionally starting the print) and rejects other files", async () => {
+    const { fake, id } = await connectedPrinter();
+    expect((await upload(id, "cube.gcode", "?dir=parts")).statusCode).toBe(201);
+    expect(fake.uploads).toEqual(["parts/cube.gcode"]);
+    expect((await upload(id, "evil.sh")).statusCode).toBe(400);
+    const started = await upload(id, "go.gcode", "?print=true");
+    expect(started.json()).toEqual({ path: "go.gcode", printing: true });
+    await waitForState(id, "printing");
+  });
+
+  it("starts prints by path and deletes files", async () => {
+    const { id } = await connectedPrinter();
+    expect(
+      (
+        await api("POST", `/api/printers/${id}/commands`, {
+          action: "start_print",
+          path: "../x.gcode",
+        })
+      ).statusCode,
+    ).toBe(400);
+    expect(
+      (await api("DELETE", `/api/printers/${id}/files?path=3DBenchy.gcode`, undefined, operator))
+        .statusCode,
+    ).toBe(200);
+    expect(
+      (
+        await api(
+          "POST",
+          `/api/printers/${id}/commands`,
+          { action: "start_print", path: "enclosure_panel_left.gcode" },
+          operator,
+        )
+      ).statusCode,
+    ).toBe(200);
+    await waitForState(id, "printing");
+  });
+
+  it("returns print history with totals", async () => {
+    const { id } = await connectedPrinter();
+    const history = (
+      await api("GET", `/api/printers/${id}/history?limit=2`, undefined, operator)
+    ).json();
+    expect(history.jobs.map((j: { status: string }) => j.status)).toEqual(["error", "cancelled"]);
+    expect(history.totals.jobs).toBe(3);
+    expect((await api("GET", `/api/printers/${id}/history?limit=999`)).statusCode).toBe(400);
+  });
+});
+
 describe("groups", () => {
   it("creates groups, assigns printers and clears assignments on delete", async () => {
     const group = (await api("POST", "/api/printer-groups", { name: "Workshop" })).json();

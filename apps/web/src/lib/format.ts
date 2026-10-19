@@ -31,3 +31,45 @@ export function fanName(t: Translate, id: string, name: string) {
   const words = name.replace(/_/g, " ").replace(/([a-z])(\d+)$/i, "$1 $2");
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
+
+export function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB"];
+  let value = bytes / 1024;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit++;
+  }
+  return `${value.toFixed(value < 10 ? 1 : 0)} ${units[unit]}`;
+}
+
+/** Filament: grams when the slicer reports them, otherwise length. */
+export const formatFilamentAmount = (grams: number | null, mm: number | null) =>
+  grams !== null
+    ? `${grams.toFixed(grams < 10 ? 1 : 0)} g`
+    : mm !== null
+      ? formatFilament(mm)
+      : "—";
+
+const relative = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+/** "3 hours ago", "yesterday", … — dates older than a month are shown in full. */
+export function formatRelativeTime(iso: string, now = Date.now()) {
+  const seconds = (new Date(iso).getTime() - now) / 1000;
+  const steps: [Intl.RelativeTimeFormatUnit, number][] = [
+    ["second", 60],
+    ["minute", 60],
+    ["hour", 24],
+    ["day", 30],
+  ];
+  let value = seconds;
+  for (const [unit, size] of steps) {
+    if (Math.abs(value) < size) return relative.format(Math.round(value), unit);
+    value /= size;
+  }
+  return new Date(iso).toLocaleDateString("en", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}

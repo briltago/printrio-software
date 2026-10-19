@@ -27,12 +27,85 @@ export interface FakeMoonrakerOptions {
 type Objects = Record<string, Record<string, unknown>>;
 
 const WEBCAM_FRAME = readFileSync(new URL("./fake-webcam.jpg", import.meta.url));
+const THUMBNAIL = readFileSync(new URL("./fake-thumbnail.png", import.meta.url));
+
+interface FakeFile {
+  size: number;
+  modified: number;
+  estimated_time: number;
+  filament_total: number;
+  filament_weight_total: number;
+}
+interface FakeJob {
+  job_id: string;
+  filename: string;
+  status: string;
+  start_time: number;
+  end_time: number | null;
+  print_duration: number;
+  filament_used: number;
+}
+
+const now = () => Date.now() / 1000;
+const SAMPLE_FILES: Record<string, FakeFile> = {
+  "3DBenchy.gcode": {
+    size: 2_480_133,
+    modified: now() - 86_400 * 3,
+    estimated_time: 5_820,
+    filament_total: 4_210,
+    filament_weight_total: 12.6,
+  },
+  "enclosure_panel_left.gcode": {
+    size: 9_812_442,
+    modified: now() - 86_400,
+    estimated_time: 14_400,
+    filament_total: 22_950,
+    filament_weight_total: 68.9,
+  },
+  "parts/bracket_v3.gcode": {
+    size: 812_002,
+    modified: now() - 3_600,
+    estimated_time: 2_310,
+    filament_total: 1_640,
+    filament_weight_total: 4.9,
+  },
+};
 const HISTORY_SIZE = 1200;
 const HEATERS = ["extruder", "heater_bed"] as const;
 
 export class FakeMoonraker {
   readonly gcode: string[] = [];
   readonly uploads: string[] = [];
+  readonly files: Record<string, FakeFile> = structuredClone(SAMPLE_FILES);
+  readonly jobs: FakeJob[] = [
+    {
+      job_id: "000003",
+      filename: "parts/bracket_v3.gcode",
+      status: "error",
+      start_time: now() - 7_200,
+      end_time: now() - 6_900,
+      print_duration: 260,
+      filament_used: 180,
+    },
+    {
+      job_id: "000002",
+      filename: "3DBenchy.gcode",
+      status: "cancelled",
+      start_time: now() - 90_000,
+      end_time: now() - 88_000,
+      print_duration: 1_900,
+      filament_used: 1_310,
+    },
+    {
+      job_id: "000001",
+      filename: "3DBenchy.gcode",
+      status: "completed",
+      start_time: now() - 200_000,
+      end_time: now() - 194_000,
+      print_duration: 5_790,
+      filament_used: 4_205,
+    },
+  ];
   private server: Server;
   private wss: WebSocketServer;
   private clients = new Set<WebSocket>();
@@ -97,6 +170,17 @@ export class FakeMoonraker {
         req.on("close", () => clearInterval(timer));
         return;
       }
+      if (req.method === "GET" && req.url?.startsWith("/server/files/gcodes/")) {
+        const path = decodeURIComponent(req.url.slice("/server/files/gcodes/".length));
+        if (/(^|\/)\.thumbs\/[^/]+\.png$/.test(path)) {
+          res
+            .writeHead(200, { "Content-Type": "image/png", "Content-Length": THUMBNAIL.length })
+            .end(THUMBNAIL);
+          return;
+        }
+        res.writeHead(404).end();
+        return;
+      }
       if (req.method === "GET" && req.url === "/server/info") {
         if (options.apiKey && req.headers["x-api-key"] !== options.apiKey) {
           res
@@ -123,7 +207,16 @@ export class FakeMoonraker {
         });
         req.on("end", () => {
           const name = /filename="([^"]+)"/.exec(body)?.[1] ?? "upload.gcode";
-          this.uploads.push(name);
+          const dir = /name="path"\r\n\r\n([^\r]*)/.exec(body)?.[1];
+          const path = dir ? `${dir}/${name}` : name;
+          this.uploads.push(path);
+          this.files[path] = {
+            size: body.length,
+            modified: now(),
+            estimated_time: 600,
+            filament_total: 500,
+            filament_weight_total: 1.5,
+          };
           res.writeHead(201, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ result: { item: { path: name, root: "gcodes" } } }));
         });
@@ -214,6 +307,8 @@ export class FakeMoonraker {
       };
       if (progress >= 1) {
         update.print_stats = { ...update.print_stats, state: "complete" };
+        if (this.jobs[0]?.status === "in_progress")
+          Object.assign(this.jobs[0], { status: "completed", end_time: now() });
         update.extruder = { ...update.extruder, target: 0 };
         update.heater_bed = { ...update.heater_bed, target: 0 };
       }
@@ -310,7 +405,7 @@ export class FakeMoonraker {
     return null;
   }
 
-  private startPrint(fileName: string, progress = 0) {
+  private startPrint(fileName: string, progress = 0): Objects {
     const objects: Objects = {
       print_stats: {
         state: "printing",
@@ -335,6 +430,7 @@ export class FakeMoonraker {
     };
     for (const [name, fields] of Object.entries(objects))
       this.objects[name] = { ...this.objects[name], ...fields };
+    return objects;
   }
 
   private update(changes: Objects) {
@@ -397,9 +493,80 @@ export class FakeMoonraker {
           return reply({ eventtime: Date.now() / 1000, status });
         }
         case "printer.print.start":
-          this.startPrint(String(params.filename));
-          this.update({});
+          if (!this.files[String(params.filename)])
+            return fail(400, `File ${params.filename} does not exist`);
+          this.jobs.unshift({
+            job_id: String(this.jobs.length + 1).padStart(6, "0"),
+            filename: String(params.filename),
+            status: "in_progress",
+            start_time: now(),
+            end_time: null,
+            print_duration: 0,
+            filament_used: 0,
+          });
+          // Notify clients with everything the new print changed.
+          this.update(this.startPrint(String(params.filename)));
           return reply("ok");
+        case "server.files.get_directory": {
+          const base = String(params.path ?? "gcodes").replace(/^gcodes\/?/, "");
+          const prefix = base ? `${base}/` : "";
+          const inDir = Object.entries(this.files).filter(([path]) => path.startsWith(prefix));
+          const files = inDir
+            .filter(([path]) => !path.slice(prefix.length).includes("/"))
+            .map(([path, meta]) => {
+              const filename = path.slice(prefix.length);
+              return {
+                filename,
+                ...meta,
+                layer_height: 0.2,
+                object_height: 48,
+                slicer: "OrcaSlicer",
+                thumbnails: [
+                  {
+                    width: 32,
+                    height: 32,
+                    relative_path: `.thumbs/${filename.replace(/\.gcode$/, "")}-32x32.png`,
+                  },
+                  {
+                    width: 300,
+                    height: 300,
+                    relative_path: `.thumbs/${filename.replace(/\.gcode$/, "")}-300x300.png`,
+                  },
+                ],
+              };
+            });
+          const dirs = [
+            ...new Set(
+              inDir
+                .map(([path]) => path.slice(prefix.length))
+                .filter((rest) => rest.includes("/"))
+                .map((rest) => rest.split("/")[0]),
+            ),
+          ];
+          return reply({ dirs: [...dirs, ".thumbs"].map((dirname) => ({ dirname })), files });
+        }
+        case "server.files.delete_file": {
+          const path = String(params.path).replace(/^gcodes\//, "");
+          if (!this.files[path]) return fail(404, "File does not exist");
+          delete this.files[path];
+          return reply({ item: { path, root: "gcodes" } });
+        }
+        case "server.history.list":
+          return reply({
+            count: this.jobs.length,
+            jobs: this.jobs.slice(
+              Number(params.start ?? 0),
+              Number(params.start ?? 0) + Number(params.limit ?? 50),
+            ),
+          });
+        case "server.history.totals":
+          return reply({
+            job_totals: {
+              total_jobs: this.jobs.length,
+              total_print_time: this.jobs.reduce((sum, job) => sum + job.print_duration, 0),
+              total_filament_used: this.jobs.reduce((sum, job) => sum + job.filament_used, 0),
+            },
+          });
         case "printer.print.pause":
           this.update({ print_stats: { state: "paused" } });
           return reply("ok");
@@ -407,6 +574,8 @@ export class FakeMoonraker {
           this.update({ print_stats: { state: "printing" } });
           return reply("ok");
         case "printer.print.cancel":
+          if (this.jobs[0]?.status === "in_progress")
+            Object.assign(this.jobs[0], { status: "cancelled", end_time: now() });
           this.update({
             print_stats: { state: "cancelled" },
             extruder: { target: 0 },

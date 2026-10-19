@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createTranslator } from "../i18n/index.tsx";
-import { formatDuration, formatFilament, formatPercent, heaterName } from "./format.ts";
+import { fanName, formatDuration, formatFilament, formatPercent, heaterName } from "./format.ts";
 
 const t = createTranslator("en");
 
@@ -29,5 +29,11 @@ describe("formatting", () => {
     expect(heaterName(t, "extruder1")).toBe("Nozzle 2");
     expect(heaterName(t, "heater_bed")).toBe("Bed");
     expect(heaterName(t, "chamber_fan")).toBe("chamber fan");
+  });
+
+  it("names fans for people", () => {
+    expect(fanName(t, "fan", "fan")).toBe("Part fan");
+    expect(fanName(t, "output_pin fan0", "fan0")).toBe("Fan 0");
+    expect(fanName(t, "heater_fan hotend_fan", "hotend_fan")).toBe("Hotend fan");
   });
 });

@@ -1,13 +1,19 @@
-import { buildApp } from "./app.ts";
+import { buildApp, defaultDriverFactories } from "./app.ts";
 import { deleteExpiredSessions } from "./auth/sessions.ts";
 import { loadConfig } from "./config.ts";
+import { resolveAppSecret, SecretBox } from "./crypto.ts";
 import { createDatabase, runMigrations } from "./db/client.ts";
+import { PrinterManager } from "./printers/manager.ts";
+import { connectStoredPrinters } from "./routes/printers.ts";
 
 const config = loadConfig();
 const { db, close } = createDatabase(config.DATABASE_URL);
 await runMigrations(db);
+const secrets = new SecretBox(await resolveAppSecret(config.APP_SECRET, config.DATA_DIR));
 
-const app = await buildApp({ config, db });
+const manager = new PrinterManager(defaultDriverFactories());
+const app = await buildApp({ config, db, secrets, manager });
+await connectStoredPrinters(db, manager, secrets);
 
 const cleanup = setInterval(
   () => deleteExpiredSessions(db).catch((error) => app.log.error(error)),

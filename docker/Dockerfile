@@ -17,13 +17,17 @@ ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000 \
     WEB_DIR=/app/web \
-    MIGRATIONS_DIR=/app/drizzle
+    MIGRATIONS_DIR=/app/drizzle \
+    DATA_DIR=/data
 WORKDIR /app
 COPY --from=build /out/node_modules ./node_modules
 COPY --from=build /repo/apps/server/dist ./dist
 COPY --from=build /repo/apps/server/drizzle ./drizzle
 COPY --from=build /repo/apps/web/dist ./web
 COPY --from=build /repo/apps/server/package.json ./package.json
+# Instance data (generated APP_SECRET for encrypting printer credentials).
+RUN mkdir -p /data && chown node:node /data
+VOLUME /data
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \

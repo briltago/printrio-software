@@ -2,9 +2,11 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import type { FormEvent } from "react";
 import { AuthCard, Field, FormError, SubmitButton } from "../components.tsx";
+import { useT } from "../i18n/index.tsx";
 import { api } from "../lib/api.ts";
 
 export function SetupPage() {
+  const t = useT();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const setup = useMutation({
@@ -12,7 +14,7 @@ export function SetupPage() {
       api("/api/setup", { method: "POST", body }),
     onSuccess: async () => {
       await queryClient.invalidateQueries();
-      await navigate({ to: "/" });
+      await navigate({ to: "/onboarding" });
     },
   });
 
@@ -22,22 +24,19 @@ export function SetupPage() {
   };
 
   return (
-    <AuthCard
-      title="Welcome to Printrio"
-      subtitle="Create the administrator account for this instance."
-    >
+    <AuthCard title={t("auth.welcomeTitle")} subtitle={t("auth.welcomeSubtitle")}>
       <form onSubmit={onSubmit}>
         <FormError error={setup.error} />
-        <Field label="Name" name="displayName" autoComplete="name" />
-        <Field label="Email" name="email" type="email" autoComplete="email" />
+        <Field label={t("auth.name")} name="displayName" autoComplete="name" />
+        <Field label={t("auth.email")} name="email" type="email" autoComplete="email" />
         <Field
-          label="Password (min. 12 characters)"
+          label={t("auth.passwordHint")}
           name="password"
           type="password"
           autoComplete="new-password"
           minLength={12}
         />
-        <SubmitButton pending={setup.isPending}>Create account</SubmitButton>
+        <SubmitButton pending={setup.isPending}>{t("auth.createAccount")}</SubmitButton>
       </form>
     </AuthCard>
   );

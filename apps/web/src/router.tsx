@@ -6,6 +6,7 @@ import {
   Outlet,
   redirect,
 } from "@tanstack/react-router";
+import { AppLayout } from "./layout.tsx";
 import { meQuery, setupStatusQuery } from "./lib/session.ts";
 import { DashboardPage } from "./pages/dashboard.tsx";
 import { LoginPage } from "./pages/login.tsx";
@@ -15,15 +16,22 @@ const rootRoute = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   component: Outlet,
 });
 
-const dashboardRoute = createRoute({
+// Authenticated area: everything below renders inside the sidebar layout.
+const appRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/",
+  id: "app",
   beforeLoad: async ({ context }) => {
     // fetchQuery (not ensureQueryData) so data invalidated after setup/login/logout is refetched.
     const { setupRequired } = await context.queryClient.fetchQuery(setupStatusQuery);
     if (setupRequired) throw redirect({ to: "/setup" });
     if (!(await context.queryClient.fetchQuery(meQuery))) throw redirect({ to: "/login" });
   },
+  component: AppLayout,
+});
+
+const dashboardRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/",
   component: DashboardPage,
 });
 
@@ -45,7 +53,11 @@ const setupRoute = createRoute({
 
 export function createAppRouter(queryClient: QueryClient) {
   return createRouter({
-    routeTree: rootRoute.addChildren([dashboardRoute, loginRoute, setupRoute]),
+    routeTree: rootRoute.addChildren([
+      appRoute.addChildren([dashboardRoute]),
+      loginRoute,
+      setupRoute,
+    ]),
     context: { queryClient },
   });
 }

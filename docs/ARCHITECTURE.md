@@ -86,6 +86,16 @@ required) and receive `printer.status`, `printer.console` and
 `printers.changed` messages (`realtimeMessageSchema` in `packages/shared`);
 the web app writes them straight into the TanStack Query cache.
 
+### Webcams
+
+Webcams come from Moonraker's webcam list. Relative URLs resolve against the
+printer host on the web-server port (not Moonraker's). Media is **proxied by
+the Printrio server** (`/api/printers/:id/webcams/:index/stream|snapshot`):
+it stays behind the session, works when only the server can reach the printer
+(hosted Printrio over Tailscale), and the API never exposes camera URLs.
+MJPEG streams are piped through; adaptive/WebRTC cameras fall back to polled
+snapshots when a snapshot URL exists.
+
 ### Workspace settings
 
 Instance-wide settings (usage mode, start page, sidebar order/visibility,

@@ -26,6 +26,12 @@
   --color-warning: #f5c26b;
   --color-danger: #ff8a9b;
 
+  /* Chart series (validated categorical order, dark surface): nozzle, bed, extra heaters, sensors */
+  --color-series-1: #3987e5;
+  --color-series-2: #d95926;
+  --color-series-3: #199e70;
+  --color-series-4: #c98500;
+
   --radius-control: 11px;
   --radius-card: 14px;
   --radius-panel: 16px;
@@ -48,6 +54,10 @@
   --color-success: #13865a;
   --color-warning: #a96a00;
   --color-danger: #c9324a;
+  --color-series-1: #2a78d6;
+  --color-series-2: #eb6834;
+  --color-series-3: #1baf7a;
+  --color-series-4: #eda100;
 }
 
 @layer base {

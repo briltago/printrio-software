@@ -5,7 +5,9 @@ import type {
   PrinterInfo,
   PrinterState,
   PrinterStatus,
+  TemperatureHistory,
   TemperatureReading,
+  Webcam,
 } from "@printrio/sdk";
 
 /**
@@ -81,7 +83,15 @@ export function toPrinterStatus(objects: KlipperObjects, heaters: string[]): Pri
     const heater = objects[name];
     if (!heater || typeof heater.temperature !== "number") return [];
     const target = typeof heater.target === "number" ? heater.target : null;
-    return [{ name: displayHeaterName(name), current: heater.temperature, target }];
+    return [
+      {
+        id: name,
+        name: displayHeaterName(name),
+        current: heater.temperature,
+        target,
+        controllable: isControllable(name),
+      },
+    ];
   });
 
   let job: PrinterStatus["job"] = null;
@@ -105,6 +115,25 @@ export function toPrinterStatus(objects: KlipperObjects, heaters: string[]): Pri
       : String(printStats.message ?? objects.display_status?.message ?? "") || null;
 
   return { state, message, temperatures, job, updatedAt: new Date() };
+}
+
+const isControllable = (name: string) => /^(extruder\d*|heater_bed|heater_generic .+)$/.test(name);
+
+/** The HEATER= parameter of SET_HEATER_TEMPERATURE: heater_generic objects use their short name. */
+export const heaterParam = (id: string) => id.replace(/^heater_generic /, "");
+
+/**
+ * Moonraker returns webcam URLs as configured, often relative to the printer's
+ * web server (port 80, e.g. "/webcam/?action=stream") rather than to Moonraker.
+ */
+export function resolveWebcamUrl(printerUrl: string, value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const base = new URL(printerUrl);
+  try {
+    return new URL(value, `${base.protocol}//${base.hostname}`).toString();
+  } catch {
+    return null;
+  }
 }
 
 function displayHeaterName(name: string) {
@@ -296,6 +325,46 @@ export class MoonrakerDriver implements PrinterDriver {
   }
   async sendGcode(script: string) {
     await this.call("printer.gcode.script", { script });
+  }
+  async setTemperature(heaterId: string, target: number) {
+    if (!isControllable(heaterId)) throw new MoonrakerError(`"${heaterId}" is not a heater.`);
+    await this.sendGcode(
+      `SET_HEATER_TEMPERATURE HEATER=${heaterParam(heaterId)} TARGET=${Math.round(target * 10) / 10}`,
+    );
+  }
+
+  async getTemperatureHistory(): Promise<TemperatureHistory> {
+    const store = (await this.call("server.temperature_store", {
+      include_monitors: false,
+    })) as Record<string, { temperatures?: number[]; targets?: number[] }>;
+    const series = sortHeaters(Object.keys(store).filter((name) => HEATER_PATTERN.test(name))).map(
+      (id) => ({
+        id,
+        name: displayHeaterName(id),
+        temperatures: store[id]?.temperatures ?? [],
+        targets: store[id]?.targets ?? null,
+      }),
+    );
+    return { intervalSeconds: 1, series };
+  }
+
+  async listWebcams(): Promise<Webcam[]> {
+    const url = this.connection?.url;
+    if (!url) throw new MoonrakerError("Not connected.");
+    const result = (await this.call("server.webcams.list")) as {
+      webcams?: Record<string, unknown>[];
+    };
+    return (result.webcams ?? [])
+      .filter((cam) => cam.enabled !== false)
+      .map((cam) => ({
+        name: String(cam.name ?? "Webcam"),
+        service: String(cam.service ?? "mjpegstreamer"),
+        streamUrl: resolveWebcamUrl(url, cam.stream_url),
+        snapshotUrl: resolveWebcamUrl(url, cam.snapshot_url),
+        flipHorizontal: cam.flip_horizontal === true,
+        flipVertical: cam.flip_vertical === true,
+        rotation: Number(cam.rotation ?? 0) || 0,
+      }));
   }
 
   /** Discovers heaters and subscribes to status; called on connect and whenever Klippy becomes ready. */

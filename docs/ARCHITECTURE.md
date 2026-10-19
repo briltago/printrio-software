@@ -86,6 +86,15 @@ required) and receive `printer.status`, `printer.console` and
 `printers.changed` messages (`realtimeMessageSchema` in `packages/shared`);
 the web app writes them straight into the TanStack Query cache.
 
+The console buffer lives in the browser (500 lines per printer). On first
+open it is replaced by the printer's own backlog (Moonraker `gcode_store`,
+which already contains everything streamed so far), so a reload or a second
+browser shows the same history. Firmware errors arrive as `!! …` lines, so the
+console does not repeat them as form errors. Autocomplete uses
+`printer.gcode.help`; macros come from `gcode_macro` objects plus their
+`configfile` section, whose Jinja template is scanned for `params.X` to offer
+parameter fields. Macros starting with `_` are hidden, as in Mainsail/Fluidd.
+
 ### Webcams
 
 Webcams come from Moonraker's webcam list. Relative URLs resolve against the

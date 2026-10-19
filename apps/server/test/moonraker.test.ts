@@ -6,6 +6,7 @@ import { FakeMoonraker } from "../dev/fake-moonraker.ts";
 import {
   heaterParam,
   MoonrakerDriver,
+  parseMacroParams,
   resolveWebcamUrl,
   sortHeaters,
   toPrinterStatus,
@@ -62,6 +63,25 @@ describe("webcam and heater helpers", () => {
   it("uses the short name for heater_generic objects", () => {
     expect(heaterParam("heater_generic chamber")).toBe("chamber");
     expect(heaterParam("extruder")).toBe("extruder");
+  });
+});
+
+describe("parseMacroParams", () => {
+  it("finds dotted and bracketed params with defaults, once each", () => {
+    const gcode = [
+      "{% set bed = params.BED|default(60)|float %}",
+      "{% set tool = params['extruder'] | default( 215 ) %}",
+      '{% set name = params.NAME|default("PLA") %}',
+      "{% if params.BED %}M190 S{params.BED}{% endif %}",
+      "G4 P{params.SECONDS * 1000}",
+    ].join("\n");
+    expect(parseMacroParams(gcode)).toEqual([
+      { name: "BED", defaultValue: "60" },
+      { name: "EXTRUDER", defaultValue: "215" },
+      { name: "NAME", defaultValue: "PLA" },
+      { name: "SECONDS", defaultValue: null },
+    ]);
+    expect(parseMacroParams("G28")).toEqual([]);
   });
 });
 
@@ -417,6 +437,46 @@ describe("MoonrakerDriver", () => {
     await driver.uploadFile("parts/new.gcode", data());
     expect(fake.uploads).toEqual(["parts/new.gcode"]);
     expect((await driver.listFiles("parts")).files.map((f) => f.path)).toEqual(["parts/new.gcode"]);
+  });
+
+  it("reads the console backlog, including failed commands", async () => {
+    const { url, driver } = await setup();
+    await driver.connect({ url });
+    await driver.sendGcode("M117 Hi");
+    await expect(driver.sendGcode("NOPE")).rejects.toThrow('Unknown command:"NOPE"');
+    const entries = await driver.getConsoleHistory(100);
+    expect(entries.map(({ kind, message }) => [kind, message])).toEqual([
+      ["command", "M117 Hi"],
+      ["response", "ok"],
+      ["command", "NOPE"],
+      ["response", '!! Unknown command:"NOPE"'],
+    ]);
+    expect(entries[0]?.time).toBeInstanceOf(Date);
+    expect(await driver.getConsoleHistory(1)).toHaveLength(1);
+  });
+
+  it("lists macros with descriptions and parameters, and G-code commands", async () => {
+    const { url, driver } = await setup();
+    await driver.connect({ url });
+    const macros = await driver.listMacros();
+    expect(macros.map((m) => m.name)).toEqual([
+      "_HEAT_SOAK",
+      "LOAD_FILAMENT",
+      "PRINT_END",
+      "PRINT_START",
+    ]);
+    expect(macros.find((m) => m.name === "PRINT_START")).toEqual({
+      name: "PRINT_START",
+      description: "Heat up, home and purge",
+      params: [
+        { name: "BED", defaultValue: "60" },
+        { name: "EXTRUDER", defaultValue: "215" },
+      ],
+    });
+    expect(macros.find((m) => m.name === "PRINT_END")?.description).toBeNull();
+    const commands = await driver.listGcodeCommands();
+    expect(commands).toContainEqual({ name: "G28", description: "Move to origin" });
+    expect(commands.map((c) => c.name)).toContain("PRINT_START");
   });
 
   it("reads print history and totals", async () => {

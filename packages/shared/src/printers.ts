@@ -284,3 +284,32 @@ export const jobHistorySchema = z.object({
   totals: z.object({ jobs: z.number(), printSeconds: z.number(), filamentMm: z.number() }),
 });
 export type JobHistoryDto = z.infer<typeof jobHistorySchema>;
+
+export const consoleEntrySchema = z.object({
+  time: z.iso.datetime(),
+  kind: z.enum(["command", "response"]),
+  message: z.string(),
+});
+export type ConsoleEntryDto = z.infer<typeof consoleEntrySchema>;
+
+export const consoleHistorySchema = z.object({ entries: z.array(consoleEntrySchema) });
+export type ConsoleHistoryDto = z.infer<typeof consoleHistorySchema>;
+
+export const macroSchema = z.object({
+  name: z.string(),
+  description: z.string().nullable(),
+  params: z.array(z.object({ name: z.string(), defaultValue: z.string().nullable() })),
+});
+export type MacroDto = z.infer<typeof macroSchema>;
+
+export const gcodeCommandSchema = z.object({
+  name: z.string(),
+  description: z.string().nullable(),
+});
+export type GcodeCommandDto = z.infer<typeof gcodeCommandSchema>;
+
+export const macroListSchema = z.object({
+  macros: z.array(macroSchema),
+  commands: z.array(gcodeCommandSchema),
+});
+export type MacroListDto = z.infer<typeof macroListSchema>;

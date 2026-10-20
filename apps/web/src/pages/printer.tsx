@@ -1,7 +1,7 @@
 import type { PrinterCommand, RestartRequest } from "@printrio/shared";
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
-import { useState } from "react";
+import { createElement, type FC, useState } from "react";
 import {
   Dialog,
   EmptyState,
@@ -27,6 +27,7 @@ import { WebcamPanel } from "../features/webcam-panel.tsx";
 import { useT } from "../i18n/index.tsx";
 import { api } from "../lib/api.ts";
 import { formatDuration, formatFilament, formatPercent } from "../lib/format.ts";
+import { useModules } from "../lib/modules.tsx";
 import { groupsQuery, printersQuery } from "../lib/queries.ts";
 import { meQuery } from "../lib/session.ts";
 
@@ -303,6 +304,7 @@ export function PrinterPage() {
               disabled={!connected || !printer.withinLimit}
             />
           </div>
+          <ModulePanels printerId={printer.id} />
           <div className="order-11 min-w-0 empty:hidden lg:order-none">
             <HistoryPanel
               printerId={printer.id}
@@ -332,4 +334,16 @@ function Stat({ label, value }: { label: string; value: string }) {
       <dd className="mt-0.5 font-semibold">{value}</dd>
     </div>
   );
+}
+
+/** Panels added by modules (Pro, Business), after the built-in ones on mobile. */
+function ModulePanels({ printerId }: { printerId: string }) {
+  const { printerPanels } = useModules();
+  return printerPanels.map((panel) => (
+    <div key={`${panel.moduleId}:${panel.id}`} className="order-13 min-w-0 lg:order-none">
+      <Panel id={`${panel.moduleId}-${panel.id}`} title={panel.title}>
+        {createElement(panel.component as FC<{ printerId: string }>, { printerId })}
+      </Panel>
+    </div>
+  ));
 }

@@ -16,6 +16,7 @@
     "@codemirror/state": "6.5.2",
     "@codemirror/view": "6.38.6",
     "@lezer/highlight": "1.2.3",
+    "@printrio/sdk": "workspace:*",
     "@printrio/shared": "workspace:*",
     "@tanstack/react-query": "5.104.5",
     "@tanstack/react-router": "1.170.45",

@@ -11,8 +11,9 @@ const { db, close } = createDatabase(config.DATABASE_URL);
 await runMigrations(db);
 const secrets = new SecretBox(await resolveAppSecret(config.APP_SECRET, config.DATA_DIR));
 
-const manager = new PrinterManager(defaultDriverFactories());
-const app = await buildApp({ config, db, secrets, manager });
+const factories = defaultDriverFactories();
+const manager = new PrinterManager(factories);
+const app = await buildApp({ config, db, secrets, manager, factories });
 await connectStoredPrinters(db, manager, secrets);
 
 const cleanup = setInterval(

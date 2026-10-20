@@ -1,14 +1,17 @@
-import type { PrinterStatusDto, RecordedJobStatus } from "@printrio/shared";
+import type { JobRecordDto, PrinterStatusDto, RecordedJobStatus } from "@printrio/shared";
 import { and, eq } from "drizzle-orm";
 import type { Database } from "../db/client.ts";
 import { filaments, printers, printJobs, spools } from "../db/schema.ts";
 import type { PrinterManager } from "../printers/manager.ts";
+import { toJobRecord } from "../routes/jobs.ts";
 import { getWorkspaceSettings } from "../settings.ts";
 import { computeJobCost } from "./cost.ts";
 
 const ACTIVE = new Set(["printing", "paused"]);
 /** Running jobs are saved at most this often (progress survives a server restart). */
 const SAVE_INTERVAL_MS = 30_000;
+
+export type JobEvent = "job.started" | "job.finished";
 
 interface OpenJob {
   id: string;
@@ -36,6 +39,8 @@ export class JobRecorder {
     private db: Database,
     private manager: PrinterManager,
     private onChange: () => void = () => {},
+    /** Job lifecycle for modules (e.g. spool consumption, notifications). */
+    private onJob: (event: JobEvent, job: JobRecordDto) => void = () => {},
   ) {}
 
   async start() {
@@ -142,7 +147,7 @@ export class JobRecorder {
         currency: settings.costs.currency,
         orderId,
       })
-      .returning({ id: printJobs.id });
+      .returning();
     if (!row) return;
     this.open.set(printerId, {
       id: row.id,
@@ -152,6 +157,7 @@ export class JobRecorder {
       savedAt: Date.now(),
     });
     this.onChange();
+    this.onJob("job.started", toJobRecord(row));
   }
 
   private async close(printerId: string, open: OpenJob, fallback: RecordedJobStatus | null = null) {
@@ -195,7 +201,7 @@ export class JobRecorder {
       powerWatts: printer?.powerWatts ?? settings.costs.defaultPowerWatts,
       electricityPrice: settings.costs.electricityPrice,
     });
-    await this.db
+    const [closed] = await this.db
       .update(printJobs)
       .set({
         status,
@@ -205,7 +211,9 @@ export class JobRecorder {
         ...cost,
         currency: settings.costs.currency,
       })
-      .where(and(eq(printJobs.id, open.id), eq(printJobs.status, "printing")));
+      .where(and(eq(printJobs.id, open.id), eq(printJobs.status, "printing")))
+      .returning();
     this.onChange();
+    if (closed) this.onJob("job.finished", toJobRecord(closed));
   }
 }

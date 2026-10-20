@@ -4,6 +4,7 @@ export * from "./filament.ts";
 export * from "./jobs.ts";
 export * from "./library.ts";
 export * from "./licensing.ts";
+export * from "./licensing-keys.ts";
 export * from "./orders.ts";
 export * from "./printers.ts";
 export * from "./queue.ts";

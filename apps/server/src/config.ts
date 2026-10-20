@@ -18,6 +18,8 @@ const configSchema = z.object({
    */
   APP_SECRET: z.string().min(32).optional(),
   DATA_DIR: z.string().default("./data"),
+  /** printrio-licensing base URL (leases are verified with pinned keys either way). */
+  LICENSING_URL: z.url().optional(),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
 });
 

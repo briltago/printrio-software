@@ -6,6 +6,7 @@ import { CommandPalette } from "./features/command-palette.tsx";
 import { PrinterForm } from "./features/printer-form.tsx";
 import { useT } from "./i18n/index.tsx";
 import { api } from "./lib/api.ts";
+import { ModulesProvider, useModules } from "./lib/modules.tsx";
 import { settingsQuery } from "./lib/queries.ts";
 import { useRealtime } from "./lib/realtime.ts";
 import { meQuery } from "./lib/session.ts";
@@ -17,6 +18,32 @@ const navLinkClass =
 const activeLinkProps = { className: "!border-accent/20 bg-accent/10 !text-text" };
 
 export function AppLayout() {
+  return (
+    <ModulesProvider>
+      <AppShell />
+    </ModulesProvider>
+  );
+}
+
+/** Sidebar entries added by modules (Pro, Business). */
+function ModuleNavLinks() {
+  const { navItems } = useModules();
+  return navItems.map((item) => (
+    <Link
+      key={`${item.moduleId}:${item.id}`}
+      to="/m/$moduleId/$"
+      params={{ moduleId: item.moduleId, _splat: item.path }}
+      className={navLinkClass}
+      activeProps={activeLinkProps}
+      activeOptions={{ exact: true }}
+    >
+      <span aria-hidden="true">{item.icon}</span>
+      {item.label}
+    </Link>
+  ));
+}
+
+function AppShell() {
   const t = useT();
   const { data: user } = useSuspenseQuery(meQuery);
   const { data: settings } = useSuspenseQuery(settingsQuery);
@@ -77,6 +104,7 @@ export function AppLayout() {
                 )}
               </Link>
             ))}
+          <ModuleNavLinks />
           <Link
             to="/settings"
             className={`${navLinkClass} md:mt-auto`}

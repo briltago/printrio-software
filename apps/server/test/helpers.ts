@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { sql } from "drizzle-orm";
-import { buildApp, defaultDriverFactories } from "../src/app.ts";
+import { type AppOptions, buildApp, defaultDriverFactories } from "../src/app.ts";
 import { loadConfig } from "../src/config.ts";
 import { SecretBox } from "../src/crypto.ts";
 import { createDatabase, runMigrations } from "../src/db/client.ts";
@@ -12,10 +12,15 @@ export const TEST_DATABASE_URL =
   process.env.TEST_DATABASE_URL ?? "postgres://printrio:printrio@localhost:5432/printrio_test";
 
 /** Builds an app against a freshly migrated, empty test database. */
-export async function createTestApp() {
+export async function createTestApp(options: { licensing?: AppOptions["licensing"] } = {}) {
   const { db, close } = createDatabase(TEST_DATABASE_URL);
   await db.execute(sql`drop schema if exists public cascade`);
   await db.execute(sql`drop schema if exists drizzle cascade`);
+  // Module schemas (module_<id>) left over from licensing tests.
+  const moduleSchemas = await db.execute<{ name: string }>(
+    sql`select nspname as name from pg_namespace where nspname like 'module\_%'`,
+  );
+  for (const { name } of moduleSchemas) await db.execute(sql.raw(`drop schema "${name}" cascade`));
   await db.execute(sql`create schema public`);
   await runMigrations(db);
 
@@ -27,12 +32,16 @@ export async function createTestApp() {
     DATA_DIR: dataDir,
   });
   // Short backoff so reconnect behaviour is observable in tests.
-  const manager = new PrinterManager(defaultDriverFactories(), 50);
+  const factories = defaultDriverFactories();
+  const manager = new PrinterManager(factories, 50);
   const app = await buildApp({
     config,
     db,
     secrets: new SecretBox("test-secret-test-secret-test-secret"),
     manager,
+    factories,
+    // No real licensing in tests unless a test brings its own keys.
+    licensing: { leasePublicKey: "", modulePublicKey: "", ...options.licensing },
   });
   return {
     app,

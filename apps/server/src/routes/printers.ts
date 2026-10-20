@@ -2,7 +2,7 @@ import type { PrinterDriverFactory } from "@printrio/sdk";
 import {
   type ConnectionTestResult,
   connectionTestSchema,
-  effectiveLimits,
+  type Limits,
   type Printer,
   printerCommandSchema,
   printerGroupInputSchema,
@@ -25,6 +25,8 @@ interface PrinterRoutesOptions {
   factories: Map<string, PrinterDriverFactory>;
   /** Called after printers or groups change so clients can refetch. */
   onChange: () => void;
+  /** Plan in force (the licence lease, or Free). */
+  limits: () => Limits;
 }
 
 const idParams = z.object({ id: z.uuid() });
@@ -32,9 +34,7 @@ const orderSchema = z.object({ ids: z.array(z.uuid()).max(10_000) });
 const TEST_TIMEOUT_MS = 15_000;
 
 export function printerRoutes(app: FastifyInstance, options: PrinterRoutesOptions) {
-  const { db, manager, secrets, factories, onChange } = options;
-  // Licensing (F2) supplies a lease; until then the Free limits apply.
-  const limits = () => effectiveLimits(null);
+  const { db, manager, secrets, factories, onChange, limits } = options;
   const decryptKey = (value: string | null) => (value ? secrets.decrypt(value) : undefined);
 
   const listPrinters = async (): Promise<Printer[]> => {
@@ -247,8 +247,7 @@ export function printerRoutes(app: FastifyInstance, options: PrinterRoutesOption
 }
 
 /** Whether a printer may start jobs under the current plan (printers beyond the limit are monitor-only). */
-export async function printerWithinLimit(db: Database, id: string) {
-  const limit = effectiveLimits(null).printers;
+export async function printerWithinLimit(db: Database, id: string, limit: number | null) {
   if (limit === null) return true;
   const rows = await db
     .select({ id: printers.id })

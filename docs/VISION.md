@@ -118,8 +118,8 @@ The same workspace adapts to its size instead of shipping separate products:
 ## 6. Business model
 
 - **Subscription** (monthly / yearly), billed per instance.
-- **Payment provider:** a Merchant of Record (Paddle or Lemon Squeezy) so EU
-  and worldwide VAT is handled for a sole operator. Decide before phase F2.
+- **Payment provider:** Paddle Billing as Merchant of Record, so EU and
+  worldwide VAT is handled for a sole operator.
 - **Licence validation:** periodic online check with a **72-hour offline grace
   period**. Expiry never interrupts a running print and never deletes data.
 
@@ -129,7 +129,7 @@ The same workspace adapts to its size instead of shipping separate products:
 | ----- | ----- |
 | **F0 — Foundation** | Monorepo, CI, Docker Compose, PostgreSQL, authentication and users, module SDK skeleton, docs |
 | **F1 — Core (Free)** | ✅ Moonraker driver, live status, printer control + console; ✅ first-run wizard (usage mode, first printer); ✅ single-printer and fleet views (cards / compact / list, groups, tags, filters); ✅ configurable sidebar, light/dark theme, user management, Ctrl+K palette; ✅ stage A printer page (webcam, temperatures, motion, tuning, files, history, console, macros); ✅ stage B maintenance (config editor with backups, restarts, logs, system info, power devices, bed mesh, updates). ✅ spools (inventory, manual assignment, weighing, Spoolman import). ✅ job records and costs (material + energy). ✅ simple orders; ✅ per-printer queue. ✅ Files: G-code library in the data volume (send/print on any printer). ✅ slicer upload (OctoPrint-compatible API, personal API keys) and queueing from the library. Next: F2 (licensing + Pro modules) |
-| **F2 — Licensing + Pro** | `printrio-licensing` service, activation, signed module delivery; Pro: fleet queue, auto-assignment, orders+, notifications |
+| **F2 — Licensing + Pro** | ✅ `printrio-licensing` service (Paddle Billing), ✅ activation in Settings → Licence, limits from the lease, ✅ signed module delivery and module host (server + web extension points); Pro: fleet queue, auto-assignment, orders+, notifications |
 | **F3 — Beta for the waitlist** | Backups/export, update mechanism, onboarding, docs on printrio.app |
 | **Later** | Automations, Business module, PrusaLink / Bambu / OctoPrint drivers, AI failure detection, remote access relay |
 

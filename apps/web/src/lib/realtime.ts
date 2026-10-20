@@ -77,6 +77,10 @@ function handle(queryClient: QueryClient, message: RealtimeMessage) {
   if (message.type === "printers.changed") {
     void queryClient.invalidateQueries({ queryKey: printersQuery.queryKey });
     void queryClient.invalidateQueries({ queryKey: groupsQuery.queryKey });
+    // Also sent when the licence changes (limits, loaded modules).
+    void queryClient.invalidateQueries({ queryKey: ["licence"] });
+    void queryClient.invalidateQueries({ queryKey: ["modules"] });
+    void queryClient.invalidateQueries({ queryKey: ["users"] });
   } else if (message.type === "printer.status") {
     queryClient.setQueryData(printersQuery.queryKey, (data) =>
       data

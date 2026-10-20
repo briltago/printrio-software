@@ -6,19 +6,23 @@ import rateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
 import websocket from "@fastify/websocket";
 import type { PrinterDriverFactory } from "@printrio/sdk";
+import { eq } from "drizzle-orm";
 import Fastify from "fastify";
 import type { Config } from "./config.ts";
 import type { SecretBox } from "./crypto.ts";
 import type { Database } from "./db/client.ts";
+import { printers } from "./db/schema.ts";
 import { moonrakerDriverFactory } from "./drivers/moonraker.ts";
 import { JobRecorder } from "./jobs/recorder.ts";
 import { Library } from "./library/store.ts";
 import type { PrinterManager } from "./printers/manager.ts";
+import { apiKeyRoutes } from "./routes/api-keys.ts";
 import { authRoutes } from "./routes/auth.ts";
 import { filamentRoutes } from "./routes/filament.ts";
 import { healthRoutes } from "./routes/health.ts";
 import { jobRoutes } from "./routes/jobs.ts";
 import { libraryRoutes } from "./routes/library.ts";
+import { octoprintRoutes } from "./routes/octoprint.ts";
 import { orderRoutes } from "./routes/orders.ts";
 import { printerConfigRoutes } from "./routes/printer-config.ts";
 import { printerConsoleRoutes } from "./routes/printer-console.ts";
@@ -88,12 +92,25 @@ export async function buildApp({ config, db, secrets, manager }: AppOptions) {
     db,
     printerManager,
     recorder,
+    library,
     (id) => printerWithinLimit(db, id),
     () => changes.dispatchEvent(new Event("queue")),
   );
   orderRoutes(app, db, () => changes.dispatchEvent(new Event("jobs")));
   realtimeRoutes(app, printerManager, changes);
 
+  octoprintRoutes(
+    app,
+    db,
+    library,
+    printerManager,
+    recorder,
+    async (id) =>
+      (await db.select({ id: printers.id }).from(printers).where(eq(printers.id, id))).length > 0,
+    (id) => printerWithinLimit(db, id),
+    () => changes.dispatchEvent(new Event("queue")),
+  );
+  apiKeyRoutes(app, db);
   await recorder.start();
   app.addHook("onClose", async () => {
     recorder.stop();

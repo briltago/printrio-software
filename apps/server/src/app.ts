@@ -19,6 +19,7 @@ import { printerFileRoutes } from "./routes/printer-files.ts";
 import { printerMediaRoutes } from "./routes/printer-media.ts";
 import { printerMeshRoutes } from "./routes/printer-mesh.ts";
 import { printerSystemRoutes } from "./routes/printer-system.ts";
+import { printerUpdateRoutes } from "./routes/printer-updates.ts";
 import { printerRoutes, printerWithinLimit } from "./routes/printers.ts";
 import { realtimeRoutes } from "./routes/realtime.ts";
 import { settingsRoutes } from "./routes/settings.ts";
@@ -62,6 +63,7 @@ export async function buildApp({ config, db, secrets, manager }: AppOptions) {
   printerConsoleRoutes(app, printerManager);
   printerConfigRoutes(app, db, printerManager);
   printerSystemRoutes(app, printerManager);
+  printerUpdateRoutes(app, printerManager);
   printerMeshRoutes(app, printerManager, (id) => printerWithinLimit(db, id));
   await printerFileRoutes(app, printerManager, (id) => printerWithinLimit(db, id));
   realtimeRoutes(app, printerManager, changes);

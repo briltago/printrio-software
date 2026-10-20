@@ -100,7 +100,7 @@ the product stays usable at every step:
 | Stage | Scope | Result |
 | ----- | ----- | ------ |
 | **A — Daily operation** ✅ | Webcam, temperatures (targets, presets, 20-min chart), motion (home, jog, motors off, Z babystep), speed/flow/fan, exclude object, files on the printer (thumbnails, start, upload), print history, console (history, autocomplete), macros | Mainsail only needed for maintenance |
-| **B — Printer administration** | Config editor (`printer.cfg` etc.) with backup and Klipper restart, firmware/Klipper restart, logs, bed mesh view, update manager, power devices, system info | Mainsail no longer needed |
+| **B — Printer administration** ✅ | Config editor (`printer.cfg` etc.) with backup and Klipper restart, firmware/Klipper restart, logs, bed mesh view, update manager, power devices, system info | Mainsail no longer needed |
 | **C — Long tail** | Timelapse, input shaper graphs, other niche tools — by user demand | Feature parity where it matters |
 
 Admin-only for everything that can break a printer (config editing, restarts,
@@ -128,7 +128,7 @@ The same workspace adapts to its size instead of shipping separate products:
 | Phase | Scope |
 | ----- | ----- |
 | **F0 — Foundation** | Monorepo, CI, Docker Compose, PostgreSQL, authentication and users, module SDK skeleton, docs |
-| **F1 — Core (Free)** | ✅ Moonraker driver, live status, printer control + console; ✅ first-run wizard (usage mode, first printer); ✅ single-printer and fleet views (cards / compact / list, groups, tags, filters); ✅ configurable sidebar, light/dark theme, user management, Ctrl+K palette; ✅ stage A printer page (webcam, temperatures, motion, tuning, files, history, console, macros). Next: stage B, spools + Spoolman import, job costing, simple orders |
+| **F1 — Core (Free)** | ✅ Moonraker driver, live status, printer control + console; ✅ first-run wizard (usage mode, first printer); ✅ single-printer and fleet views (cards / compact / list, groups, tags, filters); ✅ configurable sidebar, light/dark theme, user management, Ctrl+K palette; ✅ stage A printer page (webcam, temperatures, motion, tuning, files, history, console, macros); ✅ stage B maintenance (config editor with backups, restarts, logs, system info, power devices, bed mesh, updates). Next: spools + Spoolman import, job costing, simple orders |
 | **F2 — Licensing + Pro** | `printrio-licensing` service, activation, signed module delivery; Pro: fleet queue, auto-assignment, orders+, notifications |
 | **F3 — Beta for the waitlist** | Backups/export, update mechanism, onboarding, docs on printrio.app |
 | **Later** | Automations, Business module, PrusaLink / Bambu / OctoPrint drivers, AI failure detection, remote access relay |

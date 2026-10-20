@@ -614,6 +614,71 @@ describe("MoonrakerDriver", () => {
     expect(await driver.getBedMesh()).toBeNull();
   });
 
+  it("reports software updates", async () => {
+    const { url, driver } = await setup();
+    await driver.connect({ url });
+    const { busy, components } = await driver.getUpdateStatus();
+    expect(busy).toBe(false);
+    expect(components.map((c) => c.name)).toEqual([
+      "system",
+      "klipper",
+      "moonraker",
+      "crowsnest",
+      "mainsail",
+    ]);
+    expect(components[0]).toMatchObject({
+      kind: "system",
+      updateAvailable: true,
+      packages: ["libssl3", "openssl", "tzdata"],
+    });
+    expect(components[1]).toMatchObject({
+      kind: "git",
+      version: "v0.12.0-385",
+      updateAvailable: true,
+    });
+    expect(components[1]?.commitsBehind[0]?.date).toBeInstanceOf(Date);
+    expect(components.find((c) => c.name === "crowsnest")).toMatchObject({
+      updateAvailable: false,
+      needsRecovery: true,
+      warnings: ["Repo has local modifications"],
+    });
+    expect(components.find((c) => c.name === "mainsail")).toMatchObject({
+      kind: "web",
+      updateAvailable: true,
+    });
+  });
+
+  it("upgrades with progress, recovers and refreshes", async () => {
+    const { fake, url, driver } = await setup();
+    await driver.connect({ url });
+    const progress: string[] = [];
+    driver.onUpdateProgress((p) => progress.push(`${p.application}:${p.complete}:${p.message}`));
+    await driver.updateSoftware({ op: "upgrade", name: "klipper" });
+    expect(progress).toEqual([
+      "klipper:false:Updating klipper...",
+      "klipper:true:Update of klipper complete",
+    ]);
+    expect((await driver.getUpdateStatus()).components[1]?.updateAvailable).toBe(false);
+    await driver.updateSoftware({ op: "recover", name: "crowsnest" });
+    await driver.updateSoftware({ op: "refresh" });
+    // Updating Moonraker restarts it; the dropped connection counts as success.
+    await driver.updateSoftware({ op: "upgrade", name: "moonraker" });
+    expect(fake.actions).toEqual([
+      "upgrade:klipper",
+      "recover:crowsnest",
+      "refresh:all",
+      "upgrade:moonraker",
+    ]);
+  });
+
+  it("falls back to the per-kind update endpoints of older Moonraker", async () => {
+    const { fake, url, driver } = await setup({ legacyUpdates: true });
+    await driver.connect({ url });
+    await driver.updateSoftware({ op: "upgrade", name: "mainsail" });
+    await driver.updateSoftware({ op: "upgrade", name: "system" });
+    expect(fake.actions).toEqual(["upgrade:mainsail", "upgrade:system"]);
+  });
+
   it("reads print history and totals", async () => {
     const { url, driver } = await setup();
     await driver.connect({ url });

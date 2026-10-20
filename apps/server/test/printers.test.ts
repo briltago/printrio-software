@@ -599,6 +599,37 @@ describe("printer administration", () => {
     expect(res.statusCode).toBe(409);
   });
 
+  it("lets admins check for and install updates", async () => {
+    const { fake, id } = await connectedPrinter();
+    expect((await api("GET", `/api/printers/${id}/updates`, undefined, operator)).statusCode).toBe(
+      403,
+    );
+    const status = (await api("GET", `/api/printers/${id}/updates`)).json();
+    expect(status.components[1].commitsBehind[0].date).toMatch(/^\d{4}-/);
+    expect(
+      (await api("POST", `/api/printers/${id}/updates`, { op: "upgrade", name: "klipper" }))
+        .statusCode,
+    ).toBe(200);
+    expect(
+      (await api("POST", `/api/printers/${id}/updates`, { op: "upgrade", name: "../x" }))
+        .statusCode,
+    ).toBe(400);
+    expect((await api("POST", `/api/printers/${id}/updates`, { op: "recover" })).statusCode).toBe(
+      400,
+    );
+    expect(fake.actions).toEqual(["upgrade:klipper"]);
+  });
+
+  it("refuses updates while printing but allows checking", async () => {
+    const { id } = await connectedPrinter({ printing: { fileName: "cube.gcode", progress: 0.3 } });
+    expect((await api("POST", `/api/printers/${id}/updates`, { op: "upgrade" })).statusCode).toBe(
+      409,
+    );
+    expect((await api("POST", `/api/printers/${id}/updates`, { op: "refresh" })).statusCode).toBe(
+      200,
+    );
+  });
+
   it("refuses restarts while printing", async () => {
     const { id } = await connectedPrinter({ printing: { fileName: "cube.gcode", progress: 0.3 } });
     const res = await api("POST", `/api/printers/${id}/restart`, { target: "klipper" });
@@ -661,6 +692,24 @@ describe("realtime", () => {
     await new Promise((r) => setTimeout(r, 50));
     expect(messages).toContainEqual({ type: "printer.console", printerId: id, line: "ok" });
     expect(messages).toContainEqual({ type: "printers.changed" });
+
+    // Update progress goes to admins only.
+    const adminSocket = new WebSocket(url, { headers: { cookie: admin } });
+    const adminMessages: RealtimeMessage[] = [];
+    adminSocket.on("message", (data) => adminMessages.push(JSON.parse(String(data))));
+    await new Promise((resolve) => adminSocket.on("open", resolve));
+    await api("POST", `/api/printers/${id}/updates`, { op: "upgrade", name: "klipper" });
+    await new Promise((r) => setTimeout(r, 50));
+    const update = {
+      type: "printer.update",
+      printerId: id,
+      application: "klipper",
+      message: "Update of klipper complete",
+      complete: true,
+    };
+    expect(adminMessages).toContainEqual(update);
+    expect(messages).not.toContainEqual(update);
+    adminSocket.close();
     socket.close();
   });
 });

@@ -5,13 +5,14 @@ import { BedMeshPanel } from "../features/bed-mesh-panel.tsx";
 import { ConfigEditor } from "../features/config-editor.tsx";
 import { LogsViewer } from "../features/logs-viewer.tsx";
 import { SystemPanel } from "../features/system-panel.tsx";
+import { UpdatesPanel } from "../features/updates-panel.tsx";
 import { useT } from "../i18n/index.tsx";
 import { printersQuery } from "../lib/queries.ts";
 import { meQuery } from "../lib/session.ts";
 
-export const MAINTENANCE_TABS = ["mesh", "config", "logs", "system"] as const;
+export const MAINTENANCE_TABS = ["mesh", "config", "logs", "updates", "system"] as const;
 export type MaintenanceTab = (typeof MAINTENANCE_TABS)[number];
-const ADMIN_TABS = new Set<MaintenanceTab>(["config", "logs", "system"]);
+const ADMIN_TABS = new Set<MaintenanceTab>(["config", "logs", "updates", "system"]);
 
 /** Printer administration (stage B): everything Mainsail/Fluidd offer beyond daily operation. */
 export function MaintenancePage() {
@@ -89,6 +90,7 @@ export function MaintenancePage() {
             )}
             {active === "config" && <ConfigEditor printerId={printerId} busy={busy} />}
             {active === "logs" && <LogsViewer printerId={printerId} />}
+            {active === "updates" && <UpdatesPanel printerId={printerId} busy={busy} />}
             {active === "system" && <SystemPanel printerId={printerId} busy={busy} />}
           </>
         )}

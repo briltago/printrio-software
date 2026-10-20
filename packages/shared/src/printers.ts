@@ -233,6 +233,13 @@ export const realtimeMessageSchema = z.discriminatedUnion("type", [
     printerId: z.uuid(),
     line: z.string(),
   }),
+  z.object({
+    type: z.literal("printer.update"),
+    printerId: z.uuid(),
+    application: z.string(),
+    message: z.string(),
+    complete: z.boolean(),
+  }),
 ]);
 export type RealtimeMessage = z.infer<typeof realtimeMessageSchema>;
 
@@ -448,3 +455,37 @@ export const bedMeshActionSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("remove"), profile: meshProfileNameSchema }),
 ]);
 export type BedMeshActionDto = z.infer<typeof bedMeshActionSchema>;
+
+export const softwareComponentSchema = z.object({
+  name: z.string(),
+  kind: z.enum(["system", "git", "web", "other"]),
+  version: z.string().nullable(),
+  remoteVersion: z.string().nullable(),
+  updateAvailable: z.boolean(),
+  commitsBehind: z.array(
+    z.object({
+      sha: z.string(),
+      subject: z.string(),
+      author: z.string().nullable(),
+      date: z.iso.datetime().nullable(),
+    }),
+  ),
+  packages: z.array(z.string()),
+  needsRecovery: z.boolean(),
+  warnings: z.array(z.string()),
+});
+export type SoftwareComponentDto = z.infer<typeof softwareComponentSchema>;
+
+export const updateStatusSchema = z.object({
+  busy: z.boolean(),
+  components: z.array(softwareComponentSchema),
+});
+export type UpdateStatusDto = z.infer<typeof updateStatusSchema>;
+
+const componentName = z.string().regex(/^[\w.-]{1,64}$/);
+export const updateActionSchema = z.discriminatedUnion("op", [
+  z.object({ op: z.literal("refresh"), name: componentName.optional() }),
+  z.object({ op: z.literal("upgrade"), name: componentName.optional() }),
+  z.object({ op: z.literal("recover"), name: componentName }),
+]);
+export type UpdateActionDto = z.infer<typeof updateActionSchema>;

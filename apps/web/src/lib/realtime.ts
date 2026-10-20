@@ -43,6 +43,36 @@ export function useConsole(printerId: string) {
   );
 }
 
+export interface UpdateLine {
+  application: string;
+  message: string;
+  complete: boolean;
+}
+
+const MAX_UPDATE_LINES = 500;
+const updateLines = new Map<string, UpdateLine[]>();
+const updateListeners = new Set<() => void>();
+const notifyUpdates = () => {
+  for (const listener of updateListeners) listener();
+};
+
+export function clearUpdateLog(printerId: string) {
+  updateLines.set(printerId, []);
+  notifyUpdates();
+}
+
+const NO_UPDATES: UpdateLine[] = [];
+/** Progress output of software updates on a printer host (admins only receive it). */
+export function useUpdateLog(printerId: string) {
+  return useSyncExternalStore(
+    (listener) => {
+      updateListeners.add(listener);
+      return () => updateListeners.delete(listener);
+    },
+    () => updateLines.get(printerId) ?? NO_UPDATES,
+  );
+}
+
 function handle(queryClient: QueryClient, message: RealtimeMessage) {
   if (message.type === "printers.changed") {
     void queryClient.invalidateQueries({ queryKey: printersQuery.queryKey });
@@ -58,6 +88,16 @@ function handle(queryClient: QueryClient, message: RealtimeMessage) {
           }
         : data,
     );
+  } else if (message.type === "printer.update") {
+    const { printerId, application, message: text, complete } = message;
+    updateLines.set(
+      printerId,
+      [...(updateLines.get(printerId) ?? []), { application, message: text, complete }].slice(
+        -MAX_UPDATE_LINES,
+      ),
+    );
+    notifyUpdates();
+    if (complete) void queryClient.invalidateQueries({ queryKey: ["updates", printerId] });
   } else if (message.type === "printer.console") {
     appendConsole(message.printerId, { kind: "response", message: message.line });
   }

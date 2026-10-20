@@ -152,7 +152,6 @@ export function ConsolePanel({
     <Panel
       id="console"
       title={t("printer.console")}
-      className="mt-4"
       actions={
         lines.length > 0 && (
           <button

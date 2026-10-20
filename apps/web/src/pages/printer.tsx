@@ -135,159 +135,176 @@ export function PrinterPage() {
       )}
       <FormError error={command.error ?? restart.error ?? remove.error} />
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-        <div className="grid min-w-0 content-start gap-4">
-          <WebcamPanel printerId={printer.id} connected={connected} />
-          <Panel id="job" title={t("printer.job")}>
-            {job ? (
-              <div>
-                <div className="flex items-end justify-between gap-3">
-                  <p className="truncate text-muted">{job.fileName}</p>
-                  <p className="text-3xl font-semibold tracking-[-0.06em]">
-                    {formatPercent(job.progress)}
-                  </p>
+      {/* Two columns on wide screens; one column below, ordered by importance (webcam, job, temperatures, …). */}
+      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:items-start">
+        <div className="contents lg:grid lg:min-w-0 lg:grid-cols-1 lg:content-start lg:gap-4">
+          <div className="order-1 min-w-0 empty:hidden lg:order-none">
+            <WebcamPanel printerId={printer.id} connected={connected} />
+          </div>
+          <div className="order-2 min-w-0 empty:hidden lg:order-none">
+            <Panel id="job" title={t("printer.job")}>
+              {job ? (
+                <div>
+                  <div className="flex items-end justify-between gap-3">
+                    <p className="truncate text-muted">{job.fileName}</p>
+                    <p className="text-3xl font-semibold tracking-[-0.06em]">
+                      {formatPercent(job.progress)}
+                    </p>
+                  </div>
+                  <div className="mt-3">
+                    <ProgressBar value={job.progress} label={t("printer.progress")} />
+                  </div>
+                  <dl className="mt-5 grid grid-cols-3 gap-3 text-sm">
+                    <Stat
+                      label={t("printer.elapsed")}
+                      value={formatDuration(t, job.elapsedSeconds)}
+                    />
+                    <Stat
+                      label={t("printer.remaining")}
+                      value={formatDuration(t, job.remainingSeconds)}
+                    />
+                    <Stat
+                      label={t("printer.filamentUsed")}
+                      value={formatFilament(job.filamentUsedMm)}
+                    />
+                  </dl>
                 </div>
-                <div className="mt-3">
-                  <ProgressBar value={job.progress} label={t("printer.progress")} />
-                </div>
-                <dl className="mt-5 grid grid-cols-3 gap-3 text-sm">
-                  <Stat
-                    label={t("printer.elapsed")}
-                    value={formatDuration(t, job.elapsedSeconds)}
-                  />
-                  <Stat
-                    label={t("printer.remaining")}
-                    value={formatDuration(t, job.remainingSeconds)}
-                  />
-                  <Stat
-                    label={t("printer.filamentUsed")}
-                    value={formatFilament(job.filamentUsedMm)}
-                  />
-                </dl>
-              </div>
-            ) : (
-              <p className="text-sm text-muted">{t("printer.noJob")}</p>
-            )}
-            {status.exclusion && (
-              <ObjectExclusion printerId={printer.id} exclusion={status.exclusion} />
-            )}
-            <div className="mt-6 flex flex-wrap gap-2 border-line border-t pt-4">
-              {status.state === "error" && connected && (
-                <>
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm"
-                    disabled={restart.isPending}
-                    onClick={() => restart.mutate({ target: "firmware" })}
-                  >
-                    {t("system.restartFirmware")}
-                  </button>
+              ) : (
+                <p className="text-sm text-muted">{t("printer.noJob")}</p>
+              )}
+              {status.exclusion && (
+                <ObjectExclusion printerId={printer.id} exclusion={status.exclusion} />
+              )}
+              <div className="mt-6 flex flex-wrap gap-2 border-line border-t pt-4">
+                {status.state === "error" && connected && (
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      disabled={restart.isPending}
+                      onClick={() => restart.mutate({ target: "firmware" })}
+                    >
+                      {t("system.restartFirmware")}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      disabled={restart.isPending}
+                      onClick={() => restart.mutate({ target: "klipper" })}
+                    >
+                      {t("system.restartKlipper")}
+                    </button>
+                  </>
+                )}
+                {status.state === "printing" && (
                   <button
                     type="button"
                     className="btn btn-secondary btn-sm"
-                    disabled={restart.isPending}
-                    onClick={() => restart.mutate({ target: "klipper" })}
+                    onClick={() => command.mutate({ action: "pause" })}
                   >
-                    {t("system.restartKlipper")}
+                    {t("printer.pause")}
                   </button>
-                </>
-              )}
-              {status.state === "printing" && (
+                )}
+                {status.state === "paused" && (
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={() => command.mutate({ action: "resume" })}
+                  >
+                    {t("printer.resume")}
+                  </button>
+                )}
+                {(status.state === "printing" || status.state === "paused") && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() =>
+                      confirmThen(t("printer.cancelConfirm", { name: printer.name }), {
+                        action: "cancel",
+                      })
+                    }
+                  >
+                    {t("printer.cancelPrint")}
+                  </button>
+                )}
                 <button
                   type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => command.mutate({ action: "pause" })}
-                >
-                  {t("printer.pause")}
-                </button>
-              )}
-              {status.state === "paused" && (
-                <button
-                  type="button"
-                  className="btn btn-primary btn-sm"
-                  onClick={() => command.mutate({ action: "resume" })}
-                >
-                  {t("printer.resume")}
-                </button>
-              )}
-              {(status.state === "printing" || status.state === "paused") && (
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
+                  className="btn btn-danger btn-sm ml-auto"
+                  disabled={!connected}
                   onClick={() =>
-                    confirmThen(t("printer.cancelConfirm", { name: printer.name }), {
-                      action: "cancel",
+                    confirmThen(t("printer.emergencyConfirm", { name: printer.name }), {
+                      action: "emergency_stop",
                     })
                   }
                 >
-                  {t("printer.cancelPrint")}
+                  {t("printer.emergencyStop")}
                 </button>
-              )}
-              <button
-                type="button"
-                className="btn btn-danger btn-sm ml-auto"
-                disabled={!connected}
-                onClick={() =>
-                  confirmThen(t("printer.emergencyConfirm", { name: printer.name }), {
-                    action: "emergency_stop",
-                  })
-                }
-              >
-                {t("printer.emergencyStop")}
-              </button>
-            </div>
-          </Panel>
-          {status.motion && (
-            <ToolheadPanel printerId={printer.id} motion={status.motion} state={status.state} />
-          )}
-        </div>
-        <div className="grid min-w-0 content-start gap-4">
-          <TemperaturePanel
-            printerId={printer.id}
-            temperatures={status.temperatures}
-            connected={connected}
-          />
-          {status.motion && (
-            <TuningPanel
+              </div>
+            </Panel>
+          </div>
+          <div className="order-4 min-w-0 empty:hidden lg:order-none">
+            {status.motion && (
+              <ToolheadPanel printerId={printer.id} motion={status.motion} state={status.state} />
+            )}
+          </div>
+          <div className="order-8 min-w-0 empty:hidden lg:order-none">
+            <FilesPanel
               printerId={printer.id}
-              motion={status.motion}
-              fans={status.fans}
+              printerName={printer.name}
+              canPrint={canPrint}
               connected={connected}
             />
-          )}
-          <PowerPanel
-            printerId={printer.id}
-            connected={connected}
-            busy={status.state === "printing" || status.state === "paused"}
-          />
-          <MacrosPanel
-            printerId={printer.id}
-            connected={connected}
-            disabled={!connected || !printer.withinLimit}
-          />
+          </div>
+          <div className="order-10 min-w-0 empty:hidden lg:order-none">
+            <ConsolePanel
+              printerId={printer.id}
+              connected={connected}
+              disabled={!connected || !printer.withinLimit}
+            />
+          </div>
+        </div>
+        <div className="contents lg:grid lg:min-w-0 lg:grid-cols-1 lg:content-start lg:gap-4">
+          <div className="order-3 min-w-0 empty:hidden lg:order-none">
+            <TemperaturePanel
+              printerId={printer.id}
+              temperatures={status.temperatures}
+              connected={connected}
+            />
+          </div>
+          <div className="order-5 min-w-0 empty:hidden lg:order-none">
+            {status.motion && (
+              <TuningPanel
+                printerId={printer.id}
+                motion={status.motion}
+                fans={status.fans}
+                connected={connected}
+              />
+            )}
+          </div>
+          <div className="order-6 min-w-0 empty:hidden lg:order-none">
+            <PowerPanel
+              printerId={printer.id}
+              connected={connected}
+              busy={status.state === "printing" || status.state === "paused"}
+            />
+          </div>
+          <div className="order-7 min-w-0 empty:hidden lg:order-none">
+            <MacrosPanel
+              printerId={printer.id}
+              connected={connected}
+              disabled={!connected || !printer.withinLimit}
+            />
+          </div>
+          <div className="order-9 min-w-0 empty:hidden lg:order-none">
+            <HistoryPanel
+              printerId={printer.id}
+              state={status.state}
+              canPrint={canPrint}
+              connected={connected}
+            />
+          </div>
         </div>
       </div>
-
-      <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-        <FilesPanel
-          printerId={printer.id}
-          printerName={printer.name}
-          canPrint={canPrint}
-          connected={connected}
-        />
-        <HistoryPanel
-          printerId={printer.id}
-          state={status.state}
-          canPrint={canPrint}
-          connected={connected}
-        />
-      </div>
-
-      <ConsolePanel
-        printerId={printer.id}
-        connected={connected}
-        disabled={!connected || !printer.withinLimit}
-      />
 
       <Dialog open={editing} onClose={() => setEditing(false)} title={t("printer.editTitle")}>
         <PrinterForm

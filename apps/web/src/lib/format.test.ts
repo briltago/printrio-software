@@ -28,6 +28,7 @@ describe("formatting", () => {
     expect(formatDuration(t, 2 * 3600 + 5 * 60)).toBe("2 h 5 min");
     expect(formatDuration(t, 59 * 60)).toBe("59 min");
     expect(formatDuration(t, null)).toBe("—");
+    expect(formatDuration(t, 661 * 3600 + 35 * 60)).toBe("27 d 13 h");
     expect(formatPercent(0.426)).toBe("43%");
     expect(formatFilament(5120)).toBe("5.12 m");
     expect(formatFilament(640)).toBe("640 mm");

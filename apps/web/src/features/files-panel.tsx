@@ -12,6 +12,7 @@ import {
 } from "../lib/format.ts";
 import { useStoredState } from "../lib/stored-state.ts";
 import { Panel } from "./panel.tsx";
+import { QueueForm } from "./queue-panel.tsx";
 
 type Sort = "newest" | "name" | "duration";
 
@@ -87,6 +88,7 @@ export function FilesPanel({
   const [dragging, setDragging] = useState(false);
   const [upload, setUpload] = useState<{ name: string; progress: number } | null>(null);
   const [confirmFile, setConfirmFile] = useState<PrintFileDto | null>(null);
+  const [queueFile, setQueueFile] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const queryKey = ["files", printerId, dir];
   const { data, error } = useQuery({
@@ -346,6 +348,15 @@ export function FilesPanel({
                       </button>
                       <button
                         type="button"
+                        className="btn btn-secondary btn-sm"
+                        disabled={!connected}
+                        title={t("queue.addTitle")}
+                        onClick={() => setQueueFile(file.path)}
+                      >
+                        {t("queue.queue")}
+                      </button>
+                      <button
+                        type="button"
                         className="btn btn-secondary btn-sm px-2"
                         aria-label={`${t("common.delete")} ${file.name}`}
                         onClick={() =>
@@ -367,6 +378,15 @@ export function FilesPanel({
         </div>
       </div>
 
+      <Dialog
+        open={queueFile !== null}
+        onClose={() => setQueueFile(null)}
+        title={t("queue.addTitle")}
+      >
+        {queueFile && (
+          <QueueForm printerId={printerId} path={queueFile} onDone={() => setQueueFile(null)} />
+        )}
+      </Dialog>
       <Dialog
         open={confirmFile !== null}
         onClose={() => setConfirmFile(null)}

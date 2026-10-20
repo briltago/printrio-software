@@ -180,6 +180,15 @@ linked to them (`print_jobs.order_id`). The order shows the summed cost of
 its prints. Line items, quantities, prices, deadlines and scheduling into the
 queue are Pro. Deleting an order keeps its prints in the history.
 
+### Per-printer queue
+
+`queue_items` hold files waiting on one printer, ordered by `position`, with
+copies and an optional order. The next print is started by hand ("Start
+next", only when the printer is idle) because someone has to clear the bed;
+starting removes the item and tells the job recorder which order the new
+job belongs to. Fleet queues, automatic assignment and filament matching are
+Pro.
+
 ### Workspace settings
 
 Instance-wide settings (usage mode, start page, sidebar order/visibility,

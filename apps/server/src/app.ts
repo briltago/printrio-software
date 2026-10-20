@@ -25,6 +25,7 @@ import { printerMeshRoutes } from "./routes/printer-mesh.ts";
 import { printerSystemRoutes } from "./routes/printer-system.ts";
 import { printerUpdateRoutes } from "./routes/printer-updates.ts";
 import { printerRoutes, printerWithinLimit } from "./routes/printers.ts";
+import { queueRoutes } from "./routes/queue.ts";
 import { realtimeRoutes } from "./routes/realtime.ts";
 import { settingsRoutes } from "./routes/settings.ts";
 import { userRoutes } from "./routes/users.ts";
@@ -71,13 +72,21 @@ export async function buildApp({ config, db, secrets, manager }: AppOptions) {
   printerUpdateRoutes(app, printerManager);
   printerMeshRoutes(app, printerManager, (id) => printerWithinLimit(db, id));
   await printerFileRoutes(app, printerManager, (id) => printerWithinLimit(db, id));
-  jobRoutes(app, db);
-  orderRoutes(app, db, () => changes.dispatchEvent(new Event("jobs")));
-  realtimeRoutes(app, printerManager, changes);
-
   const recorder = new JobRecorder(db, printerManager, () =>
     changes.dispatchEvent(new Event("jobs")),
   );
+  jobRoutes(app, db);
+  queueRoutes(
+    app,
+    db,
+    printerManager,
+    recorder,
+    (id) => printerWithinLimit(db, id),
+    () => changes.dispatchEvent(new Event("queue")),
+  );
+  orderRoutes(app, db, () => changes.dispatchEvent(new Event("jobs")));
+  realtimeRoutes(app, printerManager, changes);
+
   await recorder.start();
   app.addHook("onClose", async () => {
     recorder.stop();

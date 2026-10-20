@@ -26,6 +26,8 @@ interface OpenJob {
  */
 export class JobRecorder {
   private open = new Map<string, OpenJob>();
+  /** Order to link to the next job of a printer (set when a queued print starts). */
+  private expectedOrders = new Map<string, { fileName: string; orderId: string }>();
   private queues = new Map<string, Promise<void>>();
   private listener = (printerId: string, status: PrinterStatusDto) =>
     this.enqueue(printerId, () => this.onStatus(printerId, status));
@@ -53,6 +55,12 @@ export class JobRecorder {
 
   stop() {
     this.manager.off("status", this.listener);
+  }
+
+  /** The next job of `printerId` printing `fileName` belongs to `orderId`. */
+  expectOrder(printerId: string, fileName: string, orderId: string | null) {
+    if (orderId) this.expectedOrders.set(printerId, { fileName, orderId });
+    else this.expectedOrders.delete(printerId);
   }
 
   /** Resolves once all queued status updates are processed (for tests). */
@@ -109,6 +117,9 @@ export class JobRecorder {
             .where(eq(spools.id, printer.activeSpoolId))
         )[0]
       : undefined;
+    const expected = this.expectedOrders.get(printerId);
+    this.expectedOrders.delete(printerId);
+    const orderId = expected?.fileName === fileName ? expected.orderId : null;
     const label = spool
       ? [spool.filament.vendor, spool.filament.name, spool.filament.colorName]
           .filter(Boolean)
@@ -129,6 +140,7 @@ export class JobRecorder {
         spoolColorHex: spool?.filament.colorHex ?? null,
         material: spool?.filament.material ?? null,
         currency: settings.costs.currency,
+        orderId,
       })
       .returning({ id: printJobs.id });
     if (!row) return;

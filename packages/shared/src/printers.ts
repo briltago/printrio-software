@@ -234,6 +234,7 @@ export const realtimeMessageSchema = z.discriminatedUnion("type", [
   }),
   z.object({ type: z.literal("printers.changed") }),
   z.object({ type: z.literal("jobs.changed") }),
+  z.object({ type: z.literal("queue.changed") }),
   z.object({
     type: z.literal("printer.console"),
     printerId: z.uuid(),

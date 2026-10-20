@@ -18,6 +18,7 @@ import { ObjectExclusion } from "../features/object-exclusion.tsx";
 import { Panel } from "../features/panel.tsx";
 import { PowerPanel } from "../features/power-panel.tsx";
 import { PrinterForm } from "../features/printer-form.tsx";
+import { QueuePanel } from "../features/queue-panel.tsx";
 import { SpoolPanel } from "../features/spool-panel.tsx";
 import { TemperaturePanel } from "../features/temperature-panel.tsx";
 import { ToolheadPanel } from "../features/toolhead-panel.tsx";
@@ -243,12 +244,15 @@ export function PrinterPage() {
               </div>
             </Panel>
           </div>
-          <div className="order-5 min-w-0 empty:hidden lg:order-none">
+          <div className="order-3 min-w-0 empty:hidden lg:order-none">
+            <QueuePanel printerId={printer.id} canPrint={canPrint} />
+          </div>
+          <div className="order-6 min-w-0 empty:hidden lg:order-none">
             {status.motion && (
               <ToolheadPanel printerId={printer.id} motion={status.motion} state={status.state} />
             )}
           </div>
-          <div className="order-9 min-w-0 empty:hidden lg:order-none">
+          <div className="order-10 min-w-0 empty:hidden lg:order-none">
             <FilesPanel
               printerId={printer.id}
               printerName={printer.name}
@@ -256,7 +260,7 @@ export function PrinterPage() {
               connected={connected}
             />
           </div>
-          <div className="order-11 min-w-0 empty:hidden lg:order-none">
+          <div className="order-12 min-w-0 empty:hidden lg:order-none">
             <ConsolePanel
               printerId={printer.id}
               connected={connected}
@@ -265,14 +269,14 @@ export function PrinterPage() {
           </div>
         </div>
         <div className="contents lg:grid lg:min-w-0 lg:grid-cols-1 lg:content-start lg:gap-4">
-          <div className="order-4 min-w-0 empty:hidden lg:order-none">
+          <div className="order-5 min-w-0 empty:hidden lg:order-none">
             <TemperaturePanel
               printerId={printer.id}
               temperatures={status.temperatures}
               connected={connected}
             />
           </div>
-          <div className="order-6 min-w-0 empty:hidden lg:order-none">
+          <div className="order-7 min-w-0 empty:hidden lg:order-none">
             {status.motion && (
               <TuningPanel
                 printerId={printer.id}
@@ -282,24 +286,24 @@ export function PrinterPage() {
               />
             )}
           </div>
-          <div className="order-3 min-w-0 empty:hidden lg:order-none">
+          <div className="order-4 min-w-0 empty:hidden lg:order-none">
             <SpoolPanel printerId={printer.id} activeSpoolId={printer.activeSpoolId} />
           </div>
-          <div className="order-7 min-w-0 empty:hidden lg:order-none">
+          <div className="order-8 min-w-0 empty:hidden lg:order-none">
             <PowerPanel
               printerId={printer.id}
               connected={connected}
               busy={status.state === "printing" || status.state === "paused"}
             />
           </div>
-          <div className="order-8 min-w-0 empty:hidden lg:order-none">
+          <div className="order-9 min-w-0 empty:hidden lg:order-none">
             <MacrosPanel
               printerId={printer.id}
               connected={connected}
               disabled={!connected || !printer.withinLimit}
             />
           </div>
-          <div className="order-10 min-w-0 empty:hidden lg:order-none">
+          <div className="order-11 min-w-0 empty:hidden lg:order-none">
             <HistoryPanel
               printerId={printer.id}
               state={status.state}

@@ -173,3 +173,20 @@ export const orders = pgTable("orders", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** Per-printer print queue; position orders the items (lowest first). */
+export const queueItems = pgTable(
+  "queue_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    printerId: uuid("printer_id")
+      .notNull()
+      .references(() => printers.id, { onDelete: "cascade" }),
+    path: text("path").notNull(),
+    position: integer("position").notNull(),
+    orderId: uuid("order_id").references(() => orders.id, { onDelete: "set null" }),
+    addedBy: uuid("added_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("queue_items_printer_idx").on(table.printerId, table.position)],
+);

@@ -92,6 +92,8 @@ function handle(queryClient: QueryClient, message: RealtimeMessage) {
     void queryClient.invalidateQueries({ queryKey: ["jobs"] });
     void queryClient.invalidateQueries({ queryKey: ["costs"] });
     void queryClient.invalidateQueries({ queryKey: ["orders"] });
+  } else if (message.type === "queue.changed") {
+    void queryClient.invalidateQueries({ queryKey: ["queue"] });
   } else if (message.type === "printer.update") {
     const { printerId, application, message: text, complete } = message;
     updateLines.set(

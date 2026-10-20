@@ -4,5 +4,6 @@ export * from "./jobs.ts";
 export * from "./licensing.ts";
 export * from "./orders.ts";
 export * from "./printers.ts";
+export * from "./queue.ts";
 export * from "./settings.ts";
 export * from "./users.ts";

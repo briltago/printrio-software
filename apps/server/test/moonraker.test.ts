@@ -572,6 +572,48 @@ describe("MoonrakerDriver", () => {
     expect(await bare.driver.listPowerDevices()).toEqual([]);
   });
 
+  it("reads the bed mesh and its profiles", async () => {
+    const { url, driver } = await setup();
+    await driver.connect({ url });
+    const mesh = await driver.getBedMesh();
+    expect(mesh?.activeProfile).toBe("default");
+    expect(mesh?.min).toEqual([20, 20]);
+    expect(mesh?.probed).toHaveLength(5);
+    expect(mesh?.probed[0]).toHaveLength(5);
+    expect(mesh?.mesh).toHaveLength(13);
+    expect(mesh?.profiles.map((p) => p.name)).toEqual(["default", "pei_textured"]);
+    expect(mesh?.profiles[0]).toMatchObject({ min: [20, 20], max: [220, 220] });
+  });
+
+  it("calibrates (homing first), loads, clears and saves meshes", async () => {
+    const { fake, url, driver } = await setup();
+    await driver.connect({ url });
+    await driver.bedMesh({ op: "calibrate" });
+    expect(fake.gcode.at(-1)).toBe("G28\nBED_MESH_CALIBRATE");
+    await driver.bedMesh({ op: "clear" });
+    const cleared = await driver.getBedMesh();
+    expect(cleared?.activeProfile).toBeNull();
+    expect(cleared?.probed).toEqual([]);
+    await driver.bedMesh({ op: "load", profile: "pei_textured" });
+    expect((await driver.getBedMesh())?.activeProfile).toBe("pei_textured");
+    await expect(driver.bedMesh({ op: "load", profile: "missing" })).rejects.toThrow(
+      "Unknown profile",
+    );
+    await driver.bedMesh({ op: "save", profile: "smooth_pei" });
+    expect(fake.gcode.at(-1)).toBe("BED_MESH_PROFILE SAVE=smooth_pei\nSAVE_CONFIG");
+    expect(fake.actions).toContain("save_config");
+    await expect(driver.bedMesh({ op: "remove", profile: "x; G28" })).rejects.toThrow(
+      "Invalid profile",
+    );
+  });
+
+  it("reports no bed mesh when the printer has none", async () => {
+    const { fake, url, driver } = await setup();
+    fake.removeObject("bed_mesh");
+    await driver.connect({ url });
+    expect(await driver.getBedMesh()).toBeNull();
+  });
+
   it("reads print history and totals", async () => {
     const { url, driver } = await setup();
     await driver.connect({ url });

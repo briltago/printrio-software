@@ -124,6 +124,13 @@ full file is streamed as a download. Host information comes from
 (`[power …]` in Moonraker) appear on the printer page for operators too;
 devices marked `locked_while_printing` cannot be switched during a print.
 
+The bed mesh tab (open to operators) reads Klipper's `bed_mesh` object on
+demand and draws it as a heat map on a diverging scale (blue below zero, red
+above, gray at zero, symmetric around zero), with a table view for exact
+values. Calibrating homes first when needed. Saving or removing a profile
+runs `SAVE_CONFIG`, which writes printer.cfg and restarts Klipper, so it is
+admin-only.
+
 Permissions: config, logs, system info, services, host reboot/shutdown and updates are
 admin-only. Restarting Klipper or the firmware is open to operators because
 it is the way back from an emergency stop. No restart is accepted while the

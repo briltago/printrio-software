@@ -1,5 +1,4 @@
 import { Readable } from "node:stream";
-import multipart from "@fastify/multipart";
 import {
   type FileListingDto,
   gcodeDirectorySchema,
@@ -11,20 +10,17 @@ import { z } from "zod";
 import { type PrinterManager, PrinterNotConnectedError } from "../printers/manager.ts";
 import { parseOr400, requireUser } from "./guards.ts";
 
-const MAX_UPLOAD_BYTES = 1024 * 1024 * 1024;
 // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are exactly what file names must not contain.
-const GCODE_FILE = /^[^/\\\u0000-\u001f]+\.(gcode|g|gco|ufp)$/i;
+export const GCODE_FILE = /^[^/\\\u0000-\u001f]+\.(gcode|g|gco|ufp)$/i;
 const IMAGE_FILE = /\.(png|jpe?g|webp)$/i;
 const idParams = z.object({ id: z.uuid() });
 
 /** Files on the printer (G-code root), thumbnails, uploads and print history. */
-export async function printerFileRoutes(
+export function printerFileRoutes(
   app: FastifyInstance,
   manager: PrinterManager,
   isWithinLimit: (printerId: string) => Promise<boolean>,
 ) {
-  await app.register(multipart, { limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 } });
-
   const failed = (reply: FastifyReply, error: unknown) => {
     if (error instanceof PrinterNotConnectedError)
       return reply.code(409).send({ error: error.message });

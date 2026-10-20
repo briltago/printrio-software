@@ -7,3 +7,6 @@ coverage/
 .env.*
 !.env.example
 .DS_Store
+
+# Local data folder (instance secret, G-code library)
+data/

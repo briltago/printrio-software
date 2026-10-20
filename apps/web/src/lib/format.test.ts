@@ -6,8 +6,10 @@ import {
   formatDuration,
   formatFilament,
   formatFilamentAmount,
+  formatMoney,
   formatPercent,
   formatRelativeTime,
+  formatWeight,
   heaterName,
 } from "./format.ts";
 
@@ -56,5 +58,21 @@ describe("formatting", () => {
     const now = Date.parse("2026-10-19T12:00:00Z");
     expect(formatRelativeTime("2026-10-19T09:00:00Z", now)).toBe("3 hours ago");
     expect(formatRelativeTime("2026-10-18T12:00:00Z", now)).toBe("yesterday");
+  });
+});
+
+describe("formatMoney and formatWeight", () => {
+  it("formats currency with extra digits for small amounts", () => {
+    expect(formatMoney(12.5, "EUR")).toBe("€12.50");
+    expect(formatMoney(0.042, "EUR")).toBe("€0.042");
+    expect(formatMoney(150, "CZK")).toMatch(/^CZK\s150\.00$/);
+    expect(formatMoney(null, "EUR")).toBe("—");
+  });
+
+  it("formats filament weight", () => {
+    expect(formatWeight(4.25)).toBe("4.3 g");
+    expect(formatWeight(250.4)).toBe("250 g");
+    expect(formatWeight(1520)).toBe("1.52 kg");
+    expect(formatWeight(null)).toBe("—");
   });
 });

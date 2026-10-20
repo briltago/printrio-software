@@ -53,6 +53,7 @@ export function printerRoutes(app: FastifyInstance, options: PrinterRoutesOption
       tags: row.tags,
       withinLimit: limit === null || index < limit,
       activeSpoolId: row.activeSpoolId,
+      powerWatts: row.powerWatts,
       status: manager.getStatus(row.id),
     }));
   };
@@ -112,6 +113,7 @@ export function printerRoutes(app: FastifyInstance, options: PrinterRoutesOption
         apiKeyEncrypted: input.apiKey ? secrets.encrypt(input.apiKey) : null,
         groupId: input.groupId ?? null,
         tags: input.tags ?? [],
+        powerWatts: input.powerWatts ?? null,
         position: existing?.value ?? 0,
       })
       .returning();
@@ -132,6 +134,7 @@ export function printerRoutes(app: FastifyInstance, options: PrinterRoutesOption
       changes.apiKeyEncrypted = input.apiKey ? secrets.encrypt(input.apiKey) : null;
     if (input.groupId !== undefined) changes.groupId = input.groupId;
     if (input.tags !== undefined) changes.tags = input.tags;
+    if (input.powerWatts !== undefined) changes.powerWatts = input.powerWatts;
     const [row] = await db
       .update(printers)
       .set(changes)

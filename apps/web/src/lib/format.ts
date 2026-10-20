@@ -74,3 +74,26 @@ export function formatRelativeTime(iso: string, now = Date.now()) {
     day: "numeric",
   });
 }
+
+/** Money in the workspace currency; small amounts keep more digits (a print can cost 0.004 €). */
+export function formatMoney(value: number | null | undefined, currency: string) {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
+  const digits = value !== 0 && Math.abs(value) < 0.1 ? 3 : 2;
+  try {
+    return new Intl.NumberFormat("en", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    }).format(value);
+  } catch {
+    return `${value.toFixed(digits)} ${currency}`;
+  }
+}
+
+export const formatWeight = (grams: number | null | undefined) =>
+  grams === null || grams === undefined
+    ? "—"
+    : grams >= 1000
+      ? `${(grams / 1000).toFixed(2)} kg`
+      : `${grams >= 10 ? Math.round(grams) : grams.toFixed(1)} g`;

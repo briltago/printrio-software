@@ -156,6 +156,22 @@ spools by an external id (`spoolman:<url>#spool-<id>`), so running it again
 updates instead of duplicating. Automatic consumption and stock alerts are
 Pro features and stay out of the core.
 
+### Job records and costs
+
+`JobRecorder` listens to printer status: a job opens (`print_jobs`, status
+`printing`) when a printer starts printing, with a snapshot of the loaded
+spool, and closes when the printer is idle or in error again. The final
+status, duration and filament come from the printer's own history
+(`listJobs`), falling back to the last live values ("interrupted" when the
+history does not know the job). Offline or reconnecting states never close a
+job, and open jobs are reloaded after a server restart.
+
+The cost is stored when the job closes (Free: material + energy):
+material = filament length → grams (diameter, density) × spool price per gram;
+energy = printer power (per printer, or the workspace default) × print time ×
+electricity price. Without a priced spool the material cost stays empty
+rather than guessed. Prices, margins and profit are Pro.
+
 ### Workspace settings
 
 Instance-wide settings (usage mode, start page, sidebar order/visibility,

@@ -1,4 +1,4 @@
-import { NAV_ITEM_IDS, type NavItemId } from "@printrio/shared";
+import { NAV_ITEM_IDS } from "@printrio/shared";
 import type { QueryClient } from "@tanstack/react-query";
 import {
   createRootRouteWithContext,
@@ -11,9 +11,11 @@ import { z } from "zod";
 import { AppLayout } from "./layout.tsx";
 import { printersQuery, settingsQuery } from "./lib/queries.ts";
 import { meQuery, setupStatusQuery } from "./lib/session.ts";
-import { NAV_ROUTES } from "./nav.ts";
+import { LIVE_SECTIONS, NAV_ROUTES } from "./nav.ts";
+import { CostsPage } from "./pages/costs.tsx";
 import { FilamentPage } from "./pages/filament.tsx";
 import { FleetPage } from "./pages/fleet.tsx";
+import { JobsPage } from "./pages/jobs.tsx";
 import { LoginPage } from "./pages/login.tsx";
 import { MAINTENANCE_TABS, MaintenancePage } from "./pages/maintenance.tsx";
 import { OnboardingPage } from "./pages/onboarding.tsx";
@@ -101,9 +103,19 @@ const filamentRoute = createRoute({
   component: FilamentPage,
 });
 
-const placeholderRoutes = NAV_ITEM_IDS.filter(
-  (id): id is Exclude<NavItemId, "printers" | "filament"> => id !== "printers" && id !== "filament",
-).map((id) =>
+const jobsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/jobs",
+  component: JobsPage,
+});
+const costsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/costs",
+  component: CostsPage,
+});
+
+/** Sections with their own route above; the rest render a placeholder until they ship. */
+const placeholderRoutes = NAV_ITEM_IDS.filter((id) => !LIVE_SECTIONS.has(id)).map((id) =>
   createRoute({
     getParentRoute: () => appRoute,
     path: NAV_ROUTES[id],
@@ -146,6 +158,8 @@ export function createAppRouter(queryClient: QueryClient) {
         printerRoute,
         maintenanceRoute,
         filamentRoute,
+        jobsRoute,
+        costsRoute,
         settingsRoute,
         ...placeholderRoutes,
       ]),

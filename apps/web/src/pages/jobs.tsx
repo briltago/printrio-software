@@ -1,5 +1,5 @@
-import type { JobListDto, RecordedJobStatus } from "@printrio/shared";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import type { JobListDto, OrderDto, RecordedJobStatus } from "@printrio/shared";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { EmptyState, FormError, PageHeader } from "../components.tsx";
@@ -36,6 +36,21 @@ export function JobsPage() {
     getNextPageParam: (last, pages) =>
       pages.length * PAGE < last.total ? pages.length * PAGE : undefined,
   });
+  const queryClient = useQueryClient();
+  const orders = useQuery({
+    queryKey: ["orders"],
+    queryFn: () => api<{ orders: OrderDto[] }>("/api/orders"),
+  });
+  const openOrders = (orders.data?.orders ?? []).filter((o) => o.status !== "cancelled");
+  const linkOrder = useMutation({
+    mutationFn: ({ jobId, orderId }: { jobId: string; orderId: string | null }) =>
+      api(`/api/jobs/${jobId}/order`, { method: "PUT", body: { orderId } }),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["jobs"] }),
+        queryClient.invalidateQueries({ queryKey: ["orders"] }),
+      ]),
+  });
   const list = jobs.data?.pages.flatMap((page) => page.jobs) ?? [];
   const total = jobs.data?.pages[0]?.total ?? 0;
 
@@ -70,7 +85,7 @@ export function JobsPage() {
           ))}
         </select>
       </div>
-      <FormError error={jobs.error} />
+      <FormError error={jobs.error ?? linkOrder.error} />
       {jobs.data && list.length === 0 ? (
         <EmptyState title={t("jobs.emptyTitle")} text={t("jobs.emptyText")} />
       ) : (
@@ -93,6 +108,11 @@ export function JobsPage() {
                 <th scope="col" className="hidden pb-2 pr-4 font-semibold lg:table-cell">
                   {t("jobs.filament")}
                 </th>
+                {openOrders.length > 0 && (
+                  <th scope="col" className="hidden pb-2 pr-4 font-semibold xl:table-cell">
+                    {t("jobs.order")}
+                  </th>
+                )}
                 <th scope="col" className="pb-2 text-right font-semibold">
                   {t("jobs.cost")}
                 </th>
@@ -150,6 +170,28 @@ export function JobsPage() {
                       )}
                     </span>
                   </td>
+                  {openOrders.length > 0 && (
+                    <td className="hidden py-2 pr-4 xl:table-cell">
+                      <select
+                        className="input w-40 py-1 text-xs"
+                        aria-label={t("jobs.orderOf", { name: job.fileName })}
+                        value={job.orderId ?? ""}
+                        disabled={linkOrder.isPending}
+                        onChange={(event) =>
+                          linkOrder.mutate({ jobId: job.id, orderId: event.target.value || null })
+                        }
+                      >
+                        <option value="">{t("jobs.noOrder")}</option>
+                        {(orders.data?.orders ?? [])
+                          .filter((o) => o.status !== "cancelled" || o.id === job.orderId)
+                          .map((order) => (
+                            <option key={order.id} value={order.id}>
+                              {order.name}
+                            </option>
+                          ))}
+                      </select>
+                    </td>
+                  )}
                   <td
                     className="py-2.5 text-right whitespace-nowrap tabular-nums"
                     title={

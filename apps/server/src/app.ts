@@ -16,6 +16,7 @@ import { authRoutes } from "./routes/auth.ts";
 import { filamentRoutes } from "./routes/filament.ts";
 import { healthRoutes } from "./routes/health.ts";
 import { jobRoutes } from "./routes/jobs.ts";
+import { orderRoutes } from "./routes/orders.ts";
 import { printerConfigRoutes } from "./routes/printer-config.ts";
 import { printerConsoleRoutes } from "./routes/printer-console.ts";
 import { printerFileRoutes } from "./routes/printer-files.ts";
@@ -71,6 +72,7 @@ export async function buildApp({ config, db, secrets, manager }: AppOptions) {
   printerMeshRoutes(app, printerManager, (id) => printerWithinLimit(db, id));
   await printerFileRoutes(app, printerManager, (id) => printerWithinLimit(db, id));
   jobRoutes(app, db);
+  orderRoutes(app, db, () => changes.dispatchEvent(new Event("jobs")));
   realtimeRoutes(app, printerManager, changes);
 
   const recorder = new JobRecorder(db, printerManager, () =>

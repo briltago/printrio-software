@@ -138,3 +138,72 @@ describe("job recording and costs", () => {
     expect(list[0]).toMatchObject({ printerId: null, printerName: "Trident" });
   });
 });
+
+describe("orders", () => {
+  let orderId: string;
+
+  it("creates, lists and updates orders", async () => {
+    const created = await api("POST", "/api/orders", {
+      name: "  Brackets for the workshop ",
+      customer: "Novák s.r.o.",
+      notes: "",
+    });
+    expect(created.statusCode).toBe(201);
+    orderId = created.json().id;
+    await api("POST", "/api/orders", { name: "Personal stuff", status: "done" });
+    expect((await api("POST", "/api/orders", { name: " " })).statusCode).toBe(400);
+
+    const all = (await api("GET", "/api/orders")).json().orders;
+    expect(all.map((o: { name: string }) => o.name)).toEqual([
+      "Personal stuff",
+      "Brackets for the workshop",
+    ]);
+    expect(all[1]).toMatchObject({
+      customer: "Novák s.r.o.",
+      status: "new",
+      notes: null,
+      jobCount: 0,
+      totalCost: 0,
+      currency: "CZK",
+    });
+    const done = (await api("GET", "/api/orders?status=done")).json().orders;
+    expect(done).toHaveLength(1);
+
+    await api("PATCH", `/api/orders/${orderId}`, { status: "in_progress" });
+    const detail = (await api("GET", `/api/orders/${orderId}`)).json();
+    expect(detail).toMatchObject({ status: "in_progress", customer: "Novák s.r.o.", jobs: [] });
+    expect((await api("PATCH", `/api/orders/${orderId}`, { status: "shipped" })).statusCode).toBe(
+      400,
+    );
+  });
+
+  it("links prints and sums their cost", async () => {
+    const list = await jobs();
+    for (const job of list) {
+      expect((await api("PUT", `/api/jobs/${job.id}/order`, { orderId })).statusCode).toBe(200);
+    }
+    const detail = (await api("GET", `/api/orders/${orderId}`)).json();
+    expect(detail.jobCount).toBe(list.length);
+    expect(detail.jobs.map((j: JobRecordDto) => j.orderId)).toEqual(list.map(() => orderId));
+    const expected = list.reduce((sum, job) => sum + (job.totalCost ?? 0), 0);
+    expect(detail.totalCost).toBeCloseTo(expected, 6);
+    expect(await jobs("?orderId=none")).toEqual([]);
+
+    const first = list[0]?.id;
+    await api("PUT", `/api/jobs/${first}/order`, { orderId: null });
+    expect((await jobs("?orderId=none")).map((j) => j.id)).toEqual([first]);
+    expect(
+      (
+        await api("PUT", `/api/jobs/${first}/order`, {
+          orderId: "00000000-0000-4000-8000-000000000000",
+        })
+      ).statusCode,
+    ).toBe(400);
+  });
+
+  it("keeps prints when an order is deleted", async () => {
+    await api("DELETE", `/api/orders/${orderId}`);
+    expect((await api("GET", `/api/orders/${orderId}`)).statusCode).toBe(404);
+    expect((await jobs()).every((job) => job.orderId === null)).toBe(true);
+  });
+});

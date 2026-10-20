@@ -172,6 +172,14 @@ energy = printer power (per printer, or the workspace default) × print time ×
 electricity price. Without a priced spool the material cost stays empty
 rather than guessed. Prices, margins and profit are Pro.
 
+### Orders
+
+Free orders are deliberately small: a name, the customer as plain text, a
+status (new, in progress, done, cancelled), notes and the recorded prints
+linked to them (`print_jobs.order_id`). The order shows the summed cost of
+its prints. Line items, quantities, prices, deadlines and scheduling into the
+queue are Pro. Deleting an order keeps its prints in the history.
+
 ### Workspace settings
 
 Instance-wide settings (usage mode, start page, sidebar order/visibility,

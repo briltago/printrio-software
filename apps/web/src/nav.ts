@@ -20,4 +20,10 @@ export const NAV_ICONS: Record<NavItemId | "settings", string> = {
 };
 
 /** Sections that already have a real page; the rest show a "Soon" badge. */
-export const LIVE_SECTIONS = new Set<NavItemId>(["printers", "filament", "jobs", "costs"]);
+export const LIVE_SECTIONS = new Set<NavItemId>([
+  "printers",
+  "filament",
+  "jobs",
+  "costs",
+  "orders",
+]);

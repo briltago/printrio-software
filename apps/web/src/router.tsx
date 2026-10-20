@@ -19,6 +19,7 @@ import { JobsPage } from "./pages/jobs.tsx";
 import { LoginPage } from "./pages/login.tsx";
 import { MAINTENANCE_TABS, MaintenancePage } from "./pages/maintenance.tsx";
 import { OnboardingPage } from "./pages/onboarding.tsx";
+import { OrdersPage } from "./pages/orders.tsx";
 import { PlaceholderPage } from "./pages/placeholder.tsx";
 import { PrinterPage } from "./pages/printer.tsx";
 import { SETTINGS_TABS, SettingsPage } from "./pages/settings.tsx";
@@ -108,6 +109,11 @@ const jobsRoute = createRoute({
   path: "/jobs",
   component: JobsPage,
 });
+const ordersRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/orders",
+  component: OrdersPage,
+});
 const costsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/costs",
@@ -160,6 +166,7 @@ export function createAppRouter(queryClient: QueryClient) {
         filamentRoute,
         jobsRoute,
         costsRoute,
+        ordersRoute,
         settingsRoute,
         ...placeholderRoutes,
       ]),

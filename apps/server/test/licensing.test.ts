@@ -285,8 +285,12 @@ describe("licensing", () => {
     expect(made.created).toMatchObject({ name: "From a quote", customer: "Acme", status: "new" });
     expect(made.updated).toMatchObject({ id: made.created.id, status: "in_progress" });
     expect(made.missing).toBeNull();
-    expect((globalThis as { __moduleOrderEvents?: string[] }).__moduleOrderEvents).toContain("From a quote");
-    expect((await api("GET", `/api/orders/${made.created.id}`)).json()).toMatchObject({ status: "in_progress" });
+    expect((globalThis as { __moduleOrderEvents?: string[] }).__moduleOrderEvents).toContain(
+      "From a quote",
+    );
+    expect((await api("GET", `/api/orders/${made.created.id}`)).json()).toMatchObject({
+      status: "in_progress",
+    });
     expect(
       (await ctx.app.inject({ method: "GET", url: "/api/modules/test/notes" })).statusCode,
     ).toBe(401);

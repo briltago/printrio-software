@@ -153,10 +153,23 @@ export const printJobs = pgTable(
     energyCost: doublePrecision("energy_cost"),
     totalCost: doublePrecision("total_cost"),
     currency: text("currency").notNull(),
+    orderId: uuid("order_id").references((): AnyPgColumn => orders.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    index("print_jobs_order_idx").on(table.orderId),
     index("print_jobs_started_idx").on(table.startedAt),
     index("print_jobs_printer_idx").on(table.printerId, table.startedAt),
   ],
 );
+
+/** Orders (Free): a name, a customer as plain text, a status and the prints made for it. */
+export const orders = pgTable("orders", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  customer: text("customer"),
+  status: text("status").notNull().default("new"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

@@ -6,7 +6,7 @@ import {
   type JobRecordDto,
   jobListQuerySchema,
 } from "@printrio/shared";
-import { and, count, desc, eq, gte, lt, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, gte, isNull, lt, type SQL } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import type { Database } from "../db/client.ts";
 import { printJobs } from "../db/schema.ts";
@@ -40,6 +40,7 @@ export function toJobRecord(row: JobRow): JobRecordDto {
     energyCost: row.energyCost,
     totalCost: row.totalCost,
     currency: row.currency,
+    orderId: row.orderId,
   };
 }
 
@@ -69,6 +70,8 @@ export function jobRoutes(app: FastifyInstance, db: Database) {
     const filters: SQL[] = [];
     if (query.printerId) filters.push(eq(printJobs.printerId, query.printerId));
     if (query.status) filters.push(eq(printJobs.status, query.status));
+    if (query.orderId === "none") filters.push(isNull(printJobs.orderId));
+    else if (query.orderId) filters.push(eq(printJobs.orderId, query.orderId));
     const where = filters.length ? and(...filters) : undefined;
     const [rows, [total]] = await Promise.all([
       db

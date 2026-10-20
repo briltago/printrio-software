@@ -34,12 +34,15 @@ export const jobRecordSchema = z.object({
   energyCost: z.number().nullable(),
   totalCost: z.number().nullable(),
   currency: z.string(),
+  orderId: z.uuid().nullable(),
 });
 export type JobRecordDto = z.infer<typeof jobRecordSchema>;
 
 export const jobListQuerySchema = z.object({
   printerId: z.uuid().optional(),
   status: recordedJobStatusSchema.optional(),
+  /** "none" lists prints not linked to any order. */
+  orderId: z.union([z.uuid(), z.literal("none")]).optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });

@@ -52,6 +52,7 @@ export function printerRoutes(app: FastifyInstance, options: PrinterRoutesOption
       groupId: row.groupId,
       tags: row.tags,
       withinLimit: limit === null || index < limit,
+      activeSpoolId: row.activeSpoolId,
       status: manager.getStatus(row.id),
     }));
   };

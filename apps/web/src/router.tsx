@@ -12,6 +12,7 @@ import { AppLayout } from "./layout.tsx";
 import { printersQuery, settingsQuery } from "./lib/queries.ts";
 import { meQuery, setupStatusQuery } from "./lib/session.ts";
 import { NAV_ROUTES } from "./nav.ts";
+import { FilamentPage } from "./pages/filament.tsx";
 import { FleetPage } from "./pages/fleet.tsx";
 import { LoginPage } from "./pages/login.tsx";
 import { MAINTENANCE_TABS, MaintenancePage } from "./pages/maintenance.tsx";
@@ -94,8 +95,14 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 });
 
+const filamentRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/filament",
+  component: FilamentPage,
+});
+
 const placeholderRoutes = NAV_ITEM_IDS.filter(
-  (id): id is Exclude<NavItemId, "printers"> => id !== "printers",
+  (id): id is Exclude<NavItemId, "printers" | "filament"> => id !== "printers" && id !== "filament",
 ).map((id) =>
   createRoute({
     getParentRoute: () => appRoute,
@@ -138,6 +145,7 @@ export function createAppRouter(queryClient: QueryClient) {
         fleetRoute,
         printerRoute,
         maintenanceRoute,
+        filamentRoute,
         settingsRoute,
         ...placeholderRoutes,
       ]),

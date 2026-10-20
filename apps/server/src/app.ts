@@ -12,6 +12,7 @@ import type { Database } from "./db/client.ts";
 import { moonrakerDriverFactory } from "./drivers/moonraker.ts";
 import type { PrinterManager } from "./printers/manager.ts";
 import { authRoutes } from "./routes/auth.ts";
+import { filamentRoutes } from "./routes/filament.ts";
 import { healthRoutes } from "./routes/health.ts";
 import { printerConfigRoutes } from "./routes/printer-config.ts";
 import { printerConsoleRoutes } from "./routes/printer-console.ts";
@@ -59,6 +60,7 @@ export async function buildApp({ config, db, secrets, manager }: AppOptions) {
     factories,
     onChange: () => changes.dispatchEvent(new Event("change")),
   });
+  filamentRoutes(app, db, () => changes.dispatchEvent(new Event("change")));
   printerMediaRoutes(app, printerManager);
   printerConsoleRoutes(app, printerManager);
   printerConfigRoutes(app, db, printerManager);

@@ -1,5 +1,8 @@
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
+  boolean,
+  doublePrecision,
   index,
   integer,
   pgEnum,
@@ -62,6 +65,10 @@ export const printers = pgTable("printers", {
   groupId: uuid("group_id").references(() => printerGroups.id, { onDelete: "set null" }),
   tags: text("tags").array().notNull().default(sql`'{}'::text[]`),
   position: integer("position").notNull().default(0),
+  /** Spool loaded in the printer, assigned by hand. */
+  activeSpoolId: uuid("active_spool_id").references((): AnyPgColumn => spools.id, {
+    onDelete: "set null",
+  }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -82,3 +89,38 @@ export const configBackups = pgTable(
     index("config_backups_printer_path_idx").on(table.printerId, table.path, table.createdAt),
   ],
 );
+
+/** Filament products (vendor + material + colour); spools are physical rolls of one. */
+export const filaments = pgTable("filaments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  vendor: text("vendor"),
+  name: text("name").notNull(),
+  material: text("material").notNull(),
+  colorName: text("color_name"),
+  colorHex: text("color_hex"),
+  diameter: doublePrecision("diameter").notNull().default(1.75),
+  density: doublePrecision("density").notNull(),
+  spoolWeight: doublePrecision("spool_weight"),
+  emptySpoolWeight: doublePrecision("empty_spool_weight"),
+  price: doublePrecision("price"),
+  /** Source record for imports (e.g. "spoolman:http://host:7912#12"), to update instead of duplicate. */
+  externalId: text("external_id").unique(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const spools = pgTable("spools", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  filamentId: uuid("filament_id")
+    .notNull()
+    .references(() => filaments.id, { onDelete: "restrict" }),
+  initialWeight: doublePrecision("initial_weight").notNull(),
+  remainingWeight: doublePrecision("remaining_weight").notNull(),
+  emptySpoolWeight: doublePrecision("empty_spool_weight"),
+  price: doublePrecision("price"),
+  location: text("location"),
+  lot: text("lot"),
+  notes: text("notes"),
+  archived: boolean("archived").notNull().default(false),
+  externalId: text("external_id").unique(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

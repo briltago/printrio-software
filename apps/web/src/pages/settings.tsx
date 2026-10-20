@@ -9,14 +9,22 @@ import {
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useSearch } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
-import { Dialog, Field, FormError, PageHeader } from "../components.tsx";
+import { Dialog, Field, FormError, PageHeader, Section } from "../components.tsx";
+import { SlicerSettings } from "../features/slicer-settings.tsx";
 import { useT } from "../i18n/index.tsx";
 import { api } from "../lib/api.ts";
 import { groupsQuery, settingsQuery, usersQuery, useUpdateSettings } from "../lib/queries.ts";
 import { meQuery } from "../lib/session.ts";
 import { setTheme, type ThemePreference, useTheme } from "../lib/theme.ts";
 
-export const SETTINGS_TABS = ["general", "sidebar", "appearance", "groups", "users"] as const;
+export const SETTINGS_TABS = [
+  "general",
+  "sidebar",
+  "appearance",
+  "slicer",
+  "groups",
+  "users",
+] as const;
 export type SettingsTab = (typeof SETTINGS_TABS)[number];
 const ADMIN_TABS = new Set<SettingsTab>(["general", "sidebar", "groups", "users"]);
 
@@ -58,26 +66,9 @@ export function SettingsPage() {
         {active === "appearance" && <AppearanceSettings />}
         {active === "groups" && <GroupSettings />}
         {active === "users" && <UserSettings />}
+        {active === "slicer" && <SlicerSettings />}
       </div>
     </main>
-  );
-}
-
-function Section({
-  title,
-  hint,
-  children,
-}: {
-  title: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="card mb-4 p-5">
-      <h2 className="font-semibold">{title}</h2>
-      {hint && <p className="mt-1 text-sm text-muted">{hint}</p>}
-      <div className="mt-4">{children}</div>
-    </section>
   );
 }
 

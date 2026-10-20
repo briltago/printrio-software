@@ -170,6 +170,20 @@ from disk) and optionally starts it when the printer is idle. Metadata is
 read from the first 1 MB and the last 512 KB of a file (PrusaSlicer,
 SuperSlicer, OrcaSlicer, Bambu Studio and Cura comment formats).
 
+### Slicer upload (OctoPrint-compatible)
+
+PrusaSlicer, SuperSlicer, OrcaSlicer and Bambu Studio upload through a small
+OctoPrint-compatible API: `/octoprint/<target>/api/version` (connection test)
+and `/octoprint/<target>/api/files/local` (multipart, with the `path` and
+`print` fields). `<target>` is `library` or a printer id. Every upload lands in
+the library; for a printer target it is also uploaded there, and with
+`print=true` it starts when the printer is idle or is queued (source
+`library`) when it is busy — never interrupting a print. Authentication uses
+personal API keys (`X-Api-Key` header or `apikey` query); only a SHA-256 hash
+and a short prefix are stored, and uploads are attributed to the key's
+owner. Queue items with source `library` are uploaded to the printer when
+they start.
+
 ### Job records and costs
 
 `JobRecorder` listens to printer status: a job opens (`print_jobs`, status

@@ -1,4 +1,4 @@
-import { createReadStream, openAsBlob } from "node:fs";
+import { createReadStream } from "node:fs";
 import {
   type LibraryFileDto,
   type LibraryListingDto,
@@ -11,6 +11,7 @@ import { inArray } from "drizzle-orm";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import type { Database } from "../db/client.ts";
 import { users } from "../db/schema.ts";
+import { sendToPrinter } from "../library/send.ts";
 import { type Library, type LibraryEntry, LibraryPathError } from "../library/store.ts";
 import { type PrinterManager, PrinterNotConnectedError } from "../printers/manager.ts";
 import { parseOr400, requireAdmin, requireUser } from "./guards.ts";
@@ -181,11 +182,12 @@ export function libraryRoutes(
     try {
       const entry = await library.index(body.path);
       if (!entry) return reply.code(404).send({ error: "File not found." });
-      const driver = manager.connected(body.printerId);
-      // Library folders are not mirrored: the file lands in the printer's G-code root.
-      const target = fileName(entry.path);
-      await driver.uploadFile(target, await openAsBlob(library.resolvePath(entry.path)));
-      if (body.print) await driver.startPrint(target);
+      const target = await sendToPrinter(
+        library,
+        manager.connected(body.printerId),
+        entry.path,
+        body.print,
+      );
       return { path: target, printing: body.print };
     } catch (error) {
       return failed(reply, error);

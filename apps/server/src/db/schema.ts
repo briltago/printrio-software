@@ -183,6 +183,8 @@ export const queueItems = pgTable(
       .notNull()
       .references(() => printers.id, { onDelete: "cascade" }),
     path: text("path").notNull(),
+    /** "printer": a file on the printer; "library": uploaded from Printrio's library on start. */
+    source: text("source").notNull().default("printer"),
     position: integer("position").notNull(),
     orderId: uuid("order_id").references(() => orders.id, { onDelete: "set null" }),
     addedBy: uuid("added_by").references(() => users.id, { onDelete: "set null" }),
@@ -211,4 +213,18 @@ export const libraryFiles = pgTable("library_files", {
   thumbnail: text("thumbnail"),
   uploadedBy: uuid("uploaded_by").references(() => users.id, { onDelete: "set null" }),
   indexedAt: timestamp("indexed_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Personal API keys (slicer uploads through the OctoPrint-compatible API); only a hash is stored. */
+export const apiKeys = pgTable("api_keys", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  keyHash: text("key_hash").notNull().unique(),
+  /** First characters of the key, to recognise it in the list. */
+  prefix: text("prefix").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
 });

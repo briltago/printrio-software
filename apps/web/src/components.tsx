@@ -186,3 +186,22 @@ export function EmptyState({
     </div>
   );
 }
+
+/** A card with a title and hint, used for groups of settings. */
+export function Section({
+  title,
+  hint,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="card mb-4 p-5">
+      <h2 className="font-semibold">{title}</h2>
+      {hint && <p className="mt-1 text-sm text-muted">{hint}</p>}
+      <div className="mt-4">{children}</div>
+    </section>
+  );
+}

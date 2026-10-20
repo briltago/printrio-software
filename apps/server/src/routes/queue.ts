@@ -5,6 +5,8 @@ import { z } from "zod";
 import type { Database } from "../db/client.ts";
 import { orders, queueItems, users } from "../db/schema.ts";
 import type { JobRecorder } from "../jobs/recorder.ts";
+import { printerFileName, sendToPrinter } from "../library/send.ts";
+import type { Library } from "../library/store.ts";
 import { type PrinterManager, PrinterNotConnectedError } from "../printers/manager.ts";
 import { parseOr400, requireUser } from "./guards.ts";
 
@@ -21,6 +23,7 @@ export function queueRoutes(
   db: Database,
   manager: PrinterManager,
   recorder: JobRecorder,
+  library: Library,
   isWithinLimit: (printerId: string) => Promise<boolean>,
   onChange: () => void,
 ) {
@@ -35,6 +38,7 @@ export function queueRoutes(
     return rows.map(({ item, orderName, addedBy }) => ({
       id: item.id,
       path: item.path,
+      source: item.source === "library" ? "library" : "printer",
       orderId: item.orderId,
       orderName,
       addedBy,
@@ -59,22 +63,16 @@ export function queueRoutes(
         .where(eq(orders.id, body.orderId));
       if (!order) return reply.code(400).send({ error: "Choose an existing order." });
     }
+    if (body.source === "library" && !(await library.index(body.path)))
+      return reply.code(404).send({ error: "File not found in the library." });
     try {
-      await db.transaction(async (tx) => {
-        const [last] = await tx
-          .select({ position: max(queueItems.position) })
-          .from(queueItems)
-          .where(eq(queueItems.printerId, params.id));
-        const start = (last?.position ?? -1) + 1;
-        await tx.insert(queueItems).values(
-          Array.from({ length: body.copies }, (_, index) => ({
-            printerId: params.id,
-            path: body.path,
-            position: start + index,
-            orderId: body.orderId ?? null,
-            addedBy: request.user?.id ?? null,
-          })),
-        );
+      await enqueue(db, {
+        printerId: params.id,
+        path: body.path,
+        source: body.source,
+        orderId: body.orderId ?? null,
+        addedBy: request.user?.id ?? null,
+        copies: body.copies,
       });
     } catch {
       return reply.code(404).send({ error: "Printer not found." });
@@ -135,11 +133,14 @@ export function queueRoutes(
       .orderBy(asc(queueItems.position), asc(queueItems.createdAt))
       .limit(1);
     if (!next) return reply.code(409).send({ error: "The queue is empty." });
+    const fileOnPrinter = next.source === "library" ? printerFileName(next.path) : next.path;
     try {
-      recorder.expectOrder(params.id, next.path, next.orderId);
-      await manager.connected(params.id).startPrint(next.path);
+      recorder.expectOrder(params.id, fileOnPrinter, next.orderId);
+      const driver = manager.connected(params.id);
+      if (next.source === "library") await sendToPrinter(library, driver, next.path, true);
+      else await driver.startPrint(next.path);
     } catch (error) {
-      recorder.expectOrder(params.id, next.path, null);
+      recorder.expectOrder(params.id, fileOnPrinter, null);
       if (error instanceof PrinterNotConnectedError)
         return reply.code(409).send({ error: error.message });
       return reply
@@ -149,5 +150,36 @@ export function queueRoutes(
     await db.delete(queueItems).where(inArray(queueItems.id, [next.id]));
     onChange();
     return { started: next.path, items: await list(params.id) };
+  });
+}
+
+/** Appends items to the end of a printer's queue. */
+export async function enqueue(
+  db: Database,
+  item: {
+    printerId: string;
+    path: string;
+    source: "printer" | "library";
+    orderId: string | null;
+    addedBy: string | null;
+    copies: number;
+  },
+) {
+  await db.transaction(async (tx) => {
+    const [last] = await tx
+      .select({ position: max(queueItems.position) })
+      .from(queueItems)
+      .where(eq(queueItems.printerId, item.printerId));
+    const start = (last?.position ?? -1) + 1;
+    await tx.insert(queueItems).values(
+      Array.from({ length: item.copies }, (_, index) => ({
+        printerId: item.printerId,
+        path: item.path,
+        source: item.source,
+        position: start + index,
+        orderId: item.orderId,
+        addedBy: item.addedBy,
+      })),
+    );
   });
 }

@@ -403,6 +403,14 @@ function SendForm({ file, onDone }: { file: LibraryFileDto; onDone: () => void }
         }),
       ),
   });
+  const queue = useMutation({
+    mutationFn: () =>
+      api(`/api/printers/${printerId}/queue`, {
+        method: "POST",
+        body: { path: file.path, source: "library" },
+      }),
+    onSuccess: () => setDone(t("library.queued", { printer: selected?.name ?? "" })),
+  });
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
     send.mutate();
@@ -441,7 +449,7 @@ function SendForm({ file, onDone }: { file: LibraryFileDto; onDone: () => void }
           )}
         </dl>
       </div>
-      <FormError error={send.error} />
+      <FormError error={send.error ?? queue.error} />
       {printers.length === 0 ? (
         <p className="mb-4 text-sm text-muted">{t("library.noPrinters")}</p>
       ) : (
@@ -479,8 +487,16 @@ function SendForm({ file, onDone }: { file: LibraryFileDto; onDone: () => void }
         {canPrint ? t("library.startPrinting") : t("library.cannotPrint")}
       </label>
       <div className="flex justify-end gap-2">
-        <button type="button" className="btn btn-secondary" onClick={onDone}>
+        <button type="button" className="btn btn-secondary mr-auto" onClick={onDone}>
           {t("common.cancel")}
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={!selected || queue.isPending}
+          onClick={() => queue.mutate()}
+        >
+          {t("library.addToQueue")}
         </button>
         <button type="submit" className="btn btn-primary" disabled={!selected || send.isPending}>
           {send.isPending

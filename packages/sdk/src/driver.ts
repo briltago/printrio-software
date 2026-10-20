@@ -278,6 +278,15 @@ export interface UpdateProgress {
 
 export type HostAction = "reboot" | "shutdown";
 
+/**
+ * A file that can be streamed from disk, e.g. a Blob from `fs.openAsBlob`
+ * (declared structurally so the SDK does not depend on DOM or Node types).
+ */
+export interface FileBlob {
+  readonly size: number;
+  readonly type: string;
+}
+
 export interface PrinterConnection {
   /** Base URL of the printer API, e.g. "http://voron.local:7125". */
   url: string;
@@ -305,7 +314,7 @@ export interface PrinterDriver {
   onDisconnect(listener: () => void): () => void;
 
   /** Uploads into the G-code root; `path` may include sub-directories. */
-  uploadFile(path: string, data: AsyncIterable<Uint8Array>): Promise<void>;
+  uploadFile(path: string, data: AsyncIterable<Uint8Array> | FileBlob): Promise<void>;
   startPrint(path: string): Promise<void>;
   /** `directory` is relative to the G-code root ("" = root). */
   listFiles(directory: string): Promise<FileListing>;

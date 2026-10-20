@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import cookie from "@fastify/cookie";
+import multipart from "@fastify/multipart";
 import rateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
 import websocket from "@fastify/websocket";
@@ -11,11 +12,13 @@ import type { SecretBox } from "./crypto.ts";
 import type { Database } from "./db/client.ts";
 import { moonrakerDriverFactory } from "./drivers/moonraker.ts";
 import { JobRecorder } from "./jobs/recorder.ts";
+import { Library } from "./library/store.ts";
 import type { PrinterManager } from "./printers/manager.ts";
 import { authRoutes } from "./routes/auth.ts";
 import { filamentRoutes } from "./routes/filament.ts";
 import { healthRoutes } from "./routes/health.ts";
 import { jobRoutes } from "./routes/jobs.ts";
+import { libraryRoutes } from "./routes/library.ts";
 import { orderRoutes } from "./routes/orders.ts";
 import { printerConfigRoutes } from "./routes/printer-config.ts";
 import { printerConsoleRoutes } from "./routes/printer-console.ts";
@@ -52,6 +55,8 @@ export async function buildApp({ config, db, secrets, manager }: AppOptions) {
   await app.register(cookie);
   await app.register(rateLimit, { global: false });
   await app.register(websocket);
+  // G-code uploads (printer files and the library): one file per request, up to 1 GB.
+  await app.register(multipart, { limits: { fileSize: 1024 * 1024 * 1024, files: 1 } });
 
   healthRoutes(app, db);
   authRoutes(app, { db, cookieSecure: config.COOKIE_SECURE });
@@ -71,10 +76,12 @@ export async function buildApp({ config, db, secrets, manager }: AppOptions) {
   printerSystemRoutes(app, printerManager);
   printerUpdateRoutes(app, printerManager);
   printerMeshRoutes(app, printerManager, (id) => printerWithinLimit(db, id));
-  await printerFileRoutes(app, printerManager, (id) => printerWithinLimit(db, id));
+  printerFileRoutes(app, printerManager, (id) => printerWithinLimit(db, id));
   const recorder = new JobRecorder(db, printerManager, () =>
     changes.dispatchEvent(new Event("jobs")),
   );
+  const library = new Library(config.DATA_DIR, db);
+  libraryRoutes(app, db, library, printerManager, (id) => printerWithinLimit(db, id));
   jobRoutes(app, db);
   queueRoutes(
     app,

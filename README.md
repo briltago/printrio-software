@@ -22,7 +22,9 @@ setup wizard to add your first Klipper printer (Moonraker address, usually
 Tailscale Serve, …) set `COOKIE_SECURE=true`.
 
 Printer API keys are encrypted with a secret stored in the `printrio-data`
-volume (or `APP_SECRET` if you set one). Back it up together with the database.
+volume (or `APP_SECRET` if you set one). The same volume holds the G-code
+library (`/data/files`); files you copy there show up under Files. Back it up
+together with the database.
 
 ## Development
 

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type DragEvent, useRef, useState } from "react";
 import { Dialog, FormError } from "../components.tsx";
 import { useT } from "../i18n/index.tsx";
-import { ApiError, api } from "../lib/api.ts";
+import { api } from "../lib/api.ts";
 import {
   formatBytes,
   formatDuration,
@@ -11,6 +11,7 @@ import {
   formatRelativeTime,
 } from "../lib/format.ts";
 import { useStoredState } from "../lib/stored-state.ts";
+import { uploadFile } from "../lib/upload.ts";
 import { Panel } from "./panel.tsx";
 import { QueueForm } from "./queue-panel.tsx";
 
@@ -43,28 +44,6 @@ export function Thumbnail({ src, size = 40 }: { src: string | null; size?: numbe
       )}
     </span>
   );
-}
-
-/** Upload with progress (fetch has no upload progress events). */
-function uploadFile(url: string, file: File, onProgress: (fraction: number) => void) {
-  return new Promise<void>((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", url);
-    xhr.upload.onprogress = (event) =>
-      event.lengthComputable && onProgress(event.loaded / event.total);
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) return resolve();
-      let message = `Upload failed (${xhr.status})`;
-      try {
-        message = JSON.parse(xhr.responseText).error ?? message;
-      } catch {}
-      reject(new ApiError(xhr.status, message));
-    };
-    xhr.onerror = () => reject(new Error("Upload failed."));
-    const form = new FormData();
-    form.append("file", file);
-    xhr.send(form);
-  });
 }
 
 /** G-code files on the printer: browse folders, upload (drag & drop), print, delete. */

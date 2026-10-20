@@ -4,6 +4,7 @@ import type {
   BedMeshAction,
   ConfigFile,
   ConsoleEntry,
+  FileBlob,
   FileListing,
   GcodeCommand,
   HostAction,
@@ -607,7 +608,9 @@ export class MoonrakerDriver implements PrinterDriver {
     return () => this.disconnectListeners.delete(listener);
   }
 
-  async uploadFile(path: string, data: AsyncIterable<Uint8Array>): Promise<void> {
+  async uploadFile(path: string, data: AsyncIterable<Uint8Array> | FileBlob): Promise<void> {
+    // A Blob (e.g. fs.openAsBlob from the library) is streamed from disk as is.
+    if (!(Symbol.asyncIterator in data)) return this.upload("gcodes", path, data as Blob);
     const chunks: Uint8Array[] = [];
     for await (const chunk of data) chunks.push(chunk);
     await this.upload("gcodes", path, new Blob(chunks.map((chunk) => new Uint8Array(chunk))));

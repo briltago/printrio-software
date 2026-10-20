@@ -16,6 +16,7 @@ import { HistoryPanel } from "../features/history-panel.tsx";
 import { MacrosPanel } from "../features/macros-panel.tsx";
 import { ObjectExclusion } from "../features/object-exclusion.tsx";
 import { Panel } from "../features/panel.tsx";
+import { PowerPanel } from "../features/power-panel.tsx";
 import { PrinterForm } from "../features/printer-form.tsx";
 import { TemperaturePanel } from "../features/temperature-panel.tsx";
 import { ToolheadPanel } from "../features/toolhead-panel.tsx";
@@ -248,6 +249,11 @@ export function PrinterPage() {
               connected={connected}
             />
           )}
+          <PowerPanel
+            printerId={printer.id}
+            connected={connected}
+            busy={status.state === "printing" || status.state === "paused"}
+          />
           <MacrosPanel
             printerId={printer.id}
             connected={connected}

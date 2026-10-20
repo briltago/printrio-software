@@ -171,6 +171,45 @@ export interface HostService {
   state: string | null;
 }
 
+export interface LogFile {
+  name: string;
+  size: number;
+  modified: Date;
+}
+
+export interface SystemInfo {
+  hostname: string | null;
+  os: string | null;
+  kernel: string | null;
+  cpu: string | null;
+  cpuCores: number | null;
+  /** Bytes. */
+  memoryTotal: number | null;
+  python: string | null;
+  firmwareVersion: string | null;
+  hostSoftwareVersion: string | null;
+  network: { name: string; addresses: string[] }[];
+}
+
+export interface SystemStats {
+  /** Percent, 0–100. */
+  cpuUsage: number | null;
+  cpuTemp: number | null;
+  /** Bytes. */
+  memoryUsed: number | null;
+  memoryTotal: number | null;
+  uptimeSeconds: number | null;
+}
+
+export interface PowerDevice {
+  name: string;
+  /** "on", "off", or another state the host reports (e.g. "init", "error"). */
+  state: string;
+  type: string | null;
+  /** The host refuses to switch it while a print is running. */
+  lockedWhilePrinting: boolean;
+}
+
 export type HostAction = "reboot" | "shutdown";
 
 export interface PrinterConnection {
@@ -222,6 +261,17 @@ export interface PrinterDriver {
   listServices(): Promise<HostService[]>;
   restartService(name: string): Promise<void>;
   hostPower(action: HostAction): Promise<void>;
+  listLogs(): Promise<LogFile[]>;
+  /** Raw log contents; `fromEnd` limits it to roughly the last N bytes when the host supports ranges. */
+  readLog(
+    name: string,
+    fromEnd?: number,
+  ): Promise<{ partial: boolean; body: AsyncIterable<Uint8Array> }>;
+  getSystemInfo(): Promise<SystemInfo>;
+  getSystemStats(): Promise<SystemStats>;
+  /** Switchable power outlets/relays; empty when the host has none configured. */
+  listPowerDevices(): Promise<PowerDevice[]>;
+  setPowerDevice(name: string, on: boolean): Promise<void>;
   pause(): Promise<void>;
   resume(): Promise<void>;
   cancel(): Promise<void>;

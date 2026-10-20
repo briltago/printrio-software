@@ -117,7 +117,14 @@ user decides whether to overwrite. G-code requests wait up to 30 minutes
 (homing, heating and mesh calibration take a while); other requests time out
 after 10 s.
 
-Permissions: config, services, host reboot/shutdown and updates are
+Logs are read from Moonraker's `logs` root. The viewer gets the last 256 KB
+(an HTTP suffix range, falling back to keeping the tail of a full read); the
+full file is streamed as a download. Host information comes from
+`machine.system_info`, live load from `machine.proc_stats`. Power devices
+(`[power …]` in Moonraker) appear on the printer page for operators too;
+devices marked `locked_while_printing` cannot be switched during a print.
+
+Permissions: config, logs, system info, services, host reboot/shutdown and updates are
 admin-only. Restarting Klipper or the firmware is open to operators because
 it is the way back from an emergency stop. No restart is accepted while the
 printer is printing or paused.

@@ -2,14 +2,15 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useParams, useSearch } from "@tanstack/react-router";
 import { EmptyState, PageHeader, StateBadge } from "../components.tsx";
 import { ConfigEditor } from "../features/config-editor.tsx";
+import { LogsViewer } from "../features/logs-viewer.tsx";
 import { SystemPanel } from "../features/system-panel.tsx";
 import { useT } from "../i18n/index.tsx";
 import { printersQuery } from "../lib/queries.ts";
 import { meQuery } from "../lib/session.ts";
 
-export const MAINTENANCE_TABS = ["config", "system"] as const;
+export const MAINTENANCE_TABS = ["config", "logs", "system"] as const;
 export type MaintenanceTab = (typeof MAINTENANCE_TABS)[number];
-const ADMIN_TABS = new Set<MaintenanceTab>(["config", "system"]);
+const ADMIN_TABS = new Set<MaintenanceTab>(["config", "logs", "system"]);
 
 /** Printer administration (stage B): everything Mainsail/Fluidd offer beyond daily operation. */
 export function MaintenancePage() {
@@ -83,6 +84,7 @@ export function MaintenancePage() {
         ) : (
           <>
             {active === "config" && <ConfigEditor printerId={printerId} busy={busy} />}
+            {active === "logs" && <LogsViewer printerId={printerId} />}
             {active === "system" && <SystemPanel printerId={printerId} busy={busy} />}
           </>
         )}

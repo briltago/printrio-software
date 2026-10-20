@@ -7,9 +7,11 @@ import type {
   HostAction,
   HostService,
   JobStatus,
+  LogFile,
   Macro,
   MotionStatus,
   ObjectExclusion,
+  PowerDevice,
   PrinterConnection,
   PrinterDriver,
   PrinterDriverFactory,
@@ -18,6 +20,8 @@ import type {
   PrinterStatus,
   PrintFile,
   PrintJob,
+  SystemInfo,
+  SystemStats,
   TemperatureHistory,
   TemperatureReading,
   Webcam,
@@ -91,6 +95,19 @@ export function parseMacroParams(gcode: string): { name: string; defaultValue: s
 }
 
 export class MoonrakerError extends Error {}
+
+interface MoonrakerSystemInfo {
+  cpu_info?: {
+    cpu_count?: number;
+    total_memory?: number;
+    model?: string;
+    cpu_desc?: string;
+    processor?: string;
+  };
+  distribution?: { name?: string; kernel_version?: string };
+  python?: { version_string?: string };
+  network?: Record<string, { ip_addresses?: { address?: string; is_link_local?: boolean }[] }>;
+}
 
 export function toWebSocketUrl(httpUrl: string): string {
   const url = new URL(httpUrl);
@@ -510,12 +527,16 @@ export class MoonrakerDriver implements PrinterDriver {
   }
 
   /** Raw file from a Moonraker file root over HTTP. */
-  private async download(root: string, path: string) {
+  private async download(
+    root: string,
+    path: string,
+    { range, timeoutMs = 10_000 }: { range?: string; timeoutMs?: number } = {},
+  ) {
     if (!this.connection) throw new MoonrakerError("Not connected.");
     const encoded = path.split("/").map(encodeURIComponent).join("/");
     const res = await fetch(`${this.connection.url}/server/files/${root}/${encoded}`, {
-      headers: this.authHeaders(),
-      signal: AbortSignal.timeout(10_000),
+      headers: { ...this.authHeaders(), ...(range ? { Range: range } : {}) },
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (!res.ok || !res.body) throw new MoonrakerError(`File not available (${res.status}).`);
     return res;
@@ -659,6 +680,110 @@ export class MoonrakerDriver implements PrinterDriver {
 
   async hostPower(action: HostAction) {
     await this.call(action === "reboot" ? "machine.reboot" : "machine.shutdown");
+  }
+
+  async listLogs(): Promise<LogFile[]> {
+    const files = (await this.call("server.files.list", { root: "logs" })) as {
+      path?: string;
+      filename?: string;
+      size?: number;
+      modified?: number;
+    }[];
+    return files
+      .map((file) => ({
+        name: String(file.path ?? file.filename ?? ""),
+        size: Number(file.size ?? 0),
+        modified: new Date(Number(file.modified ?? 0) * 1000),
+      }))
+      .filter((file) => file.name && !file.name.startsWith("."))
+      .sort((a, b) => b.modified.getTime() - a.modified.getTime());
+  }
+
+  async readLog(name: string, fromEnd?: number) {
+    const res = await this.download("logs", name, {
+      range: fromEnd ? `bytes=-${fromEnd}` : undefined,
+      timeoutMs: 120_000,
+    });
+    // A suffix range on a small file still answers 206, but starting at byte 0.
+    const start = Number(/^bytes (\d+)-/.exec(res.headers.get("content-range") ?? "")?.[1] ?? 0);
+    return {
+      partial: res.status === 206 && start > 0,
+      body: res.body as unknown as AsyncIterable<Uint8Array>,
+    };
+  }
+
+  async getSystemInfo(): Promise<SystemInfo> {
+    const [system, printer, server] = (await Promise.all([
+      this.call("machine.system_info"),
+      this.call("printer.info").catch(() => null),
+      this.call("server.info").catch(() => null),
+    ])) as [
+      { system_info?: MoonrakerSystemInfo },
+      { hostname?: string; software_version?: string } | null,
+      { moonraker_version?: string } | null,
+    ];
+    const info = system.system_info ?? {};
+    const cpu = info.cpu_info ?? {};
+    const memoryKb = Number(cpu.total_memory);
+    return {
+      hostname: printer?.hostname ?? this.info.hostname,
+      os: info.distribution?.name || null,
+      kernel: info.distribution?.kernel_version || null,
+      cpu: cpu.model || cpu.cpu_desc || cpu.processor || null,
+      cpuCores: Number(cpu.cpu_count) || null,
+      memoryTotal: Number.isFinite(memoryKb) && memoryKb > 0 ? memoryKb * 1024 : null,
+      python: info.python?.version_string?.split(" ")[0] ?? null,
+      firmwareVersion: printer?.software_version ?? null,
+      hostSoftwareVersion: server?.moonraker_version ?? null,
+      network: Object.entries(info.network ?? {}).map(([name, iface]) => ({
+        name,
+        addresses: (iface.ip_addresses ?? [])
+          .filter((address) => !address.is_link_local)
+          .map((address) => String(address.address)),
+      })),
+    };
+  }
+
+  async getSystemStats(): Promise<SystemStats> {
+    const stats = (await this.call("machine.proc_stats")) as {
+      cpu_temp?: number | null;
+      system_cpu_usage?: { cpu?: number };
+      system_memory?: { total?: number; used?: number };
+      system_uptime?: number;
+    };
+    const kb = (value: number | undefined) => (typeof value === "number" ? value * 1024 : null);
+    return {
+      cpuUsage: optionalNumber(stats.system_cpu_usage?.cpu),
+      cpuTemp: optionalNumber(stats.cpu_temp),
+      memoryUsed: kb(stats.system_memory?.used),
+      memoryTotal: kb(stats.system_memory?.total),
+      uptimeSeconds: optionalNumber(stats.system_uptime),
+    };
+  }
+
+  async listPowerDevices(): Promise<PowerDevice[]> {
+    let result: { devices?: Record<string, unknown>[] };
+    try {
+      result = (await this.call("machine.device_power.devices")) as typeof result;
+    } catch (error) {
+      // Moonraker without a [power] section does not register these methods.
+      if (error instanceof MoonrakerError && /not found|not registered/i.test(error.message))
+        return [];
+      throw error;
+    }
+    return (result.devices ?? []).map((device) => ({
+      name: String(device.device),
+      state: String(device.status ?? "unknown"),
+      type: device.type ? String(device.type) : null,
+      lockedWhilePrinting: device.locked_while_printing === true,
+    }));
+  }
+
+  async setPowerDevice(name: string, on: boolean) {
+    await this.call("machine.device_power.post_device", {
+      device: name,
+      action: on ? "on" : "off",
+    });
   }
 
   private authHeaders(): Record<string, string> {

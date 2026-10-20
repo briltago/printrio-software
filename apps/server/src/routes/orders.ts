@@ -1,19 +1,17 @@
 import {
   jobOrderSchema,
   type OrderDetailDto,
-  type OrderDto,
   orderInputSchema,
   orderListQuerySchema,
   orderUpdateSchema,
-  renderFolderTemplate,
 } from "@printrio/shared";
-import { and, desc, eq, isNotNull, ne, sql } from "drizzle-orm";
+import { desc, eq, isNotNull } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { Database } from "../db/client.ts";
 import { orders, printJobs } from "../db/schema.ts";
 import { type Library, LibraryPathError } from "../library/store.ts";
-import { getWorkspaceSettings } from "../settings.ts";
+import type { OrderChanges, OrderService } from "../orders/service.ts";
 import { parseOr400, requireAdmin, requireUser } from "./guards.ts";
 import { toJobRecord } from "./jobs.ts";
 import { libraryFileDtos } from "./library.ts";
@@ -21,11 +19,11 @@ import { GCODE_FILE } from "./printer-files.ts";
 
 const idParams = z.object({ id: z.uuid() });
 
-export type OrderEvent = "order.created" | "order.updated" | "order.deleted";
+export type { OrderEvent } from "../orders/service.ts";
 
 export interface OrderRouteOptions {
   library: Library;
-  onEvent: (event: OrderEvent, order: OrderDto) => void;
+  orders: OrderService;
 }
 
 /**
@@ -37,78 +35,16 @@ export function orderRoutes(
   app: FastifyInstance,
   db: Database,
   onJobsChange: () => void,
-  { library, onEvent }: OrderRouteOptions,
+  { library, orders: service }: OrderRouteOptions,
 ) {
-  const listOrders = async (where?: ReturnType<typeof eq>) => {
-    const settings = await getWorkspaceSettings(db);
-    const rows = await db
-      .select({
-        order: orders,
-        jobCount: sql<number>`count(${printJobs.id})`,
-        totalCost: sql<number>`coalesce(sum(${printJobs.totalCost}), 0)`,
-      })
-      .from(orders)
-      .leftJoin(printJobs, eq(printJobs.orderId, orders.id))
-      .where(where)
-      .groupBy(orders.id)
-      .orderBy(desc(orders.createdAt));
-    return rows.map(
-      ({ order, jobCount, totalCost }): OrderDto => ({
-        id: order.id,
-        name: order.name,
-        customer: order.customer,
-        status: order.status as OrderDto["status"],
-        notes: order.notes,
-        folder: order.folder,
-        createdAt: order.createdAt.toISOString(),
-        updatedAt: order.updatedAt.toISOString(),
-        jobCount: Number(jobCount),
-        totalCost: Number(totalCost),
-        currency: settings.costs.currency,
-      }),
-    );
-  };
-
-  const orderById = async (id: string) => (await listOrders(eq(orders.id, id)))[0];
-
-  /**
-   * Gives the order a folder in the library, laid out by the workspace's folder
-   * template (Settings → General). The path is chosen once and stored,
-   * so renaming the order or customer never moves files. Two orders never share
-   * a folder: a taken path gets " (2)", " (3)", ….
-   */
-  const assignFolder = async (order: typeof orders.$inferSelect, requested?: string) => {
-    const { template } = (await getWorkspaceSettings(db)).orderFolders;
-    // A folder typed in the order form is rendered too, so it may use placeholders.
-    const base = renderFolderTemplate(requested || template, {
-      order: order.name,
-      customer: order.customer,
-      date: order.createdAt,
-    });
-    const taken = new Set(
-      (
-        await db
-          .select({ folder: orders.folder })
-          .from(orders)
-          .where(and(isNotNull(orders.folder), ne(orders.id, order.id)))
-      ).map((row) => row.folder),
-    );
-    let folder = base;
-    for (let n = 2; taken.has(folder); n++) folder = `${base} (${n})`;
-    await library.createFolder(folder);
-    await db.update(orders).set({ folder }).where(eq(orders.id, order.id));
-    return folder;
-  };
-
-  const emit = async (event: OrderEvent, id: string) => {
-    const order = await orderById(id);
-    if (order) onEvent(event, order);
-  };
+  const orderById = async (id: string) => (await service.get(id)) ?? undefined;
 
   app.get("/api/orders", { preHandler: requireUser }, async (request, reply) => {
     const query = parseOr400(reply, orderListQuerySchema.safeParse(request.query));
     if (!query) return;
-    return { orders: await listOrders(query.status ? eq(orders.status, query.status) : undefined) };
+    return {
+      orders: await service.list(query.status ? eq(orders.status, query.status) : undefined),
+    };
   });
 
   app.get("/api/orders/:id", { preHandler: requireUser }, async (request, reply) => {
@@ -134,26 +70,14 @@ export function orderRoutes(
   app.post("/api/orders", { preHandler: requireUser }, async (request, reply) => {
     const input = parseOr400(reply, orderInputSchema.safeParse(request.body));
     if (!input) return;
-    const [row] = await db
-      .insert(orders)
-      .values({
-        name: input.name,
-        customer: input.customer ?? null,
-        status: input.status,
-        notes: input.notes ?? null,
-      })
-      .returning();
-    if (!row) return reply.code(500).send({ error: "The order could not be saved." });
-    if (input.folder || (await getWorkspaceSettings(db)).orderFolders.enabled) {
-      try {
-        await assignFolder(row, input.folder);
-      } catch (error) {
-        // The order is saved either way; files can still be added later.
-        app.log.warn({ err: error }, "Could not create the order folder");
-      }
-    }
-    await emit("order.created", row.id);
-    return reply.code(201).send({ id: row.id });
+    const order = await service.create({
+      name: input.name,
+      customer: input.customer ?? null,
+      status: input.status,
+      notes: input.notes ?? null,
+      folder: input.folder,
+    });
+    return reply.code(201).send({ id: order.id });
   });
 
   app.patch("/api/orders/:id", { preHandler: requireUser }, async (request, reply) => {
@@ -162,18 +86,13 @@ export function orderRoutes(
     if (!params || !input) return;
     // Partial updates: the schema defaults `status`, so take only fields the client sent.
     const sent = request.body as Record<string, unknown>;
-    const changes: Partial<typeof orders.$inferInsert> = { updatedAt: new Date() };
+    const changes: OrderChanges = {};
     if ("name" in sent && input.name !== undefined) changes.name = input.name;
     if ("customer" in sent) changes.customer = input.customer ?? null;
     if ("status" in sent && input.status) changes.status = input.status;
     if ("notes" in sent) changes.notes = input.notes ?? null;
-    const updated = await db
-      .update(orders)
-      .set(changes)
-      .where(eq(orders.id, params.id))
-      .returning({ id: orders.id });
-    if (updated.length === 0) return reply.code(404).send({ error: "Order not found." });
-    await emit("order.updated", params.id);
+    if (!(await service.update(params.id, changes)))
+      return reply.code(404).send({ error: "Order not found." });
     return { ok: true };
   });
 
@@ -202,7 +121,7 @@ export function orderRoutes(
         .send({ error: "Only G-code files (.gcode, .g, .gco) can be uploaded." });
     }
     try {
-      const folder = row.folder ?? (await assignFolder(row));
+      const folder = row.folder ?? (await service.assignFolder(row));
       const path = `${folder}/${upload.filename}`;
       const entry = await library.save(path, upload.file, request.user?.id ?? null);
       if (upload.file.truncated) {
@@ -220,12 +139,9 @@ export function orderRoutes(
   app.delete("/api/orders/:id", { preHandler: requireAdmin }, async (request, reply) => {
     const params = parseOr400(reply, idParams.safeParse(request.params));
     if (!params) return;
-    // Linked prints stay in the history (order_id is set to null).
-    const before = await orderById(params.id);
-    const deleted = await db.delete(orders).where(eq(orders.id, params.id)).returning();
-    if (deleted.length === 0 || !before) return reply.code(404).send({ error: "Order not found." });
-    // The order's folder and files stay in Files.
-    onEvent("order.deleted", before);
+    // Linked prints stay in the history (order_id is set to null); the folder stays in Files.
+    if (!(await service.remove(params.id)))
+      return reply.code(404).send({ error: "Order not found." });
     onJobsChange();
     return reply.code(204).send();
   });

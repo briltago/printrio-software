@@ -19,6 +19,7 @@ import {
   moduleSigningMessage,
 } from "@printrio/shared";
 import type { Database } from "../db/client.ts";
+import type { OrderService } from "../orders/service.ts";
 import { verifyEd25519 } from "./identity.ts";
 import type { Licence } from "./licence.ts";
 
@@ -44,6 +45,8 @@ export interface ModuleHostOptions {
   events: ModuleEventBus;
   factories: Map<string, PrinterDriverFactory>;
   notifyChange: (change: ModuleChange) => void;
+  /** Orders for modules (Business turns accepted quotes into orders). */
+  orders?: OrderService;
   logger: { info(msg: string): void; warn(msg: string): void; error(msg: string): void };
   fetch?: typeof fetch;
 }
@@ -324,6 +327,12 @@ export class ModuleHost {
         return off;
       },
       notifyChange: (change) => this.options.notifyChange(change),
+      orders: this.options.orders && {
+        get: (orderId) => (this.options.orders as OrderService).get(orderId),
+        create: (input) => (this.options.orders as OrderService).create(input),
+        update: (orderId, changes) =>
+          (this.options.orders as OrderService).update(orderId, changes),
+      },
     };
   }
 }

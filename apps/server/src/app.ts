@@ -21,6 +21,7 @@ import { Library } from "./library/store.ts";
 import { InstanceIdentity } from "./licensing/identity.ts";
 import { Licence } from "./licensing/licence.ts";
 import { ModuleHost } from "./licensing/modules.ts";
+import { OrderService } from "./orders/service.ts";
 import type { PrinterManager } from "./printers/manager.ts";
 import { apiKeyRoutes } from "./routes/api-keys.ts";
 import { authRoutes } from "./routes/auth.ts";
@@ -108,6 +109,16 @@ export async function buildApp({
     jobs: "jobs",
     queue: "queue",
   };
+  const library = new Library(config.DATA_DIR, db);
+  const orderService = new OrderService(
+    db,
+    library,
+    (event, order) => {
+      emitModuleEvent(event, { order });
+      notify("jobs");
+    },
+    app.log,
+  );
   const modules = new ModuleHost({
     db,
     dataDir: config.DATA_DIR,
@@ -117,6 +128,7 @@ export async function buildApp({
     events: moduleEvents,
     factories,
     notifyChange: (change) => notify(CHANGE_EVENT[change]),
+    orders: orderService,
     logger: {
       info: (message) => app.log.info(message),
       warn: (message) => app.log.warn(message),
@@ -167,7 +179,6 @@ export async function buildApp({
     () => notify("jobs"),
     (event, job) => emitModuleEvent(event, { job }),
   );
-  const library = new Library(config.DATA_DIR, db);
   libraryRoutes(app, db, library, printerManager, withinLimit);
   jobRoutes(app, db);
   queueRoutes(app, db, printerManager, recorder, library, withinLimit, () =>
@@ -175,10 +186,7 @@ export async function buildApp({
   );
   orderRoutes(app, db, () => changes.dispatchEvent(new Event("jobs")), {
     library,
-    onEvent: (event, order) => {
-      emitModuleEvent(event, { order });
-      notify("jobs");
-    },
+    orders: orderService,
   });
   realtimeRoutes(app, printerManager, changes);
 

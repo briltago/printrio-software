@@ -22,6 +22,13 @@
       "when": 1792482498601,
       "tag": "0002_config_backups",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792492307283,
+      "tag": "0003_spools",
+      "breakpoints": true
     }
   ]
 }

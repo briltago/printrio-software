@@ -142,6 +142,20 @@ admin-only. Restarting Klipper or the firmware is open to operators because
 it is the way back from an emergency stop. No restart is accepted while the
 printer is printing or paused.
 
+### Filament inventory
+
+`filaments` are products (vendor, material, colour, diameter, density,
+defaults for spool weight and price); `spools` are physical rolls with their
+initial and remaining net weight, empty-spool weight, price, location and
+lot. A printer has at most one `active_spool_id`, assigned by hand. Weighing
+a spool sets remaining = scale reading − empty-spool weight. Archiving a
+spool unloads it from every printer.
+
+The Spoolman import reads `/api/v1/spool` once and upserts filaments and
+spools by an external id (`spoolman:<url>#spool-<id>`), so running it again
+updates instead of duplicating. Automatic consumption and stock alerts are
+Pro features and stay out of the core.
+
 ### Workspace settings
 
 Instance-wide settings (usage mode, start page, sidebar order/visibility,

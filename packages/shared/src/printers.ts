@@ -123,7 +123,7 @@ export type PrinterStatusDto = z.infer<typeof printerStatusSchema>;
 
 export const printerDriverIdSchema = z.enum(["moonraker"]);
 
-const httpUrl = z
+export const httpUrlSchema = z
   .url({ protocol: /^https?$/, message: "Enter an http:// or https:// address." })
   .max(500)
   .transform((value) => value.replace(/\/+$/, ""));
@@ -139,13 +139,15 @@ export const printerSchema = z.object({
   tags: z.array(z.string()),
   /** False when the printer exceeds the tier's printer limit: visible, but cannot start jobs. */
   withinLimit: z.boolean(),
+  /** Spool loaded in the printer (assigned by hand). */
+  activeSpoolId: z.uuid().nullable(),
   status: printerStatusSchema,
 });
 export type Printer = z.infer<typeof printerSchema>;
 
 export const printerInputSchema = z.object({
   name: z.string().trim().min(1, "Enter a name.").max(80),
-  url: httpUrl,
+  url: httpUrlSchema,
   apiKey: z.string().trim().max(256).nullable().optional(),
   groupId: z.uuid().nullable().optional(),
   tags: z.array(tagSchema).max(20).optional(),
@@ -157,7 +159,7 @@ export const printerUpdateSchema = printerInputSchema.partial();
 export type PrinterUpdate = z.infer<typeof printerUpdateSchema>;
 
 export const connectionTestSchema = z.object({
-  url: httpUrl,
+  url: httpUrlSchema,
   apiKey: z.string().trim().max(256).nullable().optional(),
 });
 export type ConnectionTest = z.infer<typeof connectionTestSchema>;

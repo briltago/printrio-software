@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { sql } from "drizzle-orm";
 import { buildApp, defaultDriverFactories } from "../src/app.ts";
 import { loadConfig } from "../src/config.ts";
@@ -16,7 +19,13 @@ export async function createTestApp() {
   await db.execute(sql`create schema public`);
   await runMigrations(db);
 
-  const config = loadConfig({ NODE_ENV: "test", DATABASE_URL: TEST_DATABASE_URL });
+  // Each app gets its own data folder (G-code library) that is removed on close.
+  const dataDir = mkdtempSync(join(tmpdir(), "printrio-test-"));
+  const config = loadConfig({
+    NODE_ENV: "test",
+    DATABASE_URL: TEST_DATABASE_URL,
+    DATA_DIR: dataDir,
+  });
   // Short backoff so reconnect behaviour is observable in tests.
   const manager = new PrinterManager(defaultDriverFactories(), 50);
   const app = await buildApp({
@@ -28,9 +37,11 @@ export async function createTestApp() {
   return {
     app,
     db,
+    dataDir,
     async close() {
       await app.close();
       await close();
+      rmSync(dataDir, { recursive: true, force: true });
     },
   };
 }

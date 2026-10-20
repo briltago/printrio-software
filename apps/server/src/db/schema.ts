@@ -190,3 +190,25 @@ export const queueItems = pgTable(
   },
   (table) => [index("queue_items_printer_idx").on(table.printerId, table.position)],
 );
+
+/**
+ * Metadata cache for the G-code library on disk (DATA_DIR/files). The files on
+ * disk are the source of truth; rows are refreshed when size or mtime change.
+ */
+export const libraryFiles = pgTable("library_files", {
+  path: text("path").primaryKey(),
+  size: doublePrecision("size").notNull(),
+  modified: timestamp("modified", { withTimezone: true }).notNull(),
+  slicer: text("slicer"),
+  estimatedSeconds: doublePrecision("estimated_seconds"),
+  filamentMm: doublePrecision("filament_mm"),
+  filamentGrams: doublePrecision("filament_grams"),
+  layerHeight: doublePrecision("layer_height"),
+  objectHeight: doublePrecision("object_height"),
+  material: text("material"),
+  thumbnailFormat: text("thumbnail_format"),
+  /** Base64 PNG/JPEG taken from the G-code (a few KB). */
+  thumbnail: text("thumbnail"),
+  uploadedBy: uuid("uploaded_by").references(() => users.id, { onDelete: "set null" }),
+  indexedAt: timestamp("indexed_at", { withTimezone: true }).notNull().defaultNow(),
+});

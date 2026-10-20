@@ -156,6 +156,20 @@ spools by an external id (`spoolman:<url>#spool-<id>`), so running it again
 updates instead of duplicating. Automatic consumption and stock alerts are
 Pro features and stay out of the core.
 
+### G-code library (Files)
+
+The Files section is Printrio's own library, not a merge of the printers'
+storage: G-code lives in `DATA_DIR/files` (the `/data` Docker volume), so it
+survives printer resets and can be sent to any printer. The files on disk
+are the source of truth; `library_files` caches slicer metadata (time,
+filament, layer height, material, the largest embedded thumbnail) and is
+refreshed when a file's size or mtime changes, so files copied into the
+volume by hand appear too. Uploads stream to a temporary file and are renamed
+into place. "Print" uploads the file to the printer's G-code root (streamed
+from disk) and optionally starts it when the printer is idle. Metadata is
+read from the first 1 MB and the last 512 KB of a file (PrusaSlicer,
+SuperSlicer, OrcaSlicer, Bambu Studio and Cura comment formats).
+
 ### Job records and costs
 
 `JobRecorder` listens to printer status: a job opens (`print_jobs`, status

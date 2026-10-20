@@ -9,7 +9,7 @@ import {
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useSearch } from "@tanstack/react-router";
 import { createElement, type FC, type FormEvent, useState } from "react";
-import { Dialog, Field, FormError, PageHeader, Section } from "../components.tsx";
+import { Dialog, Field, FormError, OptionCards, PageHeader, Section } from "../components.tsx";
 import { LicenceSettings } from "../features/licence-settings.tsx";
 import { SlicerSettings } from "../features/slicer-settings.tsx";
 import { useT } from "../i18n/index.tsx";
@@ -18,6 +18,7 @@ import { useModules } from "../lib/modules.tsx";
 import { groupsQuery, settingsQuery, usersQuery, useUpdateSettings } from "../lib/queries.ts";
 import { meQuery } from "../lib/session.ts";
 import { setTheme, type ThemePreference, useTheme } from "../lib/theme.ts";
+import { NAV_ICONS } from "../nav.ts";
 
 export const SETTINGS_TABS = [
   "general",
@@ -31,90 +32,161 @@ export const SETTINGS_TABS = [
 export type SettingsTab = (typeof SETTINGS_TABS)[number];
 const ADMIN_TABS = new Set<string>(["general", "sidebar", "groups", "users", "licence"]);
 
+/** Built-in tabs grouped as in the settings navigation. */
+const GROUPS: { id: "workspace" | "printers" | "team" | "plan"; tabs: SettingsTab[] }[] = [
+  { id: "workspace", tabs: ["general", "appearance", "sidebar"] },
+  { id: "printers", tabs: ["groups", "slicer"] },
+  { id: "team", tabs: ["users"] },
+  { id: "plan", tabs: ["licence"] },
+];
+
+/** 24×24 stroke icons (lucide-style) for the settings navigation. */
+const ICON_PATHS: Record<SettingsTab | "module", string[]> = {
+  general: [
+    "M4 21v-7",
+    "M4 10V3",
+    "M12 21v-9",
+    "M12 8V3",
+    "M20 21v-5",
+    "M20 12V3",
+    "M1 14h6",
+    "M9 8h6",
+    "M17 16h6",
+  ],
+  appearance: ["M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18z", "M12 3v18", "M12 3a9 9 0 0 1 0 18"],
+  sidebar: ["M3 4h18v16H3z", "M9 4v16"],
+  groups: ["M12 2 2 7l10 5 10-5-10-5z", "m2 17 10 5 10-5", "m2 12 10 5 10-5"],
+  slicer: ["M12 15V3", "m7 8 5-5 5 5", "M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"],
+  users: [
+    "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2",
+    "M9 11a4 4 0 1 0 0-8a4 4 0 0 0 0 8z",
+    "M22 21v-2a4 4 0 0 0-3-3.87",
+    "M16 3.13a4 4 0 0 1 0 7.75",
+  ],
+  licence: [
+    "M7.5 15.5a4.5 4.5 0 1 0 0-9a4.5 4.5 0 0 0 0 9z",
+    "M10.7 9.3 21 2",
+    "m18 5 3 3",
+    "m15 8 2.5 2.5",
+  ],
+  module: [
+    "M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z",
+    "M19 17l.8 2.2L22 20l-2.2.8L19 23l-.8-2.2L16 20l2.2-.8z",
+  ],
+};
+
+function SettingsIcon({ name }: { name: SettingsTab | "module" }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="shrink-0"
+    >
+      {ICON_PATHS[name].map((d) => (
+        <path key={d} d={d} />
+      ))}
+    </svg>
+  );
+}
+
+const moduleName = (id: string) => id.charAt(0).toUpperCase() + id.slice(1);
+
 export function SettingsPage() {
   const t = useT();
   const { tab = "general" } = useSearch({ from: "/app/settings" });
   const { data: me } = useSuspenseQuery(meQuery);
   const isAdmin = me?.role === "admin";
   const { settingsTabs } = useModules();
-  // Built-in tabs, then tabs added by modules ("<module>:<tab>").
-  const tabs: { id: string; label: string }[] = [
-    ...SETTINGS_TABS.filter((id) => isAdmin || !ADMIN_TABS.has(id)).map((id) => ({
-      id,
-      label: t(`settings.tabs.${id}`),
+  const allowed = (id: string) => isAdmin || !ADMIN_TABS.has(id);
+
+  // Built-in groups, then one group per module (tab ids "<module>:<tab>").
+  const groups: {
+    label: string;
+    items: { id: string; label: string; icon: SettingsTab | "module" }[];
+  }[] = [
+    ...GROUPS.map((group) => ({
+      label: t(`settings.sections.${group.id}`),
+      items: group.tabs
+        .filter(allowed)
+        .map((id) => ({ id, label: t(`settings.tabs.${id}`), icon: id })),
     })),
-    ...settingsTabs
-      .filter((entry) => isAdmin || !entry.adminOnly)
-      .map((entry) => ({ id: `${entry.moduleId}:${entry.id}`, label: entry.label })),
-  ];
-  const active = tabs.some((entry) => entry.id === tab) ? tab : "appearance";
+    ...[...new Set(settingsTabs.map((entry) => entry.moduleId))].map((moduleId) => ({
+      label: moduleName(moduleId),
+      items: settingsTabs
+        .filter((entry) => entry.moduleId === moduleId && (isAdmin || !entry.adminOnly))
+        .map((entry) => ({
+          id: `${moduleId}:${entry.id}`,
+          label: entry.label,
+          icon: "module" as const,
+        })),
+    })),
+  ].filter((group) => group.items.length > 0);
+  const items = groups.flatMap((group) => group.items);
+  const active = items.some((entry) => entry.id === tab) ? tab : "appearance";
+  const current = items.find((entry) => entry.id === active);
   const moduleTab = settingsTabs.find((entry) => `${entry.moduleId}:${entry.id}` === active);
+  const description = moduleTab
+    ? t("settings.descriptions.module", { module: moduleName(moduleTab.moduleId) })
+    : t(`settings.descriptions.${active as SettingsTab}`);
 
   return (
-    <main className="mx-auto max-w-4xl p-6 md:p-8">
+    <main className="mx-auto max-w-6xl p-6 md:p-8">
       <PageHeader title={t("settings.title")} />
       {!isAdmin && <p className="mt-2 text-sm text-muted">{t("settings.adminOnly")}</p>}
-      <nav
-        className="mt-6 flex gap-1 overflow-x-auto border-line border-b"
-        aria-label={t("settings.title")}
-      >
-        {tabs.map(({ id, label }) => (
-          <Link
-            key={id}
-            to="/settings"
-            search={{ tab: id }}
-            className={`-mb-px border-b-2 px-3 py-2 text-sm whitespace-nowrap ${
-              active === id
-                ? "border-accent font-semibold text-text"
-                : "border-transparent text-muted hover:text-text"
-            }`}
-            aria-current={active === id ? "page" : undefined}
-          >
-            {label}
-          </Link>
-        ))}
-      </nav>
-      <div className="mt-6">
-        {active === "general" && <GeneralSettings />}
-        {active === "sidebar" && <SidebarSettings />}
-        {active === "appearance" && <AppearanceSettings />}
-        {active === "groups" && <GroupSettings />}
-        {active === "users" && <UserSettings />}
-        {active === "slicer" && <SlicerSettings />}
-        {active === "licence" && <LicenceSettings />}
-        {moduleTab && createElement(moduleTab.component as FC)}
+      <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-[210px_minmax(0,1fr)] md:gap-8">
+        <nav aria-label={t("settings.sectionsLabel")} className="min-w-0">
+          {/* Mobile: one scrollable row. Desktop: grouped list that stays in view. */}
+          <div className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 md:sticky md:top-6 md:mx-0 md:grid md:gap-5 md:overflow-visible md:px-0">
+            {groups.map((group) => (
+              <div key={group.label} className="contents md:grid md:gap-0.5">
+                <p className="hidden px-3 pb-1 text-[11px] font-semibold tracking-wider text-subtle uppercase md:block">
+                  {group.label}
+                </p>
+                {group.items.map((item) => (
+                  <Link
+                    key={item.id}
+                    to="/settings"
+                    search={{ tab: item.id }}
+                    aria-current={active === item.id ? "page" : undefined}
+                    className={`flex shrink-0 items-center gap-2.5 rounded-[10px] border px-3 py-2 text-sm whitespace-nowrap ${
+                      active === item.id
+                        ? "border-accent/25 bg-accent/10 font-semibold text-text"
+                        : "border-transparent text-muted hover:bg-surface-2 hover:text-text"
+                    }`}
+                  >
+                    <span className={active === item.id ? "text-accent" : "text-subtle"}>
+                      <SettingsIcon name={item.icon} />
+                    </span>
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
+            ))}
+          </div>
+        </nav>
+        <div className="min-w-0">
+          <div className="mb-5">
+            <h2 className="text-xl font-semibold tracking-tight">{current?.label}</h2>
+            <p className="mt-1 text-sm text-muted">{description}</p>
+          </div>
+          {active === "general" && <GeneralSettings />}
+          {active === "sidebar" && <SidebarSettings />}
+          {active === "appearance" && <AppearanceSettings />}
+          {active === "groups" && <GroupSettings />}
+          {active === "users" && <UserSettings />}
+          {active === "slicer" && <SlicerSettings />}
+          {active === "licence" && <LicenceSettings />}
+          {moduleTab && createElement(moduleTab.component as FC)}
+        </div>
       </div>
     </main>
-  );
-}
-
-function RadioList<T extends string>({
-  name,
-  value,
-  options,
-  onChange,
-}: {
-  name: string;
-  value: T;
-  options: [T, string][];
-  onChange: (value: T) => void;
-}) {
-  return (
-    <div className="grid gap-2">
-      {options.map(([optionValue, label]) => (
-        <label key={optionValue} className="flex items-center gap-3 text-sm">
-          <input
-            type="radio"
-            name={name}
-            value={optionValue}
-            checked={value === optionValue}
-            onChange={() => onChange(optionValue)}
-            className="accent-accent"
-          />
-          {label}
-        </label>
-      ))}
-    </div>
   );
 }
 
@@ -126,24 +198,45 @@ function GeneralSettings() {
     <>
       <FormError error={update.error} />
       <Section title={t("settings.usageMode")} hint={t("settings.usageModeHint")}>
-        <RadioList<UsageMode>
+        <OptionCards<UsageMode>
           name="usageMode"
           value={settings.usageMode}
           options={[
-            ["single", t("settings.usageSingle")],
-            ["farm", t("settings.usageFarm")],
+            {
+              value: "single",
+              label: t("settings.usageSingle"),
+              description: t("settings.usageSingleHint"),
+            },
+            {
+              value: "farm",
+              label: t("settings.usageFarm"),
+              description: t("settings.usageFarmHint"),
+            },
           ]}
           onChange={(usageMode) => update.mutate({ usageMode, sidebar: sidebarPreset(usageMode) })}
         />
       </Section>
-      <Section title={t("settings.defaultView")}>
-        <RadioList<DefaultView>
+      <Section title={t("settings.defaultView")} hint={t("settings.defaultViewHint")}>
+        <OptionCards<DefaultView>
           name="defaultView"
+          columns={3}
           value={settings.defaultView}
           options={[
-            ["auto", t("settings.defaultViewAuto")],
-            ["fleet", t("settings.defaultViewFleet")],
-            ["printer", t("settings.defaultViewPrinter")],
+            {
+              value: "auto",
+              label: t("settings.defaultViewAuto"),
+              description: t("settings.defaultViewAutoHint"),
+            },
+            {
+              value: "fleet",
+              label: t("settings.defaultViewFleet"),
+              description: t("settings.defaultViewFleetHint"),
+            },
+            {
+              value: "printer",
+              label: t("settings.defaultViewPrinter"),
+              description: t("settings.defaultViewPrinterHint"),
+            },
           ]}
           onChange={(defaultView) => update.mutate({ defaultView })}
         />
@@ -231,8 +324,26 @@ function SidebarSettings() {
   };
 
   return (
-    <Section title={t("settings.tabs.sidebar")} hint={t("settings.sidebarHint")}>
+    <Section
+      title={t("settings.sidebarItems")}
+      hint={t("settings.sidebarHint")}
+      actions={
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          onClick={() => save(sidebarPreset(settings.usageMode))}
+        >
+          {t("settings.resetSidebar")}
+        </button>
+      }
+    >
       <FormError error={update.error} />
+      <p className="mb-3 text-xs text-subtle">
+        {t("settings.visibleCount", {
+          count: items.filter((item) => item.visible).length,
+          total: items.length,
+        })}
+      </p>
       <ol className="grid gap-2">
         {items.map((item, index) => {
           const name = t(`nav.${item.id}`);
@@ -250,7 +361,9 @@ function SidebarSettings() {
                   index,
                 )
               }
-              className={`flex items-center gap-3 rounded-[10px] border border-line bg-sidebar px-3 py-2 ${dragging === item.id ? "opacity-50" : ""}`}
+              className={`flex items-center gap-3 rounded-[10px] border px-3 py-2 transition-colors ${
+                item.visible ? "border-line bg-surface-2" : "border-dashed border-line"
+              } ${dragging === item.id ? "opacity-50" : ""}`}
             >
               <span aria-hidden="true" className="cursor-grab text-subtle select-none">
                 ⠿
@@ -269,7 +382,10 @@ function SidebarSettings() {
                   aria-label={t("settings.show", { name })}
                   className="accent-accent"
                 />
-                <span className={item.visible ? "" : "text-subtle"}>{name}</span>
+                <span aria-hidden="true" className="w-4 text-center text-subtle">
+                  {NAV_ICONS[item.id]}
+                </span>
+                <span className={item.visible ? "" : "text-subtle line-through"}>{name}</span>
               </label>
               <button
                 type="button"
@@ -293,30 +409,72 @@ function SidebarSettings() {
           );
         })}
       </ol>
-      <button
-        type="button"
-        className="btn btn-secondary btn-sm mt-4"
-        onClick={() => save(sidebarPreset(settings.usageMode))}
-      >
-        {t("settings.resetSidebar")}
-      </button>
     </Section>
   );
 }
+
+/** Miniature of the app in a theme (fixed colours: it previews that theme, not the current one). */
+function ThemePreview({ mode }: { mode: ThemePreference }) {
+  const pane = (dark: boolean) => (
+    <div
+      className="flex h-full flex-1 gap-1.5 p-2"
+      style={{ background: dark ? "#09070f" : "#f6f4fa" }}
+    >
+      <div className="w-1/4 rounded" style={{ background: dark ? "#0d0a14" : "#efebf6" }} />
+      <div className="grid flex-1 content-start gap-1.5">
+        <div
+          className="h-2 w-2/3 rounded-full"
+          style={{ background: dark ? "#39304a" : "#cfc6df" }}
+        />
+        <div
+          className="h-7 rounded"
+          style={{
+            background: dark ? "#12101b" : "#ffffff",
+            border: `1px solid ${dark ? "#292337" : "#e2dcec"}`,
+          }}
+        />
+        <div
+          className="h-2 w-1/3 rounded-full"
+          style={{ background: dark ? "#a78bfa" : "#7c5ce6" }}
+        />
+      </div>
+    </div>
+  );
+  return (
+    <div aria-hidden="true" className="flex h-20 overflow-hidden rounded-[8px] border border-line">
+      {mode === "system" ? (
+        <>
+          {pane(false)}
+          {pane(true)}
+        </>
+      ) : (
+        pane(mode === "dark")
+      )}
+    </div>
+  );
+}
+
+const THEME_KEYS = {
+  system: ["settings.themeSystem", "settings.themeSystemHint"],
+  dark: ["settings.themeDark", "settings.themeDarkHint"],
+  light: ["settings.themeLight", "settings.themeLightHint"],
+} as const;
 
 function AppearanceSettings() {
   const t = useT();
   const theme = useTheme();
   return (
     <Section title={t("settings.theme")} hint={t("settings.themeHint")}>
-      <RadioList<ThemePreference>
+      <OptionCards<ThemePreference>
         name="theme"
+        columns={3}
         value={theme}
-        options={[
-          ["system", t("settings.themeSystem")],
-          ["dark", t("settings.themeDark")],
-          ["light", t("settings.themeLight")],
-        ]}
+        options={(["system", "dark", "light"] as const).map((mode) => ({
+          value: mode,
+          label: t(THEME_KEYS[mode][0]),
+          description: t(THEME_KEYS[mode][1]),
+          preview: <ThemePreview mode={mode} />,
+        }))}
         onChange={setTheme}
       />
     </Section>
@@ -348,17 +506,17 @@ function GroupSettings() {
   });
 
   return (
-    <Section title={t("settings.tabs.groups")} hint={t("settings.groupsHint")}>
+    <Section title={t("settings.groupsTitle")} hint={t("settings.groupsRenameHint")}>
       <FormError error={add.error ?? rename.error ?? remove.error} />
       <form
-        className="mb-4 flex gap-2"
+        className="mb-5 flex flex-wrap gap-2"
         onSubmit={(event) => {
           event.preventDefault();
           if (name.trim()) add.mutate(name.trim());
         }}
       >
         <input
-          className="input"
+          className="input min-w-0 flex-1"
           value={name}
           onChange={(event) => setName(event.target.value)}
           placeholder={t("settings.newGroup")}
@@ -372,9 +530,15 @@ function GroupSettings() {
       {data?.groups.length ? (
         <ul className="grid gap-2">
           {data.groups.map((group) => (
-            <li key={group.id} className="flex items-center gap-2">
+            <li
+              key={group.id}
+              className="flex items-center gap-3 rounded-[10px] border border-line bg-surface-2 p-2 pl-3"
+            >
+              <span aria-hidden="true" className="text-subtle">
+                ▦
+              </span>
               <input
-                className="input"
+                className="input min-w-0 flex-1 border-transparent bg-transparent"
                 defaultValue={group.name}
                 aria-label={group.name}
                 onBlur={(event) => {
@@ -393,11 +557,21 @@ function GroupSettings() {
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-subtle">{t("settings.noGroups")}</p>
+        <p className="rounded-[10px] border border-dashed border-line px-4 py-6 text-center text-sm text-subtle">
+          {t("settings.noGroups")}
+        </p>
       )}
     </Section>
   );
 }
+
+const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
 function UserSettings() {
   const t = useT();
@@ -441,11 +615,30 @@ function UserSettings() {
   };
 
   return (
-    <Section title={t("settings.tabs.users")} hint={t("users.hint")}>
+    <Section
+      title={t("settings.usersTitle")}
+      hint={t("users.hint")}
+      actions={
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          disabled={atLimit}
+          onClick={() => setAdding(true)}
+        >
+          {t("users.add")}
+        </button>
+      }
+    >
       <FormError error={update.error ?? remove.error} />
-      <ul className="divide-y divide-line">
+      <ul className="-my-3 divide-y divide-line">
         {users.map((user) => (
           <li key={user.id} className="flex flex-wrap items-center gap-3 py-3">
+            <span
+              aria-hidden="true"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-accent/15 text-xs font-bold text-accent"
+            >
+              {initials(user.displayName)}
+            </span>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold">
                 {user.displayName}{" "}
@@ -488,21 +681,22 @@ function UserSettings() {
           </li>
         ))}
       </ul>
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          className="btn btn-primary btn-sm"
-          disabled={atLimit}
-          onClick={() => setAdding(true)}
-        >
-          {t("users.add")}
-        </button>
-        {data?.limit !== null && data?.limit !== undefined && (
-          <span className="text-xs text-subtle">
-            {t("users.limit", { used: users.length, limit: data.limit })}
-          </span>
-        )}
-      </div>
+      {data?.limit !== null && data?.limit !== undefined && (
+        <div className="mt-6 border-line border-t pt-4">
+          <div className="flex items-center justify-between text-xs text-subtle">
+            <span>{t("users.limit", { used: users.length, limit: data.limit })}</span>
+            <span>
+              {users.length}/{data.limit}
+            </span>
+          </div>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-2">
+            <div
+              className="h-full rounded-full bg-accent"
+              style={{ width: `${Math.min(100, (users.length / data.limit) * 100)}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       <Dialog open={adding} onClose={() => setAdding(false)} title={t("users.add")}>
         <form onSubmit={onCreate}>

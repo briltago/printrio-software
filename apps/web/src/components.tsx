@@ -187,21 +187,81 @@ export function EmptyState({
   );
 }
 
-/** A card with a title and hint, used for groups of settings. */
+/** A card with a header (title, hint, optional actions) and a body; used for groups of settings. */
 export function Section({
   title,
   hint,
+  actions,
   children,
 }: {
   title: string;
   hint?: string;
+  actions?: ReactNode;
   children: ReactNode;
 }) {
   return (
-    <section className="card mb-4 p-5">
-      <h2 className="font-semibold">{title}</h2>
-      {hint && <p className="mt-1 text-sm text-muted">{hint}</p>}
-      <div className="mt-4">{children}</div>
+    <section className="card mb-4 min-w-0 overflow-hidden">
+      <header className="flex flex-wrap items-start justify-between gap-3 border-line border-b px-5 py-4">
+        <div className="min-w-0">
+          <h2 className="font-semibold">{title}</h2>
+          {hint && <p className="mt-0.5 text-sm text-muted">{hint}</p>}
+        </div>
+        {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
+      </header>
+      <div className="p-5">{children}</div>
     </section>
+  );
+}
+
+/** Radio choices shown as selectable tiles with an optional description and preview. */
+export function OptionCards<T extends string>({
+  name,
+  value,
+  options,
+  onChange,
+  columns = 2,
+}: {
+  name: string;
+  value: T;
+  options: { value: T; label: string; description?: string; preview?: ReactNode }[];
+  onChange: (value: T) => void;
+  columns?: 2 | 3;
+}) {
+  return (
+    <div
+      className={`grid grid-cols-1 gap-3 ${columns === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}
+    >
+      {options.map((option) => {
+        const checked = option.value === value;
+        return (
+          <label
+            key={option.value}
+            className={`flex cursor-pointer flex-col gap-3 rounded-[12px] border p-4 transition-colors ${
+              checked
+                ? "border-accent bg-accent/10"
+                : "border-line hover:border-line-strong hover:bg-surface-2"
+            }`}
+          >
+            {option.preview}
+            <span className="flex items-start gap-3">
+              <input
+                type="radio"
+                name={name}
+                value={option.value}
+                checked={checked}
+                onChange={() => onChange(option.value)}
+                className="mt-0.5 accent-accent"
+              />
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold">{option.label}</span>
+                {option.description && (
+                  <span className="mt-0.5 block text-xs text-muted">{option.description}</span>
+                )}
+              </span>
+            </span>
+          </label>
+        );
+      })}
+    </div>
   );
 }

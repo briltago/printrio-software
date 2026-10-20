@@ -46,29 +46,52 @@ export function LicenceSettings() {
 
   return (
     <>
-      <Section title={t("licence.plan")}>
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <p className="text-2xl font-semibold">Printrio {t(`licence.tiers.${licence.tier}`)}</p>
-          {licence.tier !== "business" && (
-            <a href={PRICING_URL} target="_blank" rel="noopener" className="text-sm text-accent">
+      <Section
+        title={t("licence.plan")}
+        actions={
+          licence.tier !== "business" ? (
+            <a
+              href={PRICING_URL}
+              target="_blank"
+              rel="noopener"
+              className="btn btn-secondary btn-sm"
+            >
               {t("licence.compare")} ↗
             </a>
-          )}
+          ) : undefined
+        }
+      >
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="grid h-11 w-11 place-items-center rounded-[12px] bg-accent/15 text-lg text-accent">
+            ✦
+          </span>
+          <div>
+            <p className="text-2xl font-semibold tracking-tight">
+              Printrio {t(`licence.tiers.${licence.tier}`)}
+            </p>
+            {licence.tier === "free" && !licence.activated && (
+              <p className="text-sm text-muted">
+                {t("licence.freeHint", {
+                  printers: licence.limits.printers ?? "∞",
+                  users: licence.limits.users ?? "∞",
+                })}
+              </p>
+            )}
+          </div>
         </div>
-        <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-[auto_1fr]">
-          <dt className="text-muted">{t("licence.printers")}</dt>
-          <dd>{limit(licence.limits.printers)}</dd>
-          <dt className="text-muted">{t("licence.users")}</dt>
-          <dd>{limit(licence.limits.users)}</dd>
+        <dl className="mt-5 grid grid-cols-2 gap-3">
+          {(
+            [
+              [t("licence.printers"), licence.limits.printers],
+              [t("licence.users"), licence.limits.users],
+            ] as const
+          ).map(([label, value]) => (
+            <div key={label} className="rounded-[12px] border border-line bg-surface-2 px-4 py-3">
+              <dt className="text-xs text-muted">{label}</dt>
+              <dd className="mt-0.5 text-xl font-semibold tabular-nums">{limit(value)}</dd>
+            </div>
+          ))}
         </dl>
-        {licence.tier === "free" && !licence.activated && (
-          <p className="mt-4 text-sm text-muted">
-            {t("licence.freeHint", {
-              printers: licence.limits.printers ?? "∞",
-              users: licence.limits.users ?? "∞",
-            })}
-          </p>
-        )}
       </Section>
 
       {!licence.activated ? (
@@ -80,7 +103,10 @@ export function LicenceSettings() {
           </Section>
         )
       ) : (
-        <Section title={t("licence.activated", { key: licence.licenceKey ?? "" })}>
+        <Section title={t("licence.key")}>
+          <p className="mb-4 inline-block rounded-[10px] border border-line bg-surface-2 px-3 py-1.5 font-mono text-sm tracking-wide">
+            {licence.licenceKey}
+          </p>
           {licence.lastError && (
             <p className="mb-4 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm">
               {t("licence.problem", { error: licence.lastError })}
@@ -148,7 +174,14 @@ export function LicenceSettings() {
         <Section title={t("licence.modules")}>
           <ul className="grid gap-2 text-sm">
             {modules.modules.map((module) => (
-              <li key={module.id} className="flex flex-wrap gap-x-3">
+              <li
+                key={module.id}
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[10px] border border-line bg-surface-2 px-3 py-2"
+              >
+                <span
+                  aria-hidden="true"
+                  className={`h-2 w-2 rounded-full ${module.error ? "bg-danger" : "bg-success"}`}
+                />
                 <span className="font-medium capitalize">{module.id}</span>
                 <span className="text-muted">{module.version}</span>
                 {module.error && (

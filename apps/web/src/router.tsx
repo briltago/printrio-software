@@ -115,11 +115,15 @@ const jobsRoute = createRoute({
 const filesRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/files",
+  // The open folder is in the URL, so folders can be linked (e.g. from an order) and Back works.
+  validateSearch: z.object({ dir: z.string().optional() }),
   component: LibraryPage,
 });
 const ordersRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/orders",
+  // ?order=<id> opens that order (links from customers, jobs, …).
+  validateSearch: z.object({ order: z.string().optional() }),
   component: OrdersPage,
 });
 const costsRoute = createRoute({

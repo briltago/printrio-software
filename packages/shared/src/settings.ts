@@ -39,12 +39,49 @@ export const costSettingsSchema = z.object({
 });
 export type CostSettings = z.infer<typeof costSettingsSchema>;
 
+/** Placeholders a folder template may use. */
+export const ORDER_FOLDER_VARIABLES = ["customer", "order", "year", "month", "day"] as const;
+export const DEFAULT_ORDER_FOLDER_TEMPLATE = "Orders/{order}";
+
+/** Folder layout for new orders, e.g. "Commercial/{customer}/{order}". */
+export const orderFolderTemplateSchema = z
+  .string()
+  .trim()
+  .transform((value) => value.replace(/^\/+|\/+$/g, "").replace(/\/{2,}/g, "/"))
+  .pipe(
+    z
+      .string()
+      .min(1, "Enter a folder template.")
+      .max(200, "Keep the template under 200 characters.")
+      .refine(
+        (value) => value.split("/").every((part) => part.trim() !== ".." && part.trim() !== "."),
+        "The template cannot contain . or .. folders.",
+      )
+      .refine(
+        (value) =>
+          [...value.matchAll(/\{(\w*)\}?/g)].every(
+            (m) =>
+              m[0].endsWith("}") &&
+              (ORDER_FOLDER_VARIABLES as readonly string[]).includes(m[1] ?? ""),
+          ),
+        `Unknown placeholder. Use ${ORDER_FOLDER_VARIABLES.map((v) => `{${v}}`).join(", ")}.`,
+      ),
+  );
+
+export const orderFolderSettingsSchema = z.object({
+  /** Create a folder in Files for each new order. */
+  enabled: z.boolean(),
+  template: orderFolderTemplateSchema,
+});
+export type OrderFolderSettings = z.infer<typeof orderFolderSettingsSchema>;
+
 export const workspaceSettingsSchema = z.object({
   onboardingCompleted: z.boolean(),
   usageMode: usageModeSchema,
   defaultView: defaultViewSchema,
   sidebar: sidebarSchema,
   costs: costSettingsSchema,
+  orderFolders: orderFolderSettingsSchema,
 });
 export type WorkspaceSettings = z.infer<typeof workspaceSettingsSchema>;
 
@@ -66,4 +103,5 @@ export const DEFAULT_SETTINGS: WorkspaceSettings = {
   defaultView: "auto",
   sidebar: sidebarPreset("single"),
   costs: { currency: "EUR", electricityPrice: 0.25, defaultPowerWatts: 120 },
+  orderFolders: { enabled: true, template: DEFAULT_ORDER_FOLDER_TEMPLATE },
 };

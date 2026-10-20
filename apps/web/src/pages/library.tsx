@@ -1,5 +1,6 @@
 import type { LibraryFileDto, LibraryListingDto } from "@printrio/shared";
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { type DragEvent, type FormEvent, useRef, useState } from "react";
 import { Dialog, EmptyState, FormError, PageHeader, StateBadge } from "../components.tsx";
 import { Thumbnail } from "../features/files-panel.tsx";
@@ -32,7 +33,10 @@ export function LibraryPage() {
   const { data: me } = useSuspenseQuery(meQuery);
   const isAdmin = me?.role === "admin";
   const inputRef = useRef<HTMLInputElement>(null);
-  const [dir, setDir] = useState("");
+  const { dir = "" } = useSearch({ from: "/app/files" });
+  const navigate = useNavigate();
+  const setDir = (next: string) =>
+    void navigate({ to: "/files", search: next ? { dir: next } : {} });
   const [search, setSearch] = useState("");
   const [sort, setSort] = useStoredState<Sort>("printrio-library-sort", "newest");
   const [dragging, setDragging] = useState(false);

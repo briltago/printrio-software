@@ -2,13 +2,16 @@ import {
   type CreateUser,
   type DefaultView,
   type NavItemId,
+  ORDER_FOLDER_VARIABLES,
+  orderFolderTemplateSchema,
+  renderFolderTemplate,
   type SidebarItem,
   sidebarPreset,
   type UsageMode,
 } from "@printrio/shared";
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useSearch } from "@tanstack/react-router";
-import { createElement, type FC, type FormEvent, useState } from "react";
+import { createElement, type FC, type FormEvent, useRef, useState } from "react";
 import { Dialog, Field, FormError, OptionCards, PageHeader, Section } from "../components.tsx";
 import { LicenceSettings } from "../features/licence-settings.tsx";
 import { SlicerSettings } from "../features/slicer-settings.tsx";
@@ -242,6 +245,7 @@ function GeneralSettings() {
         />
       </Section>
       <CostSettingsSection />
+      <OrderFolderSection />
     </>
   );
 }
@@ -295,6 +299,134 @@ function CostSettingsSection() {
         </div>
         <div className="flex items-center gap-3">
           <button type="submit" className="btn btn-primary btn-sm" disabled={update.isPending}>
+            {t("common.save")}
+          </button>
+          {saved && (
+            <span role="status" className="text-sm text-success">
+              {t("settings.saved")}
+            </span>
+          )}
+        </div>
+      </form>
+    </Section>
+  );
+}
+
+/** Template for order folders in Files, with placeholder chips and a live example. */
+function OrderFolderSection() {
+  const t = useT();
+  const { data: settings } = useSuspenseQuery(settingsQuery);
+  const update = useUpdateSettings();
+  const [enabled, setEnabled] = useState(settings.orderFolders.enabled);
+  const [template, setTemplate] = useState(settings.orderFolders.template);
+  const [saved, setSaved] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const parsed = orderFolderTemplateSchema.safeParse(template);
+  const preview = parsed.success
+    ? renderFolderTemplate(parsed.data, {
+        order: t("settings.orderFolderExample"),
+        customer: t("settings.orderFolderExampleCustomer"),
+        date: new Date(),
+      })
+    : null;
+  const dirty =
+    enabled !== settings.orderFolders.enabled || template !== settings.orderFolders.template;
+
+  const insert = (name: string) => {
+    const input = inputRef.current;
+    const token = `{${name}}`;
+    const start = input?.selectionStart ?? template.length;
+    const end = input?.selectionEnd ?? template.length;
+    setTemplate(template.slice(0, start) + token + template.slice(end));
+    setSaved(false);
+    requestAnimationFrame(() => {
+      input?.focus();
+      input?.setSelectionRange(start + token.length, start + token.length);
+    });
+  };
+
+  return (
+    <Section title={t("settings.orderFolders")} hint={t("settings.orderFoldersHint")}>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!parsed.success) return;
+          update.mutate(
+            { orderFolders: { enabled, template: parsed.data } },
+            {
+              onSuccess: (next) => {
+                setTemplate(next.orderFolders.template);
+                setSaved(true);
+              },
+            },
+          );
+        }}
+      >
+        <FormError error={update.error} />
+        <label className="mb-4 flex items-center gap-3 text-sm">
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={(event) => {
+              setEnabled(event.target.checked);
+              setSaved(false);
+            }}
+            className="accent-accent"
+          />
+          {t("settings.orderFoldersEnabled")}
+        </label>
+        <label className="block text-sm" htmlFor="order-folder-template">
+          <span className="mb-1.5 block text-muted">{t("settings.orderFolderTemplate")}</span>
+        </label>
+        <div className="flex items-center rounded-[11px] border border-line bg-surface-2 pl-3 focus-within:border-accent">
+          <span aria-hidden="true" className="font-mono text-sm text-subtle">
+            Files /
+          </span>
+          <input
+            id="order-folder-template"
+            ref={inputRef}
+            className="input min-w-0 flex-1 border-0 bg-transparent font-mono text-sm focus:outline-none"
+            value={template}
+            disabled={!enabled}
+            spellCheck={false}
+            aria-invalid={!parsed.success}
+            onChange={(event) => {
+              setTemplate(event.target.value);
+              setSaved(false);
+            }}
+          />
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-subtle">{t("settings.orderFolderTemplateHint")}</span>
+          {ORDER_FOLDER_VARIABLES.map((name) => (
+            <button
+              key={name}
+              type="button"
+              disabled={!enabled}
+              onClick={() => insert(name)}
+              className="rounded-full border border-line px-2 py-0.5 font-mono text-xs text-muted hover:border-accent hover:text-text disabled:opacity-50"
+              title={t(`settings.placeholders.${name}`)}
+            >
+              {`{${name}}`}
+            </button>
+          ))}
+        </div>
+        <p
+          className={`mt-3 rounded-[10px] px-3 py-2 font-mono text-xs ${
+            parsed.success ? "bg-surface-2 text-muted" : "bg-danger/10 text-danger"
+          }`}
+          role="status"
+        >
+          {parsed.success
+            ? t("settings.orderFolderPreview", { path: `Files/${preview}` })
+            : parsed.error.issues[0]?.message}
+        </p>
+        <div className="mt-4 flex items-center gap-3">
+          <button
+            type="submit"
+            className="btn btn-primary btn-sm"
+            disabled={!dirty || !parsed.success || update.isPending}
+          >
             {t("common.save")}
           </button>
           {saved && (

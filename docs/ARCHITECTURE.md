@@ -255,6 +255,8 @@ stay in `localStorage`.
   `/api/modules/<id>/…` (signed-in users; `adminOnly` for admins), driver
   registration, core events (`printer.status`, `job.started`, `job.finished`,
   `licence.changed`) and `notifyChange` to refresh open browsers.
+- **Order events** (`order.created`, `order.updated`, `order.deleted`) let a
+  module build on the core's orders (Pro: customer directory).
 - **Web extension points**: after sign-in the UI imports
   `/api/modules/<id>/web.js` and calls `setup(host)`. The host passes its own
   React, JSX runtime, TanStack Query, `api()`, UI components and formatters

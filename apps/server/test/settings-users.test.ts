@@ -42,6 +42,7 @@ describe("workspace settings", () => {
       defaultView: "auto",
       sidebar: sidebarPreset("single"),
       costs: DEFAULT_SETTINGS.costs,
+      orderFolders: DEFAULT_SETTINGS.orderFolders,
     });
   });
 
@@ -60,6 +61,7 @@ describe("workspace settings", () => {
       defaultView: "fleet",
       sidebar,
       costs: DEFAULT_SETTINGS.costs,
+      orderFolders: DEFAULT_SETTINGS.orderFolders,
     });
   });
 

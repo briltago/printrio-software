@@ -170,6 +170,8 @@ export const orders = pgTable("orders", {
   customer: text("customer"),
   status: text("status").notNull().default("new"),
   notes: text("notes"),
+  /** Folder in the library (relative to DATA_DIR/files) for this order's files. */
+  folder: text("folder"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

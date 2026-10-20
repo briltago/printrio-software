@@ -24,6 +24,8 @@ export interface FakeMoonrakerOptions {
   progressPerTick?: number;
   /** Moonraker `[power]` devices; false = component not configured. */
   power?: boolean;
+  /** Moonraker before `machine.update.upgrade` (only the per-kind update endpoints). */
+  legacyUpdates?: boolean;
 }
 
 type Objects = Record<string, Record<string, unknown>>;
@@ -189,7 +191,74 @@ function interpolate(points: number[][], size = 13): number[][] {
 
 const MESH_PARAMS = { min_x: 20, max_x: 220, min_y: 20, max_y: 220, x_count: 5, y_count: 5 };
 
+type FakeVersionInfo = Record<string, unknown> & { commits_behind?: unknown[] };
+
+function sampleVersionInfo(): Record<string, FakeVersionInfo> {
+  const day = 86_400;
+  return {
+    system: { package_count: 3, package_list: ["libssl3", "openssl", "tzdata"] },
+    klipper: {
+      configured_type: "git_repo",
+      version: "v0.12.0-385",
+      remote_version: "v0.12.0-387",
+      is_valid: true,
+      is_dirty: false,
+      commits_behind: [
+        {
+          sha: "a1b2c3d",
+          subject: "toolhead: Fix lookahead flush",
+          author: "Kevin",
+          date: String(now() - day),
+        },
+        {
+          sha: "e4f5a6b",
+          subject: "docs: Update FAQ",
+          author: "Kevin",
+          date: String(now() - 2 * day),
+        },
+      ],
+      warnings: [],
+      anomalies: [],
+    },
+    moonraker: {
+      configured_type: "git_repo",
+      version: "v0.9.3-12",
+      remote_version: "v0.9.3-14",
+      is_valid: true,
+      is_dirty: false,
+      commits_behind: [
+        {
+          sha: "0f1e2d3",
+          subject: "update_manager: Report progress",
+          author: "Eric",
+          date: String(now() - day),
+        },
+      ],
+      warnings: [],
+      anomalies: [],
+    },
+    mainsail: {
+      configured_type: "web",
+      version: "v2.12.0",
+      remote_version: "v2.13.0",
+      warnings: [],
+      anomalies: [],
+    },
+    crowsnest: {
+      configured_type: "git_repo",
+      version: "v4.1.9",
+      remote_version: "v4.1.9",
+      is_valid: true,
+      is_dirty: true,
+      commits_behind: [],
+      warnings: ["Repo has local modifications"],
+      anomalies: [],
+    },
+  };
+}
+
 export class FakeMoonraker {
+  readonly versionInfo = sampleVersionInfo();
   private meshProfiles: Record<string, number[][]> = {
     default: probeBed(),
     pei_textured: probeBed(3),
@@ -828,6 +897,59 @@ export class FakeMoonraker {
               },
             },
           });
+        case "machine.update.status":
+          return reply({ busy: false, version_info: this.versionInfo });
+        case "machine.update.refresh":
+          this.actions.push(`refresh:${params.name ?? "all"}`);
+          return reply({ busy: false, version_info: this.versionInfo });
+        case "machine.update.recover":
+          if (!this.versionInfo[String(params.name)]) return fail(400, "Invalid name");
+          Object.assign(this.versionInfo[String(params.name)] ?? {}, {
+            is_dirty: false,
+            warnings: [],
+          });
+          this.actions.push(`recover:${params.name}`);
+          return reply("ok");
+        case "machine.update.upgrade":
+        case "machine.update.full":
+        case "machine.update.system":
+        case "machine.update.klipper":
+        case "machine.update.moonraker":
+        case "machine.update.client": {
+          const legacy = method !== "machine.update.upgrade";
+          if (legacy !== Boolean(this.options.legacyUpdates))
+            return fail(-32601, `Method not found: ${method}`);
+          if (this.objects.print_stats?.state === "printing")
+            return fail(503, "Printer is printing, update request refused");
+          const target =
+            method === "machine.update.full"
+              ? undefined
+              : method === "machine.update.upgrade" || method === "machine.update.client"
+                ? (params.name as string | undefined)
+                : method.slice("machine.update.".length);
+          const names = target ? [target] : Object.keys(this.versionInfo);
+          if (names.some((name) => !this.versionInfo[name])) return fail(400, "Invalid name");
+          this.actions.push(`upgrade:${target ?? "all"}`);
+          for (const name of names) {
+            const info = this.versionInfo[name] ?? {};
+            this.notify("notify_update_response", [
+              { application: name, proc_id: 1, message: `Updating ${name}...`, complete: false },
+            ]);
+            if (name === "system") Object.assign(info, { package_count: 0, package_list: [] });
+            else Object.assign(info, { version: info.remote_version, commits_behind: [] });
+            this.notify("notify_update_response", [
+              {
+                application: name,
+                proc_id: 1,
+                message: `Update of ${name} complete`,
+                complete: true,
+              },
+            ]);
+          }
+          // Updating Moonraker restarts it: the connection drops before the answer.
+          if (names.includes("moonraker")) return this.dropConnections();
+          return reply("ok");
+        }
         case "machine.proc_stats":
           return reply({
             cpu_temp: 48.3,

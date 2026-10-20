@@ -131,6 +131,12 @@ values. Calibrating homes first when needed. Saving or removing a profile
 runs `SAVE_CONFIG`, which writes printer.cfg and restarts Klipper, so it is
 admin-only.
 
+Updates use Moonraker's update manager (`machine.update.*`; older Moonraker
+without `machine.update.upgrade` falls back to the per-kind endpoints).
+Progress notifications are forwarded as `printer.update` realtime messages,
+to admins only. Updating Moonraker restarts it, so the dropped connection is
+treated as success and the UI retries until the printer is back.
+
 Permissions: config, logs, system info, services, host reboot/shutdown and updates are
 admin-only. Restarting Klipper or the firmware is open to operators because
 it is the way back from an emergency stop. No restart is accepted while the

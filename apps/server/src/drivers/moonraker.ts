@@ -22,10 +22,14 @@ import type {
   PrinterStatus,
   PrintFile,
   PrintJob,
+  SoftwareComponent,
   SystemInfo,
   SystemStats,
   TemperatureHistory,
   TemperatureReading,
+  UpdateAction,
+  UpdateProgress,
+  UpdateStatus,
   Webcam,
 } from "@printrio/sdk";
 
@@ -37,6 +41,8 @@ import type {
 
 const REQUEST_TIMEOUT_MS = 10_000;
 const GCODE_TIMEOUT_MS = 30 * 60_000;
+const UPDATE_TIMEOUT_MS = 60 * 60_000;
+const UPDATE_REFRESH_TIMEOUT_MS = 2 * 60_000;
 const CONNECT_TIMEOUT_MS = 6_000;
 const PROBE_TIMEOUT_MS = 5_000;
 
@@ -97,6 +103,66 @@ export function parseMacroParams(gcode: string): { name: string; defaultValue: s
 }
 
 export class MoonrakerError extends Error {}
+
+interface MoonrakerVersionInfo {
+  configured_type?: string;
+  version?: string;
+  remote_version?: string;
+  package_count?: number;
+  package_list?: string[];
+  commits_behind?: { sha?: string; subject?: string; author?: string; date?: string | number }[];
+  is_valid?: boolean;
+  is_dirty?: boolean;
+  corrupt?: boolean;
+  warnings?: string[];
+  anomalies?: string[];
+}
+
+const knownVersion = (value: unknown) =>
+  typeof value === "string" && value && value !== "?" ? value : null;
+
+export function toSoftwareComponent(name: string, info: MoonrakerVersionInfo): SoftwareComponent {
+  if (name === "system") {
+    const packages = info.package_list ?? [];
+    return {
+      name,
+      kind: "system",
+      version: null,
+      remoteVersion: null,
+      updateAvailable: Number(info.package_count ?? packages.length) > 0,
+      commitsBehind: [],
+      packages,
+      needsRecovery: false,
+      warnings: [],
+    };
+  }
+  const version = knownVersion(info.version);
+  const remoteVersion = knownVersion(info.remote_version);
+  const commitsBehind = (info.commits_behind ?? []).map((commit) => {
+    const seconds = Number(commit.date);
+    return {
+      sha: String(commit.sha ?? ""),
+      subject: String(commit.subject ?? ""),
+      author: commit.author ? String(commit.author) : null,
+      date: Number.isFinite(seconds) && seconds > 0 ? new Date(seconds * 1000) : null,
+    };
+  });
+  const kind =
+    info.configured_type === "git_repo" ? "git" : info.configured_type === "web" ? "web" : "other";
+  return {
+    name,
+    kind,
+    version,
+    remoteVersion,
+    updateAvailable:
+      commitsBehind.length > 0 ||
+      (version !== null && remoteVersion !== null && version !== remoteVersion),
+    commitsBehind,
+    packages: [],
+    needsRecovery: info.is_valid === false || info.is_dirty === true || info.corrupt === true,
+    warnings: [...(info.warnings ?? []), ...(info.anomalies ?? [])].map(String),
+  };
+}
 
 interface MoonrakerBedMesh {
   profile_name?: string;
@@ -464,6 +530,7 @@ export class MoonrakerDriver implements PrinterDriver {
   private info: PrinterInfo = { hostname: null, firmwareState: null };
   private statusListeners = new Set<(status: PrinterStatus) => void>();
   private consoleListeners = new Set<(line: string) => void>();
+  private updateListeners = new Set<(progress: UpdateProgress) => void>();
   private disconnectListeners = new Set<() => void>();
   private closedByUs = false;
 
@@ -523,6 +590,11 @@ export class MoonrakerDriver implements PrinterDriver {
   onStatus(listener: (status: PrinterStatus) => void) {
     this.statusListeners.add(listener);
     return () => this.statusListeners.delete(listener);
+  }
+
+  onUpdateProgress(listener: (progress: UpdateProgress) => void) {
+    this.updateListeners.add(listener);
+    return () => this.updateListeners.delete(listener);
   }
 
   onConsole(listener: (line: string) => void) {
@@ -861,6 +933,57 @@ export class MoonrakerDriver implements PrinterDriver {
     await this.sendGcode(script);
   }
 
+  async getUpdateStatus(): Promise<UpdateStatus> {
+    let result: { busy?: boolean; version_info?: Record<string, MoonrakerVersionInfo> };
+    try {
+      result = (await this.call("machine.update.status")) as typeof result;
+    } catch (error) {
+      // No [update_manager] section: nothing to update from here.
+      if (error instanceof MoonrakerError && /not found|not registered/i.test(error.message))
+        return { busy: false, components: [] };
+      throw error;
+    }
+    const order = (name: string) => ["system", "klipper", "moonraker"].indexOf(name) >>> 0;
+    return {
+      busy: result.busy === true,
+      components: Object.entries(result.version_info ?? {})
+        .map(([name, info]) => toSoftwareComponent(name, info))
+        .sort((a, b) => order(a.name) - order(b.name) || a.name.localeCompare(b.name)),
+    };
+  }
+
+  async updateSoftware(action: UpdateAction) {
+    const name = action.name;
+    if (action.op === "refresh") {
+      await this.call("machine.update.refresh", name ? { name } : {}, UPDATE_REFRESH_TIMEOUT_MS);
+      return;
+    }
+    if (action.op === "recover") {
+      await this.call("machine.update.recover", { name, hard: false }, UPDATE_TIMEOUT_MS);
+      return;
+    }
+    try {
+      try {
+        await this.call("machine.update.upgrade", name ? { name } : {}, UPDATE_TIMEOUT_MS);
+      } catch (error) {
+        if (!(error instanceof MoonrakerError && /not found/i.test(error.message))) throw error;
+        // Moonraker before machine.update.upgrade (2024) has one endpoint per kind.
+        const legacy: [string, Record<string, unknown>] = !name
+          ? ["machine.update.full", {}]
+          : name === "system" || name === "moonraker" || name === "klipper"
+            ? [`machine.update.${name}`, {}]
+            : ["machine.update.client", { name }];
+        await this.call(legacy[0], legacy[1], UPDATE_TIMEOUT_MS);
+      }
+    } catch (error) {
+      // Updating Moonraker restarts it, which closes this connection before it answers.
+      const restartsHost = !name || name === "moonraker";
+      if (restartsHost && error instanceof MoonrakerError && error.message === "Connection closed.")
+        return;
+      throw error;
+    }
+  }
+
   private authHeaders(): Record<string, string> {
     return this.connection?.apiKey ? { "X-Api-Key": this.connection.apiKey } : {};
   }
@@ -1073,6 +1196,16 @@ export class MoonrakerDriver implements PrinterDriver {
       case "notify_klippy_disconnected":
         this.objects.webhooks = { ...this.objects.webhooks, state: "startup" };
         this.publish();
+        break;
+      case "notify_update_response":
+        for (const progress of (message.params ?? []) as Record<string, unknown>[]) {
+          for (const listener of this.updateListeners)
+            listener({
+              application: String(progress.application ?? ""),
+              message: String(progress.message ?? ""),
+              complete: progress.complete === true,
+            });
+        }
         break;
       case "notify_gcode_response":
         for (const line of (message.params ?? []) as string[]) {

@@ -4,6 +4,7 @@ import type {
   PrinterDriver,
   PrinterDriverFactory,
   PrinterStatus,
+  UpdateProgress,
 } from "@printrio/sdk";
 import type { PrinterCommand, PrinterStatusDto } from "@printrio/shared";
 
@@ -22,6 +23,7 @@ interface Entry {
 export interface PrinterManagerEvents {
   status: [printerId: string, status: PrinterStatusDto];
   console: [printerId: string, line: string];
+  update: [printerId: string, progress: UpdateProgress];
 }
 
 export class PrinterNotConnectedError extends Error {}
@@ -170,6 +172,7 @@ export class PrinterManager extends EventEmitter<PrinterManagerEvents> {
     entry.attempt = 0;
     driver.onStatus((status) => this.setStatus(id, entry, status));
     driver.onConsole((line) => this.emit("console", id, line));
+    driver.onUpdateProgress((progress) => this.emit("update", id, progress));
     driver.onDisconnect(() => {
       if (this.isStale(id, generation)) return;
       entry.driver = null;

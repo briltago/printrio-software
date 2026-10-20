@@ -236,6 +236,46 @@ export type BedMeshAction =
   | { op: "save"; profile: string }
   | { op: "remove"; profile: string };
 
+export interface SoftwareCommit {
+  sha: string;
+  subject: string;
+  author: string | null;
+  date: Date | null;
+}
+
+/** One updatable piece of the printer host: OS packages, firmware host, web UI, … */
+export interface SoftwareComponent {
+  name: string;
+  kind: "system" | "git" | "web" | "other";
+  version: string | null;
+  remoteVersion: string | null;
+  updateAvailable: boolean;
+  /** Commits between the installed and the remote version (git repos). */
+  commitsBehind: SoftwareCommit[];
+  /** Pending OS packages (kind "system"). */
+  packages: string[];
+  /** Local changes or a broken checkout; needs a recovery before updating. */
+  needsRecovery: boolean;
+  warnings: string[];
+}
+
+export interface UpdateStatus {
+  /** An update is running on the host. */
+  busy: boolean;
+  components: SoftwareComponent[];
+}
+
+export type UpdateAction =
+  | { op: "refresh"; name?: string }
+  | { op: "upgrade"; name?: string }
+  | { op: "recover"; name: string };
+
+export interface UpdateProgress {
+  application: string;
+  message: string;
+  complete: boolean;
+}
+
 export type HostAction = "reboot" | "shutdown";
 
 export interface PrinterConnection {
@@ -302,6 +342,10 @@ export interface PrinterDriver {
   getBedMesh(): Promise<BedMesh | null>;
   /** Saving or removing a profile persists it in the printer config, which restarts the firmware. */
   bedMesh(action: BedMeshAction): Promise<void>;
+  getUpdateStatus(): Promise<UpdateStatus>;
+  /** Long-running; progress arrives through `onUpdateProgress`. Without `name`, applies to everything. */
+  updateSoftware(action: UpdateAction): Promise<void>;
+  onUpdateProgress(listener: (progress: UpdateProgress) => void): () => void;
   pause(): Promise<void>;
   resume(): Promise<void>;
   cancel(): Promise<void>;

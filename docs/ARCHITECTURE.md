@@ -263,6 +263,9 @@ stay in `localStorage`.
   (also as `window.PrintrioHost`, so bundles never ship a second React).
   A module can add sidebar entries, pages (`/m/<id>/<path>`), settings tabs,
   printer-page panels and order-detail sections (`orderPanels`).
+- **Orders for modules**: `ctx.orders` (get, create, update) runs the same
+  order logic as the HTTP API — folder from the workspace template, order
+  events — so Business can turn an accepted quote into a normal order.
 - When the lease ends or no longer lists a module, the module is deactivated:
   its routes and UI disappear, its data stays in its schema until
   reactivation.

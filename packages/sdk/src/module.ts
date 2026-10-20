@@ -70,6 +70,27 @@ export interface ModuleEvents {
 /** Data the module changed, so open browsers refetch it. */
 export type ModuleChange = "printers" | "jobs" | "queue" | "filament";
 
+/** Orders through the core's order logic (folder from the workspace template, events). */
+export interface ModuleOrders {
+  get(orderId: string): Promise<OrderDto | null>;
+  create(input: {
+    name: string;
+    customer?: string | null;
+    status?: OrderDto["status"];
+    notes?: string | null;
+  }): Promise<OrderDto>;
+  /** Changes the given fields; null when the order does not exist. */
+  update(
+    orderId: string,
+    changes: {
+      name?: string;
+      customer?: string | null;
+      status?: OrderDto["status"];
+      notes?: string | null;
+    },
+  ): Promise<OrderDto | null>;
+}
+
 export interface ModuleContext {
   logger: ModuleLogger;
   /** Current lease; modules must re-check it themselves before privileged work. */
@@ -87,6 +108,8 @@ export interface ModuleContext {
   ): () => void;
   /** Tells connected browsers that data changed. */
   notifyChange(change: ModuleChange): void;
+  /** Optional: cores before Nov 2026 do not provide it. */
+  orders?: ModuleOrders;
 }
 
 export interface PrintrioModule {

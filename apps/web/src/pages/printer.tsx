@@ -1,4 +1,4 @@
-import type { PrinterCommand } from "@printrio/shared";
+import type { PrinterCommand, RestartRequest } from "@printrio/shared";
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useState } from "react";
@@ -42,6 +42,10 @@ export function PrinterPage() {
   const command = useMutation({
     mutationFn: (body: PrinterCommand) =>
       api(`/api/printers/${printerId}/commands`, { method: "POST", body }),
+  });
+  const restart = useMutation({
+    mutationFn: (body: RestartRequest) =>
+      api(`/api/printers/${printerId}/restart`, { method: "POST", body }),
   });
   const remove = useMutation({
     mutationFn: () => api(`/api/printers/${printerId}`, { method: "DELETE" }),
@@ -95,6 +99,13 @@ export function PrinterPage() {
         actions={
           isAdmin && (
             <>
+              <Link
+                to="/printers/$printerId/maintenance"
+                params={{ printerId: printer.id }}
+                className="btn btn-secondary"
+              >
+                {t("maintenance.open")}
+              </Link>
               <button type="button" className="btn btn-secondary" onClick={() => setEditing(true)}>
                 {t("common.edit")}
               </button>
@@ -115,7 +126,7 @@ export function PrinterPage() {
       {!printer.withinLimit && (
         <p className="mt-3 text-sm text-warning">{t("printer.outsideLimit")}</p>
       )}
-      <FormError error={command.error ?? remove.error} />
+      <FormError error={command.error ?? restart.error ?? remove.error} />
 
       <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <div className="grid min-w-0 content-start gap-4">
@@ -154,6 +165,26 @@ export function PrinterPage() {
               <ObjectExclusion printerId={printer.id} exclusion={status.exclusion} />
             )}
             <div className="mt-6 flex flex-wrap gap-2 border-line border-t pt-4">
+              {status.state === "error" && connected && (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    disabled={restart.isPending}
+                    onClick={() => restart.mutate({ target: "firmware" })}
+                  >
+                    {t("system.restartFirmware")}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={restart.isPending}
+                    onClick={() => restart.mutate({ target: "klipper" })}
+                  >
+                    {t("system.restartKlipper")}
+                  </button>
+                </>
+              )}
               {status.state === "printing" && (
                 <button
                   type="button"

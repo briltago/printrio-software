@@ -158,6 +158,21 @@ export interface GcodeCommand {
   description: string | null;
 }
 
+export interface ConfigFile {
+  /** Relative to the config root, e.g. "printer.cfg" or "includes/macros.cfg". */
+  path: string;
+  size: number;
+  modified: Date;
+}
+
+export interface HostService {
+  name: string;
+  /** systemd state, e.g. "active", "inactive", "failed"; null when unknown. */
+  state: string | null;
+}
+
+export type HostAction = "reboot" | "shutdown";
+
 export interface PrinterConnection {
   /** Base URL of the printer API, e.g. "http://voron.local:7125". */
   url: string;
@@ -199,6 +214,14 @@ export interface PrinterDriver {
   listMacros(): Promise<Macro[]>;
   /** Commands the firmware knows, for autocomplete. */
   listGcodeCommands(): Promise<GcodeCommand[]>;
+  listConfigFiles(): Promise<ConfigFile[]>;
+  readConfigFile(path: string): Promise<string>;
+  writeConfigFile(path: string, content: string): Promise<void>;
+  /** Restarts the firmware host software; `firmware` also resets the MCUs (Klipper FIRMWARE_RESTART). */
+  restartFirmware(firmware: boolean): Promise<void>;
+  listServices(): Promise<HostService[]>;
+  restartService(name: string): Promise<void>;
+  hostPower(action: HostAction): Promise<void>;
   pause(): Promise<void>;
   resume(): Promise<void>;
   cancel(): Promise<void>;

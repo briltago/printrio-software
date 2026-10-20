@@ -447,6 +447,109 @@ describe("files and history", () => {
   });
 });
 
+describe("printer administration", () => {
+  async function connectedPrinter(options: Parameters<typeof fakePrinter>[0] = {}) {
+    const fake = await fakePrinter(options);
+    const { id } = (await api("POST", "/api/printers", { name: "Admin", url: fake.url })).json();
+    await waitForState(id, options.printing ? "printing" : "idle");
+    return { fake, id };
+  }
+
+  it("lets only admins read and write config", async () => {
+    const { id } = await connectedPrinter();
+    expect(
+      (await api("GET", `/api/printers/${id}/config/files`, undefined, operator)).statusCode,
+    ).toBe(403);
+    const files = (await api("GET", `/api/printers/${id}/config/files`)).json().files;
+    expect(files.map((f: { path: string }) => f.path)).toContain("printer.cfg");
+    const file = (await api("GET", `/api/printers/${id}/config/file?path=printer.cfg`)).json();
+    expect(file.content).toContain("[printer]");
+    expect(
+      (await api("GET", `/api/printers/${id}/config/file?path=../etc/passwd`)).statusCode,
+    ).toBe(400);
+    expect((await api("GET", `/api/printers/${id}/config/file?path=missing.cfg`)).statusCode).toBe(
+      404,
+    );
+  });
+
+  it("backs up the previous version on save and detects conflicts", async () => {
+    const { fake, id } = await connectedPrinter();
+    const file = (await api("GET", `/api/printers/${id}/config/file?path=printer.cfg`)).json();
+    const save = (content: string, extra: object = {}) =>
+      api("PUT", `/api/printers/${id}/config/file`, {
+        path: "printer.cfg",
+        content,
+        baseModified: file.modified,
+        ...extra,
+      });
+    const saved = await save("[printer]\nmax_velocity: 400\n");
+    expect(saved.statusCode).toBe(200);
+    expect(fake.config["printer.cfg"]?.content).toBe("[printer]\nmax_velocity: 400\n");
+
+    // The printer's copy is now newer than the version loaded above.
+    fake.config["printer.cfg"] = { content: "edited elsewhere", modified: Date.now() / 1000 + 5 };
+    const conflict = await save("mine");
+    expect(conflict.statusCode).toBe(409);
+    expect(conflict.json().code).toBe("config_conflict");
+    expect((await save("mine", { force: true, restart: true })).statusCode).toBe(200);
+    expect(fake.actions).toEqual(["restart"]);
+
+    const backups = (await api("GET", `/api/printers/${id}/config/backups?path=printer.cfg`)).json()
+      .backups;
+    expect(backups).toHaveLength(2);
+    expect(backups[0].createdBy).toBe("Admin");
+    const latest = (await api("GET", `/api/printers/${id}/config/backups/${backups[0].id}`)).json();
+    expect(latest.content).toBe("edited elsewhere");
+    const oldest = (await api("GET", `/api/printers/${id}/config/backups/${backups[1].id}`)).json();
+    expect(oldest.content).toContain("[extruder]");
+
+    const created = await api("PUT", `/api/printers/${id}/config/file`, {
+      path: "new.cfg",
+      content: "[gcode_macro HELLO]\ngcode:\n  M117 Hello\n",
+      baseModified: null,
+    });
+    expect(created.statusCode).toBe(200);
+    expect(
+      (await api("GET", `/api/printers/${id}/config/backups?path=new.cfg`)).json().backups,
+    ).toEqual([]);
+  });
+
+  it("restarts with role and print-state checks", async () => {
+    const { fake, id } = await connectedPrinter();
+    const restart = (body: object, cookie = admin) =>
+      api("POST", `/api/printers/${id}/restart`, body, cookie);
+    expect((await restart({ target: "firmware" }, operator)).statusCode).toBe(200);
+    expect((await restart({ target: "service", service: "klipper" }, operator)).statusCode).toBe(
+      403,
+    );
+    expect((await restart({ target: "service", service: "nope" })).statusCode).toBe(400);
+    expect((await restart({ target: "service", service: "crowsnest" })).statusCode).toBe(200);
+    expect((await restart({ target: "host", action: "shutdown" })).statusCode).toBe(200);
+    expect((await restart({ target: "host", action: "format" })).statusCode).toBe(400);
+    expect(fake.actions).toEqual(["firmware_restart", "service:crowsnest", "shutdown"]);
+    const services = (await api("GET", `/api/printers/${id}/services`)).json().services;
+    expect(services.map((s: { name: string }) => s.name)).toEqual([
+      "klipper",
+      "moonraker",
+      "crowsnest",
+    ]);
+  });
+
+  it("refuses restarts while printing", async () => {
+    const { id } = await connectedPrinter({ printing: { fileName: "cube.gcode", progress: 0.3 } });
+    const res = await api("POST", `/api/printers/${id}/restart`, { target: "klipper" });
+    expect(res.statusCode).toBe(409);
+    const save = await api("PUT", `/api/printers/${id}/config/file`, {
+      path: "printer.cfg",
+      content: "x",
+      baseModified: null,
+      force: true,
+      restart: true,
+    });
+    expect(save.statusCode).toBe(409);
+  });
+});
+
 describe("groups", () => {
   it("creates groups, assigns printers and clears assignments on delete", async () => {
     const group = (await api("POST", "/api/printer-groups", { name: "Workshop" })).json();

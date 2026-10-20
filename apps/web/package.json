@@ -11,9 +11,15 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@codemirror/language": "6.11.3",
+    "@codemirror/legacy-modes": "6.5.1",
+    "@codemirror/state": "6.5.2",
+    "@codemirror/view": "6.38.6",
+    "@lezer/highlight": "1.2.3",
     "@printrio/shared": "workspace:*",
     "@tanstack/react-query": "5.104.5",
     "@tanstack/react-router": "1.170.45",
+    "codemirror": "6.0.2",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "zod": "4.6.7"

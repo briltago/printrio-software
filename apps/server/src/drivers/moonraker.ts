@@ -1,8 +1,11 @@
 import type {
   Axis,
+  ConfigFile,
   ConsoleEntry,
   FileListing,
   GcodeCommand,
+  HostAction,
+  HostService,
   JobStatus,
   Macro,
   MotionStatus,
@@ -27,6 +30,7 @@ import type {
  */
 
 const REQUEST_TIMEOUT_MS = 10_000;
+const GCODE_TIMEOUT_MS = 30 * 60_000;
 const CONNECT_TIMEOUT_MS = 6_000;
 const PROBE_TIMEOUT_MS = 5_000;
 
@@ -484,24 +488,37 @@ export class MoonrakerDriver implements PrinterDriver {
   }
 
   async uploadFile(path: string, data: AsyncIterable<Uint8Array>): Promise<void> {
-    if (!this.connection) throw new MoonrakerError("Not connected.");
     const chunks: Uint8Array[] = [];
     for await (const chunk of data) chunks.push(chunk);
+    await this.upload("gcodes", path, new Blob(chunks.map((chunk) => new Uint8Array(chunk))));
+  }
+
+  /** Multipart upload into a Moonraker file root; `path` may include sub-directories. */
+  private async upload(root: string, path: string, blob: Blob) {
+    if (!this.connection) throw new MoonrakerError("Not connected.");
     const slash = path.lastIndexOf("/");
     const form = new FormData();
-    form.append("root", "gcodes");
+    form.append("root", root);
     if (slash > 0) form.append("path", path.slice(0, slash));
-    form.append(
-      "file",
-      new Blob(chunks.map((chunk) => new Uint8Array(chunk))),
-      path.slice(slash + 1),
-    );
+    form.append("file", blob, path.slice(slash + 1));
     const res = await fetch(`${this.connection.url}/server/files/upload`, {
       method: "POST",
       headers: this.authHeaders(),
       body: form,
     });
     if (!res.ok) throw new MoonrakerError(`Upload failed (${res.status}).`);
+  }
+
+  /** Raw file from a Moonraker file root over HTTP. */
+  private async download(root: string, path: string) {
+    if (!this.connection) throw new MoonrakerError("Not connected.");
+    const encoded = path.split("/").map(encodeURIComponent).join("/");
+    const res = await fetch(`${this.connection.url}/server/files/${root}/${encoded}`, {
+      headers: this.authHeaders(),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok || !res.body) throw new MoonrakerError(`File not available (${res.status}).`);
+    return res;
   }
 
   async startPrint(path: string) {
@@ -531,13 +548,7 @@ export class MoonrakerDriver implements PrinterDriver {
   }
 
   async readFile(path: string) {
-    if (!this.connection) throw new MoonrakerError("Not connected.");
-    const encoded = path.split("/").map(encodeURIComponent).join("/");
-    const res = await fetch(`${this.connection.url}/server/files/gcodes/${encoded}`, {
-      headers: this.authHeaders(),
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!res.ok || !res.body) throw new MoonrakerError(`File not available (${res.status}).`);
+    const res = await this.download("gcodes", path);
     return {
       contentType: res.headers.get("content-type") ?? "application/octet-stream",
       body: res.body as unknown as AsyncIterable<Uint8Array>,
@@ -599,6 +610,57 @@ export class MoonrakerDriver implements PrinterDriver {
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 
+  async listConfigFiles(): Promise<ConfigFile[]> {
+    const files = (await this.call("server.files.list", { root: "config" })) as {
+      path?: string;
+      filename?: string;
+      size?: number;
+      modified?: number;
+    }[];
+    return files
+      .map((file) => ({
+        path: String(file.path ?? file.filename ?? ""),
+        size: Number(file.size ?? 0),
+        modified: new Date(Number(file.modified ?? 0) * 1000),
+      }))
+      .filter((file) => file.path && !file.path.split("/").some((part) => part.startsWith(".")))
+      .sort((a, b) => a.path.localeCompare(b.path));
+  }
+
+  async readConfigFile(path: string) {
+    return (await this.download("config", path)).text();
+  }
+
+  async writeConfigFile(path: string, content: string) {
+    await this.upload("config", path, new Blob([content], { type: "text/plain" }));
+  }
+
+  async restartFirmware(firmware: boolean) {
+    await this.call(firmware ? "printer.firmware_restart" : "printer.restart");
+  }
+
+  async listServices(): Promise<HostService[]> {
+    const result = (await this.call("machine.system_info")) as {
+      system_info?: {
+        available_services?: string[];
+        service_state?: Record<string, { active_state?: string }>;
+      };
+    };
+    const info = result.system_info ?? {};
+    return (info.available_services ?? []).map((name) => ({
+      name,
+      state: info.service_state?.[name]?.active_state ?? null,
+    }));
+  }
+
+  async restartService(name: string) {
+    await this.call("machine.services.restart", { service: name });
+  }
+
+  async hostPower(action: HostAction) {
+    await this.call(action === "reboot" ? "machine.reboot" : "machine.shutdown");
+  }
+
   private authHeaders(): Record<string, string> {
     return this.connection?.apiKey ? { "X-Api-Key": this.connection.apiKey } : {};
   }
@@ -615,7 +677,8 @@ export class MoonrakerDriver implements PrinterDriver {
     await this.call("printer.emergency_stop");
   }
   async sendGcode(script: string) {
-    await this.call("printer.gcode.script", { script });
+    // Moonraker answers when the G-code finished; homing, heating or a mesh calibration take minutes.
+    await this.call("printer.gcode.script", { script }, GCODE_TIMEOUT_MS);
   }
   async setTemperature(heaterId: string, target: number) {
     if (!isControllable(heaterId)) throw new MoonrakerError(`"${heaterId}" is not a heater.`);
@@ -752,7 +815,11 @@ export class MoonrakerDriver implements PrinterDriver {
     for (const listener of this.statusListeners) listener(this.status);
   }
 
-  private call(method: string, params?: Record<string, unknown>): Promise<unknown> {
+  private call(
+    method: string,
+    params?: Record<string, unknown>,
+    timeoutMs = REQUEST_TIMEOUT_MS,
+  ): Promise<unknown> {
     const socket = this.socket;
     if (!socket || socket.readyState !== WebSocket.OPEN) {
       return Promise.reject(new MoonrakerError("Not connected."));
@@ -762,7 +829,7 @@ export class MoonrakerDriver implements PrinterDriver {
       const timer = setTimeout(() => {
         this.pending.delete(id);
         reject(new MoonrakerError(`Moonraker did not answer ${method}.`));
-      }, REQUEST_TIMEOUT_MS);
+      }, timeoutMs);
       this.pending.set(id, { resolve, reject, timer });
       socket.send(JSON.stringify({ jsonrpc: "2.0", method, params, id }));
     });

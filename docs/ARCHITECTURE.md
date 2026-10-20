@@ -105,6 +105,23 @@ it stays behind the session, works when only the server can reach the printer
 MJPEG streams are piped through; adaptive/WebRTC cameras fall back to polled
 snapshots when a snapshot URL exists.
 
+### Printer maintenance
+
+`/printers/:id/maintenance` holds stage B (printer administration). Config
+files are read and written through Moonraker's `config` root. Before every
+save the printer's current version is copied into Printrio's database
+(`config_backups`, last 30 per file), so a bad edit can be undone even when
+the printer's own copy is gone. Saves carry the `modified` time the editor
+loaded; if the printer's file changed meanwhile the API answers 409 and the
+user decides whether to overwrite. G-code requests wait up to 30 minutes
+(homing, heating and mesh calibration take a while); other requests time out
+after 10 s.
+
+Permissions: config, services, host reboot/shutdown and updates are
+admin-only. Restarting Klipper or the firmware is open to operators because
+it is the way back from an emergency stop. No restart is accepted while the
+printer is printing or paused.
+
 ### Workspace settings
 
 Instance-wide settings (usage mode, start page, sidebar order/visibility,

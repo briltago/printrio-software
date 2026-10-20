@@ -111,7 +111,41 @@ const MACROS: Record<string, { name: string; description?: string; gcode: string
   "gcode_macro _heat_soak": { name: "_HEAT_SOAK", gcode: "G4 P{params.SECONDS * 1000}" },
 };
 
+const SAMPLE_CONFIG: Record<string, string> = {
+  "printer.cfg": `[include mainsail.cfg]
+[include macros.cfg]
+
+[printer]
+kinematics: corexy
+max_velocity: 300
+max_accel: 3000
+
+[extruder]
+step_pin: PF13
+nozzle_diameter: 0.400
+
+[heater_bed]
+heater_pin: PA1
+`,
+  "macros.cfg": `[gcode_macro PRINT_START]
+description: Heat up, home and purge
+gcode:
+  G28
+`,
+  "mainsail.cfg": "[virtual_sdcard]\npath: ~/printer_data/gcodes\n",
+  "moonraker.conf": "[server]\nhost: 0.0.0.0\nport: 7125\n",
+  ".hidden/secret.cfg": "",
+};
+
 export class FakeMoonraker {
+  readonly config: Record<string, { content: string; modified: number }> = Object.fromEntries(
+    Object.entries(SAMPLE_CONFIG).map(([path, content]) => [
+      path,
+      { content, modified: now() - 3600 },
+    ]),
+  );
+  /** Firmware/host actions the driver triggered, in order (restarts, service restarts, reboot …). */
+  readonly actions: string[] = [];
   readonly gcode: string[] = [];
   private gcodeStore: { message: string; time: number; type: "command" | "response" }[] = [];
   readonly uploads: string[] = [];
@@ -223,6 +257,15 @@ export class FakeMoonraker {
         res.writeHead(404).end();
         return;
       }
+      if (req.method === "GET" && req.url?.startsWith("/server/files/config/")) {
+        const file = this.config[decodeURIComponent(req.url.slice("/server/files/config/".length))];
+        if (!file) {
+          res.writeHead(404).end();
+          return;
+        }
+        res.writeHead(200, { "Content-Type": "text/plain" }).end(file.content);
+        return;
+      }
       if (req.method === "GET" && req.url === "/server/info") {
         if (options.apiKey && req.headers["x-api-key"] !== options.apiKey) {
           res
@@ -250,7 +293,18 @@ export class FakeMoonraker {
         req.on("end", () => {
           const name = /filename="([^"]+)"/.exec(body)?.[1] ?? "upload.gcode";
           const dir = /name="path"\r\n\r\n([^\r]*)/.exec(body)?.[1];
+          const root = /name="root"\r\n\r\n([^\r]*)/.exec(body)?.[1] ?? "gcodes";
           const path = dir ? `${dir}/${name}` : name;
+          if (root === "config") {
+            const content =
+              /filename="[^"]+"\r\n(?:[^\r\n]+\r\n)*\r\n([\s\S]*?)\r\n--[^\r\n]+--\r\n$/.exec(
+                body,
+              )?.[1] ?? "";
+            this.config[path] = { content, modified: now() };
+            res.writeHead(201, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ result: { item: { path, root } } }));
+            return;
+          }
           this.uploads.push(path);
           this.files[path] = {
             size: body.length,
@@ -559,6 +613,40 @@ export class FakeMoonraker {
               Object.values(MACROS).map((m) => [m.name, m.description ?? "G-Code macro"]),
             ),
           });
+        case "server.files.list":
+          if (params.root !== "config") return fail(400, `Invalid root ${params.root}`);
+          return reply(
+            Object.entries(this.config).map(([path, file]) => ({
+              path,
+              modified: file.modified,
+              size: file.content.length,
+              permissions: "rw",
+            })),
+          );
+        case "printer.restart":
+        case "printer.firmware_restart":
+          this.actions.push(method === "printer.restart" ? "restart" : "firmware_restart");
+          this.setKlippyState("startup");
+          setTimeout(() => this.setKlippyState("ready"), 20);
+          return reply("ok");
+        case "machine.system_info":
+          return reply({
+            system_info: {
+              available_services: ["klipper", "moonraker", "crowsnest"],
+              service_state: {
+                klipper: { active_state: "active", sub_state: "running" },
+                moonraker: { active_state: "active", sub_state: "running" },
+                crowsnest: { active_state: "failed", sub_state: "failed" },
+              },
+            },
+          });
+        case "machine.services.restart":
+          this.actions.push(`service:${params.service}`);
+          return reply("ok");
+        case "machine.reboot":
+        case "machine.shutdown":
+          this.actions.push(method.slice("machine.".length));
+          return reply("ok");
         case "server.gcode_store":
           return reply({ gcode_store: this.gcodeStore.slice(-Number(params.count ?? 1000)) });
         case "printer.objects.subscribe": {

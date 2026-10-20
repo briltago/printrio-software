@@ -49,7 +49,7 @@ export function MacrosPanel({
               type="button"
               className={`btn btn-secondary btn-sm font-mono ${macro.params.length ? "rounded-r-none" : ""}`}
               title={macro.description ?? undefined}
-              disabled={disabled || run.isPending}
+              disabled={disabled}
               onClick={() => run.mutate(macro.name)}
             >
               {macro.name}
@@ -59,7 +59,7 @@ export function MacrosPanel({
                 type="button"
                 className="btn btn-secondary btn-sm rounded-l-none border-l-0 px-2"
                 aria-label={t("macros.withParams", { name: macro.name })}
-                disabled={disabled || run.isPending}
+                disabled={disabled}
                 onClick={() => setEditing(macro)}
               >
                 ⋯

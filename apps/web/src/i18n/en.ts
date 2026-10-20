@@ -448,6 +448,10 @@ export const en = {
   macros: {
     title: "Macros",
     withParams: "Run {name} with parameters",
+    filter: "Filter macros",
+    showOverrides: "Show G/M-code overrides ({count})",
+    hideOverrides: "Hide G/M-code overrides",
+    noMatch: "No macro matches.",
     defaultsHint: "Empty fields use the macro's defaults.",
     run: "Run",
   },
@@ -459,6 +463,7 @@ export const en = {
     totalFilament: "Filament",
     loadMore: "Show more",
     reprint: "Print again",
+    reprintFile: "Print {name} again",
     statuses: {
       completed: "Completed",
       cancelled: "Cancelled",
@@ -473,6 +478,7 @@ export const en = {
     heater_bed: "Bed",
   },
   time: {
+    dh: "{d} d {h} h",
     hm: "{h} h {m} min",
     m: "{m} min",
   },

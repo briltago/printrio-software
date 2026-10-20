@@ -65,3 +65,6 @@ export function lineTone(message: string): "error" | "info" | "plain" {
   if (message.startsWith("//")) return "info";
   return "plain";
 }
+
+/** Macros that redefine standard G/M-codes (e.g. Creality's M106, G29, M600) rather than user actions. */
+export const isGcodeOverride = (name: string) => /^[GM]\d+(\.\d+)?$/i.test(name);

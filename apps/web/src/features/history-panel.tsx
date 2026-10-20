@@ -8,7 +8,7 @@ import { formatDuration, formatFilament, formatRelativeTime } from "../lib/forma
 import { Thumbnail, thumbnailUrl } from "./files-panel.tsx";
 import { Panel } from "./panel.tsx";
 
-const PAGE = 20;
+const PAGE = 10;
 /** Job status → existing state colours (green / muted / red / amber / accent). */
 const STATUS_CLASS: Record<JobStatus, string> = {
   completed: "state-idle",
@@ -77,30 +77,38 @@ export function HistoryPanel({
       {history.data && jobs.length === 0 && (
         <p className="py-6 text-center text-sm text-muted">{t("history.empty")}</p>
       )}
-      <ul className="divide-y divide-line">
+      {/* Long histories scroll inside the panel instead of stretching the page. */}
+      <ul className="-mr-2 max-h-[26rem] divide-y divide-line overflow-y-auto pr-2">
         {jobs.map((job) => (
-          <li key={job.id} className="flex items-center gap-3 py-2.5">
-            <Thumbnail src={job.hasThumbnail ? thumbnailUrl(printerId, job.fileName) : null} />
+          <li key={job.id} className="flex items-center gap-2.5 py-2">
+            <Thumbnail
+              src={job.hasThumbnail ? thumbnailUrl(printerId, job.fileName) : null}
+              size={32}
+            />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium" title={job.fileName}>
                 {job.fileName.slice(job.fileName.lastIndexOf("/") + 1)}
               </p>
-              <p className="text-xs text-subtle">
+              <p className="truncate text-xs text-subtle">
                 {formatRelativeTime(job.startedAt)} · {formatDuration(t, job.printSeconds)} ·{" "}
                 {formatFilament(job.filamentMm)}
               </p>
             </div>
-            <span className={`badge ${STATUS_CLASS[job.status]}`}>
+            <span className={`badge shrink-0 ${STATUS_CLASS[job.status]}`}>
               {t(`history.statuses.${job.status}`)}
             </span>
             {job.status !== "in_progress" && (
               <button
                 type="button"
-                className="btn btn-secondary btn-sm hidden sm:inline-flex"
+                className="btn btn-secondary btn-sm shrink-0 px-2"
+                title={t("history.reprint")}
+                aria-label={t("history.reprintFile", {
+                  name: job.fileName.slice(job.fileName.lastIndexOf("/") + 1),
+                })}
                 disabled={!canPrint || reprint.isPending}
                 onClick={() => reprint.mutate(job.fileName)}
               >
-                {t("history.reprint")}
+                <span aria-hidden="true">↻</span>
               </button>
             )}
           </li>

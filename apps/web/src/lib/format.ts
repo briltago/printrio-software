@@ -5,6 +5,7 @@ export function formatDuration(t: Translate, seconds: number | null | undefined)
   const total = Math.round(seconds / 60);
   const h = Math.floor(total / 60);
   const m = total % 60;
+  if (h >= 48) return t("time.dh", { d: Math.floor(h / 24), h: h % 24 });
   return h > 0 ? t("time.hm", { h, m }) : t("time.m", { m });
 }
 

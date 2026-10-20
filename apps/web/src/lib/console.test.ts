@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { lineTone, macroCall, pushHistory, stepHistory, suggestCommands } from "./console.ts";
+import {
+  isGcodeOverride,
+  lineTone,
+  macroCall,
+  pushHistory,
+  stepHistory,
+  suggestCommands,
+} from "./console.ts";
 
 describe("console history", () => {
   it("skips immediate repeats and caps the length", () => {
@@ -67,5 +74,12 @@ describe("lineTone", () => {
     expect(lineTone('!! Unknown command:"X"')).toBe("error");
     expect(lineTone("// Running PRINT_START")).toBe("info");
     expect(lineTone("ok")).toBe("plain");
+  });
+});
+
+describe("isGcodeOverride", () => {
+  it("recognises redefined G/M-codes only", () => {
+    expect(["M106", "G29", "m600", "M900", "G1.1"].every(isGcodeOverride)).toBe(true);
+    expect(["PRINT_START", "M600_HELPER", "G", "CANCEL_PRINT"].some(isGcodeOverride)).toBe(false);
   });
 });

@@ -257,7 +257,71 @@ function sampleVersionInfo(): Record<string, FakeVersionInfo> {
   };
 }
 
+/** Macros of a Creality K1/KE style config: many user actions plus redefined G/M-codes. */
+const CREALITY_MACRO_NAMES = [
+  "AUTOTUNE_SHAPERS",
+  "BELTS_SHAPER_CALIBRATION",
+  "CANCEL_PRINT",
+  "EXCITATE_AXIS_AT_FREQ",
+  "FINISH_INIT",
+  "FIRST_FLOOR_PAUSE",
+  "G29",
+  "INPUTSHAPER",
+  "LOAD_MATERIAL",
+  "M106",
+  "M107",
+  "M204",
+  "M205",
+  "M600",
+  "M900",
+  "PAUSE",
+  "PRINT_CALIBRATION",
+  "PRINTER_PARAM",
+  "QUIT_MATERIAL",
+  "RESUME",
+  "SCREWS_CALIBRATION",
+  "TEST_RESONANCES_GRAPHS",
+  "Z_OFFSET_TEST",
+];
+
+function crealityMacros() {
+  return Object.fromEntries(
+    CREALITY_MACRO_NAMES.map((name) => [
+      `gcode_macro ${name.toLowerCase()}`,
+      { name, gcode: "M117" },
+    ]),
+  );
+}
+
+/** A long print history, like a printer that has been in use for a while. */
+function longHistory(): FakeJob[] {
+  const names = [
+    "CarplayHolder_v4.gcode",
+    "Frogi_Suspension_arm.gcode",
+    "Billiard_Trophy_base.gcode",
+    "Sprayer_Valve_cap.gcode",
+  ];
+  const statuses = [
+    "completed",
+    "completed",
+    "completed",
+    "cancelled",
+    "completed",
+    "error",
+  ] as const;
+  return Array.from({ length: 60 }, (_, i) => ({
+    job_id: String(1000 - i).padStart(6, "0"),
+    filename: `Personal/${names[i % names.length]}`,
+    status: statuses[i % statuses.length] ?? "completed",
+    start_time: now() - (i + 1) * 86_400,
+    end_time: now() - (i + 1) * 86_400 + 3_600,
+    print_duration: 1_500 + i * 60,
+    filament_used: 1_500 + i * 20,
+  }));
+}
+
 export class FakeMoonraker {
+  private readonly macros: Record<string, { name: string; description?: string; gcode: string }>;
   readonly versionInfo = sampleVersionInfo();
   private meshProfiles: Record<string, number[][]> = {
     default: probeBed(),
@@ -317,6 +381,8 @@ export class FakeMoonraker {
   private history: Record<string, { temperatures: number[]; targets: number[] }> = {};
 
   constructor(private options: FakeMoonrakerOptions = {}) {
+    this.macros = { ...MACROS, ...(options.creality ? crealityMacros() : {}) };
+    if (options.creality) this.jobs.push(...longHistory());
     this.objects = {
       webhooks: { state: "ready", state_message: "Printer is ready" },
       print_stats: {
@@ -348,7 +414,7 @@ export class FakeMoonraker {
         profiles: {},
       },
       ...Object.fromEntries(
-        Object.values(MACROS).map((macro) => [`gcode_macro ${macro.name}`, {}]),
+        Object.values(this.macros).map((macro) => [`gcode_macro ${macro.name}`, {}]),
       ),
       exclude_object: { objects: [], excluded_objects: [], current_object: null },
     };
@@ -695,7 +761,7 @@ export class FakeMoonraker {
         }
         default: {
           const name = command.toUpperCase();
-          const macro = Object.values(MACROS).find((m) => m.name === name);
+          const macro = Object.values(this.macros).find((m) => m.name === name);
           if (macro) this.respond(`// Running ${macro.name}`);
           else if (!GCODE_HELP[name]) return `Unknown command:"${name}"`;
         }
@@ -746,7 +812,7 @@ export class FakeMoonraker {
     return {
       settings: { "output_pin fan0": { pwm: true, scale: 255 } },
       config: Object.fromEntries(
-        Object.entries(MACROS).map(([key, { description, gcode }]) => [
+        Object.entries(this.macros).map(([key, { description, gcode }]) => [
           key,
           { ...(description ? { description } : {}), gcode },
         ]),
@@ -838,7 +904,7 @@ export class FakeMoonraker {
           return reply({
             ...GCODE_HELP,
             ...Object.fromEntries(
-              Object.values(MACROS).map((m) => [m.name, m.description ?? "G-Code macro"]),
+              Object.values(this.macros).map((m) => [m.name, m.description ?? "G-Code macro"]),
             ),
           });
         case "server.files.list":

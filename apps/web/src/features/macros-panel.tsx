@@ -4,14 +4,15 @@ import { type FormEvent, useState } from "react";
 import { Dialog, FormError } from "../components.tsx";
 import { useT } from "../i18n/index.tsx";
 import { api } from "../lib/api.ts";
-import { macroCall } from "../lib/console.ts";
+import { isGcodeOverride, macroCall } from "../lib/console.ts";
 import { appendConsole } from "../lib/realtime.ts";
 import { useMacros } from "./console-panel.tsx";
 import { Panel } from "./panel.tsx";
 
 /**
  * One-click buttons for the printer's G-code macros. Macros whose name starts
- * with "_" are helpers and stay hidden (Mainsail/Fluidd convention). Macros with
+ * with "_" are helpers and stay hidden (Mainsail/Fluidd convention); macros
+ * that redefine standard G/M-codes are folded away behind a toggle. Macros with
  * parameters run with their defaults, or with values from the ⋯ dialog.
  */
 export function MacrosPanel({
@@ -36,12 +37,35 @@ export function MacrosPanel({
     },
   });
 
-  const macros = (data?.macros ?? []).filter((macro) => !macro.name.startsWith("_"));
-  if (macros.length === 0) return null;
+  const [filter, setFilter] = useState("");
+  const [showOverrides, setShowOverrides] = useState(false);
+
+  const visible = (data?.macros ?? []).filter((macro) => !macro.name.startsWith("_"));
+  if (visible.length === 0) return null;
+  const overrides = visible.filter((macro) => isGcodeOverride(macro.name)).length;
+  const query = filter.trim().toUpperCase();
+  const macros = visible.filter(
+    (macro) =>
+      (showOverrides || !isGcodeOverride(macro.name)) &&
+      (!query ||
+        macro.name.toUpperCase().includes(query) ||
+        macro.description?.toUpperCase().includes(query)),
+  );
 
   return (
     <Panel id="macros" title={t("macros.title")}>
       <FormError error={run.error} />
+      {visible.length > 12 && (
+        <input
+          type="search"
+          className="input mb-3 py-1.5 text-sm"
+          placeholder={t("macros.filter")}
+          aria-label={t("macros.filter")}
+          value={filter}
+          onChange={(event) => setFilter(event.target.value)}
+        />
+      )}
+      {macros.length === 0 && <p className="text-sm text-subtle">{t("macros.noMatch")}</p>}
       <div className="flex flex-wrap gap-2">
         {macros.map((macro) => (
           <div key={macro.name} className="inline-flex">
@@ -68,6 +92,18 @@ export function MacrosPanel({
           </div>
         ))}
       </div>
+      {overrides > 0 && (
+        <button
+          type="button"
+          className="mt-3 text-xs text-subtle hover:text-text"
+          aria-pressed={showOverrides}
+          onClick={() => setShowOverrides((value) => !value)}
+        >
+          {showOverrides
+            ? t("macros.hideOverrides")
+            : t("macros.showOverrides", { count: overrides })}
+        </button>
+      )}
       <Dialog
         open={editing !== null}
         onClose={() => setEditing(null)}

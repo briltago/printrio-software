@@ -22,6 +22,8 @@ export interface FakeMoonrakerOptions {
   creality?: boolean;
   /** Progress added per tick while printing. */
   progressPerTick?: number;
+  /** Moonraker `[power]` devices; false = component not configured. */
+  power?: boolean;
 }
 
 type Objects = Record<string, Record<string, unknown>>;
@@ -137,7 +139,22 @@ gcode:
   ".hidden/secret.cfg": "",
 };
 
+const KLIPPY_LOG = Array.from(
+  { length: 4000 },
+  (_, i) =>
+    `Stats ${1000 + i}.0: gcodein=0 mcu: mcu_awake=0.002 bytes_write=${i * 13} print_time=${i}.512`,
+).join("\n");
+const SAMPLE_LOGS: Record<string, string> = {
+  "klippy.log": `Starting Klippy...\n${KLIPPY_LOG}\nMCU 'mcu' shutdown: Timer too close\n`,
+  "moonraker.log": "2026-10-20 08:00:01,001 [server.py:run()] - Starting Moonraker\n",
+  "crowsnest.log": "[10/20/26 08:00:02] crowsnest: Starting\n",
+};
+
 export class FakeMoonraker {
+  readonly power: Record<string, { status: string; locked: boolean }> = {
+    printer: { status: "on", locked: true },
+    lights: { status: "off", locked: false },
+  };
   readonly config: Record<string, { content: string; modified: number }> = Object.fromEntries(
     Object.entries(SAMPLE_CONFIG).map(([path, content]) => [
       path,
@@ -255,6 +272,27 @@ export class FakeMoonraker {
           return;
         }
         res.writeHead(404).end();
+        return;
+      }
+      if (req.method === "GET" && req.url?.startsWith("/server/files/logs/")) {
+        const log = SAMPLE_LOGS[decodeURIComponent(req.url.slice("/server/files/logs/".length))];
+        if (log === undefined) {
+          res.writeHead(404).end();
+          return;
+        }
+        const bytes = Buffer.from(log);
+        const suffix = /^bytes=-(\d+)$/.exec(String(req.headers.range ?? ""))?.[1];
+        if (suffix) {
+          const start = Math.max(0, bytes.length - Number(suffix));
+          res
+            .writeHead(206, {
+              "Content-Type": "text/plain",
+              "Content-Range": `bytes ${start}-${bytes.length - 1}/${bytes.length}`,
+            })
+            .end(bytes.subarray(start));
+          return;
+        }
+        res.writeHead(200, { "Content-Type": "text/plain" }).end(bytes);
         return;
       }
       if (req.method === "GET" && req.url?.startsWith("/server/files/config/")) {
@@ -587,6 +625,7 @@ export class FakeMoonraker {
             state: klippyState,
             state_message: this.objects.webhooks?.state_message,
             hostname: this.options.hostname ?? "fake-printer",
+            software_version: "v0.12.0-385-g3fd2a3e5",
           });
         case "printer.objects.list":
           if (klippyState !== "ready") return fail(503, "Klippy not ready");
@@ -614,6 +653,15 @@ export class FakeMoonraker {
             ),
           });
         case "server.files.list":
+          if (params.root === "logs")
+            return reply(
+              Object.entries(SAMPLE_LOGS).map(([path, content], index) => ({
+                path,
+                modified: now() - index * 60,
+                size: Buffer.byteLength(content),
+                permissions: "r",
+              })),
+            );
           if (params.root !== "config") return fail(400, `Invalid root ${params.root}`);
           return reply(
             Object.entries(this.config).map(([path, file]) => ({
@@ -632,6 +680,26 @@ export class FakeMoonraker {
         case "machine.system_info":
           return reply({
             system_info: {
+              cpu_info: {
+                cpu_count: 4,
+                total_memory: 3884520,
+                memory_units: "kB",
+                model: "Raspberry Pi 4 Model B Rev 1.4",
+                processor: "armv7l",
+              },
+              distribution: {
+                name: "Debian GNU/Linux 12 (bookworm)",
+                kernel_version: "6.6.51+rpt-rpi-v8",
+              },
+              python: { version_string: "3.11.2 (main, Mar 13 2023, 12:18:29) [GCC 12.2.0]" },
+              network: {
+                wlan0: {
+                  ip_addresses: [
+                    { family: "ipv4", address: "192.168.1.42", is_link_local: false },
+                    { family: "ipv6", address: "fe80::1", is_link_local: true },
+                  ],
+                },
+              },
               available_services: ["klipper", "moonraker", "crowsnest"],
               service_state: {
                 klipper: { active_state: "active", sub_state: "running" },
@@ -640,6 +708,31 @@ export class FakeMoonraker {
               },
             },
           });
+        case "machine.proc_stats":
+          return reply({
+            cpu_temp: 48.3,
+            system_cpu_usage: { cpu: 12.5, cpu0: 10, cpu1: 15 },
+            system_memory: { total: 3884520, available: 3000000, used: 884520 },
+            system_uptime: 93_784.5,
+          });
+        case "machine.device_power.devices":
+          if (this.options.power === false) return fail(-32601, `Method not found: ${method}`);
+          return reply({
+            devices: Object.entries(this.power).map(([device, { status, locked }]) => ({
+              device,
+              status,
+              locked_while_printing: locked,
+              type: "gpio",
+            })),
+          });
+        case "machine.device_power.post_device": {
+          const device = this.power[String(params.device)];
+          if (!device) return fail(404, `No valid power device named ${params.device}`);
+          if (device.locked && this.objects.print_stats?.state === "printing")
+            return fail(400, `Unable to change power for ${params.device} while printing`);
+          device.status = params.action === "on" ? "on" : "off";
+          return reply({ [String(params.device)]: device.status });
+        }
         case "machine.services.restart":
           this.actions.push(`service:${params.service}`);
           return reply("ok");

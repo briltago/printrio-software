@@ -12,6 +12,7 @@ import {
   toPrinterStatus,
   toWebSocketUrl,
 } from "../src/drivers/moonraker.ts";
+import { tail } from "../src/routes/printer-system.ts";
 
 const fakes: FakeMoonraker[] = [];
 const drivers: MoonrakerDriver[] = [];
@@ -510,6 +511,67 @@ describe("MoonrakerDriver", () => {
     expect(ready.state).toBe("idle");
   });
 
+  it("lists and reads logs, using a range for the end of the file", async () => {
+    const { url, driver } = await setup();
+    await driver.connect({ url });
+    const logs = await driver.listLogs();
+    expect(logs.map((l) => l.name)).toEqual(["klippy.log", "moonraker.log", "crowsnest.log"]);
+    const read = async (fromEnd?: number) => {
+      const { partial, body } = await driver.readLog("klippy.log", fromEnd);
+      const chunks: Uint8Array[] = [];
+      for await (const chunk of body) chunks.push(chunk);
+      return { partial, text: Buffer.concat(chunks).toString() };
+    };
+    const end = await read(64);
+    expect(end.partial).toBe(true);
+    expect(end.text).toHaveLength(64);
+    expect(end.text.endsWith("Timer too close\n")).toBe(true);
+    const { partial: smallPartial } = await driver.readLog("moonraker.log", 64 * 1024);
+    expect(smallPartial).toBe(false);
+    const full = await read();
+    expect(full.partial).toBe(false);
+    expect(full.text.startsWith("Starting Klippy")).toBe(true);
+  });
+
+  it("reports host information and live stats", async () => {
+    const { url, driver } = await setup({ hostname: "trident" });
+    await driver.connect({ url });
+    expect(await driver.getSystemInfo()).toEqual({
+      hostname: "trident",
+      os: "Debian GNU/Linux 12 (bookworm)",
+      kernel: "6.6.51+rpt-rpi-v8",
+      cpu: "Raspberry Pi 4 Model B Rev 1.4",
+      cpuCores: 4,
+      memoryTotal: 3884520 * 1024,
+      python: "3.11.2",
+      firmwareVersion: "v0.12.0-385-g3fd2a3e5",
+      hostSoftwareVersion: "fake",
+      network: [{ name: "wlan0", addresses: ["192.168.1.42"] }],
+    });
+    expect(await driver.getSystemStats()).toEqual({
+      cpuUsage: 12.5,
+      cpuTemp: 48.3,
+      memoryUsed: 884520 * 1024,
+      memoryTotal: 3884520 * 1024,
+      uptimeSeconds: 93_784.5,
+    });
+  });
+
+  it("switches power devices and copes with hosts without any", async () => {
+    const { fake, url, driver } = await setup();
+    await driver.connect({ url });
+    expect(await driver.listPowerDevices()).toEqual([
+      { name: "printer", state: "on", type: "gpio", lockedWhilePrinting: true },
+      { name: "lights", state: "off", type: "gpio", lockedWhilePrinting: false },
+    ]);
+    await driver.setPowerDevice("lights", true);
+    expect(fake.power.lights?.status).toBe("on");
+
+    const bare = await setup({ power: false });
+    await bare.driver.connect({ url: bare.url });
+    expect(await bare.driver.listPowerDevices()).toEqual([]);
+  });
+
   it("reads print history and totals", async () => {
     const { url, driver } = await setup();
     await driver.connect({ url });
@@ -532,5 +594,19 @@ describe("MoonrakerDriver", () => {
     }
     await driver.uploadFile("cube.gcode", data());
     expect(fake.uploads).toEqual(["cube.gcode"]);
+  });
+});
+
+describe("log tail", () => {
+  it("keeps only the last bytes of a stream", async () => {
+    async function* chunks() {
+      yield Buffer.from("aaaa");
+      yield Buffer.from("bbbb");
+      yield Buffer.from("cc");
+    }
+    const { bytes, dropped } = await tail(chunks(), 5);
+    expect(bytes.toString()).toBe("bbbcc");
+    expect(dropped).toBe(true);
+    expect((await tail(chunks(), 50)).dropped).toBe(false);
   });
 });

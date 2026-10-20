@@ -535,6 +535,49 @@ describe("printer administration", () => {
     ]);
   });
 
+  it("serves system information and logs to admins", async () => {
+    const { id } = await connectedPrinter();
+    expect((await api("GET", `/api/printers/${id}/system`, undefined, operator)).statusCode).toBe(
+      403,
+    );
+    const system = (await api("GET", `/api/printers/${id}/system`)).json();
+    expect(system.info.cpuCores).toBe(4);
+    expect(system.stats.cpuUsage).toBe(12.5);
+
+    const logs = (await api("GET", `/api/printers/${id}/logs`)).json().logs;
+    expect(logs.map((l: { name: string }) => l.name)).toContain("klippy.log");
+    const tailed = (await api("GET", `/api/printers/${id}/logs/file?name=klippy.log`)).json();
+    // klippy.log is larger than the tail: only whole lines from the end are returned.
+    expect(tailed.truncated).toBe(true);
+    expect(tailed.content.startsWith("Stats ")).toBe(true);
+    expect(tailed.content.endsWith("Timer too close\n")).toBe(true);
+    const download = await api("GET", `/api/printers/${id}/logs/file?name=klippy.log&download=1`);
+    expect(download.headers["content-disposition"]).toBe('attachment; filename="klippy.log"');
+    expect(download.body.startsWith("Starting Klippy")).toBe(true);
+    expect(download.body.endsWith(tailed.content)).toBe(true);
+    const small = (await api("GET", `/api/printers/${id}/logs/file?name=moonraker.log`)).json();
+    expect(small.truncated).toBe(false);
+    expect(small.content).toContain("Starting Moonraker");
+    expect((await api("GET", `/api/printers/${id}/logs/file?name=nope.log`)).statusCode).toBe(404);
+    expect((await api("GET", `/api/printers/${id}/logs/file?name=../x`)).statusCode).toBe(400);
+  });
+
+  it("lets operators switch power devices, except locked ones while printing", async () => {
+    const { fake, id } = await connectedPrinter({
+      printing: { fileName: "cube.gcode", progress: 0.3 },
+    });
+    const devices = (await api("GET", `/api/printers/${id}/power`, undefined, operator)).json()
+      .devices;
+    expect(devices.map((d: { name: string }) => d.name)).toEqual(["printer", "lights"]);
+    const set = (device: string, on: boolean) =>
+      api("POST", `/api/printers/${id}/power`, { device, on }, operator);
+    expect((await set("lights", true)).statusCode).toBe(200);
+    expect(fake.power.lights?.status).toBe("on");
+    expect((await set("printer", false)).statusCode).toBe(409);
+    expect(fake.power.printer?.status).toBe("on");
+    expect((await set("toaster", true)).statusCode).toBe(404);
+  });
+
   it("refuses restarts while printing", async () => {
     const { id } = await connectedPrinter({ printing: { fileName: "cube.gcode", progress: 0.3 } });
     const res = await api("POST", `/api/printers/${id}/restart`, { target: "klipper" });

@@ -364,3 +364,55 @@ export type RestartRequest = z.infer<typeof restartRequestSchema>;
 
 export const hostServiceSchema = z.object({ name: z.string(), state: z.string().nullable() });
 export type HostServiceDto = z.infer<typeof hostServiceSchema>;
+
+export const logFileSchema = z.object({
+  name: z.string(),
+  size: z.number(),
+  modified: z.iso.datetime(),
+});
+export type LogFileDto = z.infer<typeof logFileSchema>;
+
+export const logTailSchema = z.object({
+  name: z.string(),
+  content: z.string(),
+  /** True when only the end of the file is included. */
+  truncated: z.boolean(),
+});
+export type LogTailDto = z.infer<typeof logTailSchema>;
+
+export const systemInfoSchema = z.object({
+  info: z.object({
+    hostname: z.string().nullable(),
+    os: z.string().nullable(),
+    kernel: z.string().nullable(),
+    cpu: z.string().nullable(),
+    cpuCores: z.number().nullable(),
+    memoryTotal: z.number().nullable(),
+    python: z.string().nullable(),
+    firmwareVersion: z.string().nullable(),
+    hostSoftwareVersion: z.string().nullable(),
+    network: z.array(z.object({ name: z.string(), addresses: z.array(z.string()) })),
+  }),
+  stats: z.object({
+    cpuUsage: z.number().nullable(),
+    cpuTemp: z.number().nullable(),
+    memoryUsed: z.number().nullable(),
+    memoryTotal: z.number().nullable(),
+    uptimeSeconds: z.number().nullable(),
+  }),
+});
+export type SystemInfoDto = z.infer<typeof systemInfoSchema>;
+
+export const powerDeviceSchema = z.object({
+  name: z.string(),
+  state: z.string(),
+  type: z.string().nullable(),
+  lockedWhilePrinting: z.boolean(),
+});
+export type PowerDeviceDto = z.infer<typeof powerDeviceSchema>;
+
+export const powerRequestSchema = z.object({
+  device: z.string().min(1).max(128),
+  on: z.boolean(),
+});
+export type PowerRequest = z.infer<typeof powerRequestSchema>;

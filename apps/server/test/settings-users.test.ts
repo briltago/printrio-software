@@ -1,4 +1,4 @@
-import { NAV_ITEM_IDS, sidebarPreset } from "@printrio/shared";
+import { DEFAULT_SETTINGS, NAV_ITEM_IDS, sidebarPreset } from "@printrio/shared";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestApp, sessionCookie } from "./helpers.ts";
 
@@ -41,6 +41,7 @@ describe("workspace settings", () => {
       usageMode: "single",
       defaultView: "auto",
       sidebar: sidebarPreset("single"),
+      costs: DEFAULT_SETTINGS.costs,
     });
   });
 
@@ -58,7 +59,23 @@ describe("workspace settings", () => {
       usageMode: "farm",
       defaultView: "fleet",
       sidebar,
+      costs: DEFAULT_SETTINGS.costs,
     });
+  });
+
+  it("saves cost settings and validates them", async () => {
+    const res = await api("PATCH", "/api/settings", {
+      costs: { currency: "czk", electricityPrice: 6.5, defaultPowerWatts: 150 },
+    });
+    expect(res.json().costs).toEqual({
+      currency: "CZK",
+      electricityPrice: 6.5,
+      defaultPowerWatts: 150,
+    });
+    const bad = await api("PATCH", "/api/settings", {
+      costs: { currency: "euro", electricityPrice: 6.5, defaultPowerWatts: 150 },
+    });
+    expect(bad.statusCode).toBe(400);
   });
 
   it("rejects an invalid sidebar", async () => {

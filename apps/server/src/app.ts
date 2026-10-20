@@ -10,10 +10,12 @@ import type { Config } from "./config.ts";
 import type { SecretBox } from "./crypto.ts";
 import type { Database } from "./db/client.ts";
 import { moonrakerDriverFactory } from "./drivers/moonraker.ts";
+import { JobRecorder } from "./jobs/recorder.ts";
 import type { PrinterManager } from "./printers/manager.ts";
 import { authRoutes } from "./routes/auth.ts";
 import { filamentRoutes } from "./routes/filament.ts";
 import { healthRoutes } from "./routes/health.ts";
+import { jobRoutes } from "./routes/jobs.ts";
 import { printerConfigRoutes } from "./routes/printer-config.ts";
 import { printerConsoleRoutes } from "./routes/printer-console.ts";
 import { printerFileRoutes } from "./routes/printer-files.ts";
@@ -68,9 +70,18 @@ export async function buildApp({ config, db, secrets, manager }: AppOptions) {
   printerUpdateRoutes(app, printerManager);
   printerMeshRoutes(app, printerManager, (id) => printerWithinLimit(db, id));
   await printerFileRoutes(app, printerManager, (id) => printerWithinLimit(db, id));
+  jobRoutes(app, db);
   realtimeRoutes(app, printerManager, changes);
 
-  app.addHook("onClose", () => printerManager.stop());
+  const recorder = new JobRecorder(db, printerManager, () =>
+    changes.dispatchEvent(new Event("jobs")),
+  );
+  await recorder.start();
+  app.addHook("onClose", async () => {
+    recorder.stop();
+    await recorder.idle();
+    printerManager.stop();
+  });
 
   if (config.WEB_DIR && existsSync(config.WEB_DIR)) {
     await app.register(fastifyStatic, { root: resolve(config.WEB_DIR), wildcard: false });

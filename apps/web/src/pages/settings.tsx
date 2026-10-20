@@ -141,7 +141,70 @@ function GeneralSettings() {
           onChange={(defaultView) => update.mutate({ defaultView })}
         />
       </Section>
+      <CostSettingsSection />
     </>
+  );
+}
+
+function CostSettingsSection() {
+  const t = useT();
+  const { data: settings } = useSuspenseQuery(settingsQuery);
+  const update = useUpdateSettings();
+  const [saved, setSaved] = useState(false);
+  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const number = (name: string) => Number(String(form.get(name) ?? "").replace(",", "."));
+    update.mutate(
+      {
+        costs: {
+          currency: String(form.get("currency") ?? "").trim(),
+          electricityPrice: number("electricityPrice"),
+          defaultPowerWatts: Math.round(number("defaultPowerWatts")),
+        },
+      },
+      { onSuccess: () => setSaved(true) },
+    );
+  };
+  return (
+    <Section title={t("settings.costs")} hint={t("settings.costsHint")}>
+      <form onSubmit={onSubmit} onChange={() => setSaved(false)}>
+        <div className="grid gap-x-4 sm:grid-cols-3">
+          <Field
+            label={t("settings.currency")}
+            name="currency"
+            maxLength={3}
+            defaultValue={settings.costs.currency}
+            hint={t("settings.currencyHint")}
+          />
+          <Field
+            label={t("settings.electricityPrice", { currency: settings.costs.currency })}
+            name="electricityPrice"
+            inputMode="decimal"
+            defaultValue={String(settings.costs.electricityPrice)}
+          />
+          <Field
+            label={t("settings.defaultPower")}
+            name="defaultPowerWatts"
+            type="number"
+            min={0}
+            max={5000}
+            defaultValue={settings.costs.defaultPowerWatts}
+            hint={t("settings.defaultPowerHint")}
+          />
+        </div>
+        <div className="flex items-center gap-3">
+          <button type="submit" className="btn btn-primary btn-sm" disabled={update.isPending}>
+            {t("common.save")}
+          </button>
+          {saved && (
+            <span role="status" className="text-sm text-success">
+              {t("settings.saved")}
+            </span>
+          )}
+        </div>
+      </form>
+    </Section>
   );
 }
 

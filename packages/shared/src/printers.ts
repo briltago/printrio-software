@@ -141,6 +141,8 @@ export const printerSchema = z.object({
   withinLimit: z.boolean(),
   /** Spool loaded in the printer (assigned by hand). */
   activeSpoolId: z.uuid().nullable(),
+  /** Average power while printing, for job costs; null uses the workspace default. */
+  powerWatts: z.number().nullable(),
   status: printerStatusSchema,
 });
 export type Printer = z.infer<typeof printerSchema>;
@@ -151,6 +153,7 @@ export const printerInputSchema = z.object({
   apiKey: z.string().trim().max(256).nullable().optional(),
   groupId: z.uuid().nullable().optional(),
   tags: z.array(tagSchema).max(20).optional(),
+  powerWatts: z.number().int().min(0).max(5000).nullable().optional(),
 });
 export type PrinterInput = z.infer<typeof printerInputSchema>;
 
@@ -230,6 +233,7 @@ export const realtimeMessageSchema = z.discriminatedUnion("type", [
     status: printerStatusSchema,
   }),
   z.object({ type: z.literal("printers.changed") }),
+  z.object({ type: z.literal("jobs.changed") }),
   z.object({
     type: z.literal("printer.console"),
     printerId: z.uuid(),

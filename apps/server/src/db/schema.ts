@@ -65,6 +65,8 @@ export const printers = pgTable("printers", {
   groupId: uuid("group_id").references(() => printerGroups.id, { onDelete: "set null" }),
   tags: text("tags").array().notNull().default(sql`'{}'::text[]`),
   position: integer("position").notNull().default(0),
+  /** Average power while printing (W), for job costs; null uses the workspace default. */
+  powerWatts: integer("power_watts"),
   /** Spool loaded in the printer, assigned by hand. */
   activeSpoolId: uuid("active_spool_id").references((): AnyPgColumn => spools.id, {
     onDelete: "set null",
@@ -124,3 +126,37 @@ export const spools = pgTable("spools", {
   externalId: text("external_id").unique(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Prints recorded by Printrio (from live status and the printer's own history),
+ * with a snapshot of the spool and the cost when the print ended.
+ */
+export const printJobs = pgTable(
+  "print_jobs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    printerId: uuid("printer_id").references(() => printers.id, { onDelete: "set null" }),
+    printerName: text("printer_name").notNull(),
+    fileName: text("file_name").notNull(),
+    status: text("status").notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    printSeconds: doublePrecision("print_seconds").notNull().default(0),
+    filamentMm: doublePrecision("filament_mm").notNull().default(0),
+    filamentGrams: doublePrecision("filament_grams"),
+    spoolId: uuid("spool_id").references(() => spools.id, { onDelete: "set null" }),
+    spoolLabel: text("spool_label"),
+    spoolColorHex: text("spool_color_hex"),
+    material: text("material"),
+    materialCost: doublePrecision("material_cost"),
+    energyKwh: doublePrecision("energy_kwh"),
+    energyCost: doublePrecision("energy_cost"),
+    totalCost: doublePrecision("total_cost"),
+    currency: text("currency").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("print_jobs_started_idx").on(table.startedAt),
+    index("print_jobs_printer_idx").on(table.printerId, table.startedAt),
+  ],
+);

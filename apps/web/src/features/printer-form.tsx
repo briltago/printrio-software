@@ -43,6 +43,7 @@ export function PrinterForm({
       apiKey,
       groupId: String(data.get("groupId") ?? "") || null,
       tags: parseTags(String(data.get("tags") ?? "")),
+      powerWatts: parseWatts(data.get("powerWatts")),
     };
   };
 
@@ -139,6 +140,16 @@ export function PrinterForm({
           hint={t("printer.tagsHint")}
           defaultValue={printer?.tags.join(", ")}
         />
+        <Field
+          label={t("printer.powerWatts")}
+          name="powerWatts"
+          type="number"
+          min={0}
+          max={5000}
+          required={false}
+          hint={t("printer.powerWattsHint")}
+          defaultValue={printer?.powerWatts ?? ""}
+        />
       </div>
 
       <div aria-live="polite">
@@ -183,4 +194,10 @@ export function PrinterForm({
       </div>
     </form>
   );
+}
+
+/** Empty → null (use the workspace default). */
+function parseWatts(value: FormDataEntryValue | null): number | null {
+  const text = String(value ?? "").trim();
+  return text ? Math.round(Number(text)) : null;
 }

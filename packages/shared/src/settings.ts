@@ -24,11 +24,27 @@ const sidebarSchema = z
     "The sidebar must list every section exactly once.",
   );
 
+/** Inputs for job costing (Free: material + energy). */
+export const costSettingsSchema = z.object({
+  /** ISO 4217 code, e.g. "EUR" or "CZK". */
+  currency: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z]{3}$/, "Use a three-letter currency code, e.g. EUR.")
+    .transform((value) => value.toUpperCase()),
+  /** Price of electricity per kWh in that currency. */
+  electricityPrice: z.number().min(0).max(100),
+  /** Average power draw of a printer while printing, unless set per printer. */
+  defaultPowerWatts: z.number().int().min(0).max(5000),
+});
+export type CostSettings = z.infer<typeof costSettingsSchema>;
+
 export const workspaceSettingsSchema = z.object({
   onboardingCompleted: z.boolean(),
   usageMode: usageModeSchema,
   defaultView: defaultViewSchema,
   sidebar: sidebarSchema,
+  costs: costSettingsSchema,
 });
 export type WorkspaceSettings = z.infer<typeof workspaceSettingsSchema>;
 
@@ -49,4 +65,5 @@ export const DEFAULT_SETTINGS: WorkspaceSettings = {
   usageMode: "single",
   defaultView: "auto",
   sidebar: sidebarPreset("single"),
+  costs: { currency: "EUR", electricityPrice: 0.25, defaultPowerWatts: 120 },
 };

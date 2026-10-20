@@ -419,7 +419,18 @@ export class FakeMoonraker {
       exclude_object: { objects: [], excluded_objects: [], current_object: null },
     };
     Object.assign(this.objects.bed_mesh ?? {}, { profiles: this.meshProfileStatus() });
-    if (options.printing) this.startPrint(options.printing.fileName, options.printing.progress);
+    if (options.printing) {
+      this.startPrint(options.printing.fileName, options.printing.progress);
+      this.jobs.unshift({
+        job_id: "000100",
+        filename: options.printing.fileName,
+        status: "in_progress",
+        start_time: now(),
+        end_time: null,
+        print_duration: 0,
+        filament_used: 0,
+      });
+    }
     // Ten minutes of plausible history so charts have something to draw immediately.
     for (const name of HEATERS) {
       const target = Number(this.objects[name]?.target ?? 0);
@@ -628,13 +639,18 @@ export class FakeMoonraker {
       update.virtual_sdcard = { progress };
       update.display_status = { progress };
       update.print_stats = {
-        print_duration: Number(stats.print_duration) + (this.options.tickMs ?? 1000) / 1000,
+        print_duration: Number(stats.print_duration) + (this.options.tickMs || 1000) / 1000,
         filament_used: Number(stats.filament_used) + 12.5,
       };
       if (progress >= 1) {
         update.print_stats = { ...update.print_stats, state: "complete" };
         if (this.jobs[0]?.status === "in_progress")
-          Object.assign(this.jobs[0], { status: "completed", end_time: now() });
+          Object.assign(this.jobs[0], {
+            status: "completed",
+            end_time: now(),
+            print_duration: update.print_stats.print_duration,
+            filament_used: update.print_stats.filament_used,
+          });
         update.extruder = { ...update.extruder, target: 0 };
         update.heater_bed = { ...update.heater_bed, target: 0 };
       }
@@ -1140,7 +1156,12 @@ export class FakeMoonraker {
           return reply("ok");
         case "printer.print.cancel":
           if (this.jobs[0]?.status === "in_progress")
-            Object.assign(this.jobs[0], { status: "cancelled", end_time: now() });
+            Object.assign(this.jobs[0], {
+              status: "cancelled",
+              end_time: now(),
+              print_duration: Number(this.objects.print_stats?.print_duration ?? 0),
+              filament_used: Number(this.objects.print_stats?.filament_used ?? 0),
+            });
           this.update({
             print_stats: { state: "cancelled" },
             extruder: { target: 0 },

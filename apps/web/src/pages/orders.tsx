@@ -8,7 +8,7 @@ import {
 } from "@printrio/shared";
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useSearch } from "@tanstack/react-router";
-import { type FormEvent, useRef, useState } from "react";
+import { createElement, type FC, type FormEvent, useRef, useState } from "react";
 import { Dialog, EmptyState, Field, FormError, PageHeader } from "../components.tsx";
 import { Swatch } from "../features/filament-forms.tsx";
 import { useT } from "../i18n/index.tsx";
@@ -21,6 +21,7 @@ import {
   formatWeight,
 } from "../lib/format.ts";
 import { JOB_STATUS_CLASS } from "../lib/jobs.ts";
+import { useModules } from "../lib/modules.tsx";
 import { settingsQuery } from "../lib/queries.ts";
 import { meQuery } from "../lib/session.ts";
 import { useStoredState } from "../lib/stored-state.ts";
@@ -335,6 +336,7 @@ function OrderDetail({ orderId, onDone }: { orderId: string; onDone: () => void 
     <div>
       <OrderForm order={order} onDone={onDone} />
       <OrderFiles order={order} />
+      <OrderModulePanels orderId={order.id} />
       <section className="mt-6 border-line border-t pt-4" aria-label={t("orders.prints")}>
         <div className="mb-3 flex items-center justify-between gap-2">
           <h3 className="text-sm font-semibold">
@@ -425,6 +427,21 @@ function OrderDetail({ orderId, onDone }: { orderId: string; onDone: () => void 
       )}
     </div>
   );
+}
+
+/** Sections added by modules (Pro line items and pricing, Business quotes and shipping). */
+function OrderModulePanels({ orderId }: { orderId: string }) {
+  const { orderPanels } = useModules();
+  return orderPanels.map((panel) => (
+    <section
+      key={`${panel.moduleId}:${panel.id}`}
+      className="mt-6 border-line border-t pt-4"
+      aria-label={panel.title}
+    >
+      <h3 className="mb-3 text-sm font-semibold">{panel.title}</h3>
+      {createElement(panel.component as FC<{ orderId: string }>, { orderId })}
+    </section>
+  ));
 }
 
 /** The order's folder in Files: upload G-code straight into it and see what is there. */

@@ -51,11 +51,20 @@ export interface WebPrinterPanel {
   component: Component;
 }
 
+export interface WebOrderPanel {
+  id: string;
+  title: string;
+  /** Receives `{ orderId }`; shown in the order detail below the core sections. */
+  component: Component;
+}
+
 export interface WebModuleExtensions {
   navItems?: WebNavItem[];
   pages?: WebPage[];
   settingsTabs?: WebSettingsTab[];
   printerPanels?: WebPrinterPanel[];
+  /** Optional; cores before Nov 2026 ignore it. */
+  orderPanels?: WebOrderPanel[];
 }
 
 export interface PrintrioWebModule {

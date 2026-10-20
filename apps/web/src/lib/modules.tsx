@@ -2,6 +2,7 @@ import type {
   PrintrioWebModule,
   WebModuleHost,
   WebNavItem,
+  WebOrderPanel,
   WebPage,
   WebPrinterPanel,
   WebSettingsTab,
@@ -38,6 +39,7 @@ export interface ModuleExtensions {
   pages: WithModule<WebPage>[];
   settingsTabs: WithModule<WebSettingsTab>[];
   printerPanels: WithModule<WebPrinterPanel>[];
+  orderPanels: WithModule<WebOrderPanel>[];
   /** True until every active module's web part has been imported. */
   loading: boolean;
 }
@@ -47,6 +49,7 @@ const EMPTY: ModuleExtensions = {
   pages: [],
   settingsTabs: [],
   printerPanels: [],
+  orderPanels: [],
   loading: false,
 };
 
@@ -104,6 +107,7 @@ export function ModulesProvider({ children }: { children: ReactNode }) {
         pages: [],
         settingsTabs: [],
         printerPanels: [],
+        orderPanels: [],
         loading: false,
       };
       for (const entry of key ? key.split(",") : []) {
@@ -120,6 +124,7 @@ export function ModulesProvider({ children }: { children: ReactNode }) {
           next.pages.push(...tag(result.pages));
           next.settingsTabs.push(...tag(result.settingsTabs));
           next.printerPanels.push(...tag(result.printerPanels));
+          next.orderPanels.push(...tag(result.orderPanels));
         } catch (error) {
           console.error(`Module ${moduleId} failed to load:`, error);
         }

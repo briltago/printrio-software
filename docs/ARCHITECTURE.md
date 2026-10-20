@@ -261,8 +261,8 @@ stay in `localStorage`.
   `/api/modules/<id>/web.js` and calls `setup(host)`. The host passes its own
   React, JSX runtime, TanStack Query, `api()`, UI components and formatters
   (also as `window.PrintrioHost`, so bundles never ship a second React).
-  A module can add sidebar entries, pages (`/m/<id>/<path>`), settings tabs
-  and printer-page panels.
+  A module can add sidebar entries, pages (`/m/<id>/<path>`), settings tabs,
+  printer-page panels and order-detail sections (`orderPanels`).
 - When the lease ends or no longer lists a module, the module is deactivated:
   its routes and UI disappear, its data stays in its schema until
   reactivation.

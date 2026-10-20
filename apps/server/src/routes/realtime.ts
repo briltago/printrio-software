@@ -28,17 +28,20 @@ export function realtimeRoutes(
     };
     const onChange = () => send({ type: "printers.changed" });
     const onJobs = () => send({ type: "jobs.changed" });
+    const onQueue = () => send({ type: "queue.changed" });
     manager.on("status", onStatus);
     manager.on("console", onConsole);
     manager.on("update", onUpdate);
     changes.addEventListener("change", onChange);
     changes.addEventListener("jobs", onJobs);
+    changes.addEventListener("queue", onQueue);
     socket.on("close", () => {
       manager.off("status", onStatus);
       manager.off("console", onConsole);
       manager.off("update", onUpdate);
       changes.removeEventListener("change", onChange);
       changes.removeEventListener("jobs", onJobs);
+      changes.removeEventListener("queue", onQueue);
     });
   });
 }

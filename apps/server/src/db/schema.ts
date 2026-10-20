@@ -1,5 +1,14 @@
 import { sql } from "drizzle-orm";
-import { integer, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import {
+  index,
+  integer,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
 
 export const userRole = pgEnum("user_role", ["admin", "operator"]);
 
@@ -55,3 +64,21 @@ export const printers = pgTable("printers", {
   position: integer("position").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** Previous versions of printer config files, written before every save from Printrio. */
+export const configBackups = pgTable(
+  "config_backups",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    printerId: uuid("printer_id")
+      .notNull()
+      .references(() => printers.id, { onDelete: "cascade" }),
+    path: text("path").notNull(),
+    content: text("content").notNull(),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("config_backups_printer_path_idx").on(table.printerId, table.path, table.createdAt),
+  ],
+);

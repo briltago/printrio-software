@@ -479,6 +479,37 @@ describe("MoonrakerDriver", () => {
     expect(commands.map((c) => c.name)).toContain("PRINT_START");
   });
 
+  it("lists, reads and writes config files", async () => {
+    const { fake, url, driver } = await setup();
+    await driver.connect({ url });
+    const files = await driver.listConfigFiles();
+    expect(files.map((f) => f.path)).toEqual([
+      "macros.cfg",
+      "mainsail.cfg",
+      "moonraker.conf",
+      "printer.cfg",
+    ]);
+    expect(files[0]?.modified).toBeInstanceOf(Date);
+    expect(await driver.readConfigFile("printer.cfg")).toContain("[printer]");
+    const content = "[printer]\nkinematics: corexy\n# żluťoučký kůň\n";
+    await driver.writeConfigFile("includes/extra.cfg", content);
+    expect(fake.config["includes/extra.cfg"]?.content).toBe(content);
+    expect(await driver.readConfigFile("includes/extra.cfg")).toBe(content);
+  });
+
+  it("restarts Klipper, the firmware and host services", async () => {
+    const { fake, url, driver } = await setup();
+    await driver.connect({ url });
+    await driver.restartFirmware(false);
+    await driver.restartFirmware(true);
+    expect(await driver.listServices()).toContainEqual({ name: "crowsnest", state: "failed" });
+    await driver.restartService("crowsnest");
+    await driver.hostPower("reboot");
+    expect(fake.actions).toEqual(["restart", "firmware_restart", "service:crowsnest", "reboot"]);
+    const ready = await nextStatus(driver, (s) => s.state === "idle");
+    expect(ready.state).toBe("idle");
+  });
+
   it("reads print history and totals", async () => {
     const { url, driver } = await setup();
     await driver.connect({ url });

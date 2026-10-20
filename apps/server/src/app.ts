@@ -13,6 +13,7 @@ import { moonrakerDriverFactory } from "./drivers/moonraker.ts";
 import type { PrinterManager } from "./printers/manager.ts";
 import { authRoutes } from "./routes/auth.ts";
 import { healthRoutes } from "./routes/health.ts";
+import { printerConfigRoutes } from "./routes/printer-config.ts";
 import { printerConsoleRoutes } from "./routes/printer-console.ts";
 import { printerFileRoutes } from "./routes/printer-files.ts";
 import { printerMediaRoutes } from "./routes/printer-media.ts";
@@ -57,6 +58,7 @@ export async function buildApp({ config, db, secrets, manager }: AppOptions) {
   });
   printerMediaRoutes(app, printerManager);
   printerConsoleRoutes(app, printerManager);
+  printerConfigRoutes(app, db, printerManager);
   await printerFileRoutes(app, printerManager, (id) => printerWithinLimit(db, id));
   realtimeRoutes(app, printerManager, changes);
 

@@ -14,6 +14,7 @@ import { meQuery, setupStatusQuery } from "./lib/session.ts";
 import { NAV_ROUTES } from "./nav.ts";
 import { FleetPage } from "./pages/fleet.tsx";
 import { LoginPage } from "./pages/login.tsx";
+import { MAINTENANCE_TABS, MaintenancePage } from "./pages/maintenance.tsx";
 import { OnboardingPage } from "./pages/onboarding.tsx";
 import { PlaceholderPage } from "./pages/placeholder.tsx";
 import { PrinterPage } from "./pages/printer.tsx";
@@ -78,6 +79,14 @@ const printerRoute = createRoute({
   component: PrinterPage,
 });
 
+const maintenanceRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/printers/$printerId/maintenance",
+  validateSearch: z.object({ tab: z.enum(MAINTENANCE_TABS).optional() }),
+  loader: ({ context }) => context.queryClient.ensureQueryData(printersQuery),
+  component: MaintenancePage,
+});
+
 const settingsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/settings",
@@ -128,6 +137,7 @@ export function createAppRouter(queryClient: QueryClient) {
         homeRoute,
         fleetRoute,
         printerRoute,
+        maintenanceRoute,
         settingsRoute,
         ...placeholderRoutes,
       ]),

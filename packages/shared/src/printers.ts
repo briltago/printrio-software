@@ -313,3 +313,54 @@ export const macroListSchema = z.object({
   commands: z.array(gcodeCommandSchema),
 });
 export type MacroListDto = z.infer<typeof macroListSchema>;
+
+/** Path relative to the printer's config root (same rules as G-code paths). */
+export const configPathSchema = gcodePathSchema;
+
+export const configFileSchema = z.object({
+  path: z.string(),
+  size: z.number(),
+  modified: z.iso.datetime(),
+});
+export type ConfigFileDto = z.infer<typeof configFileSchema>;
+
+export const configFileContentSchema = z.object({
+  path: z.string(),
+  content: z.string(),
+  modified: z.iso.datetime().nullable(),
+});
+export type ConfigFileContentDto = z.infer<typeof configFileContentSchema>;
+
+export const MAX_CONFIG_BYTES = 2 * 1024 * 1024;
+
+export const configSaveSchema = z.object({
+  path: configPathSchema,
+  content: z.string().max(MAX_CONFIG_BYTES),
+  /** `modified` of the version the editor loaded; null for a new file. Saving fails with 409 if the printer's copy changed since. */
+  baseModified: z.iso.datetime().nullable(),
+  /** Overwrite even if the file changed on the printer since it was loaded. */
+  force: z.boolean().default(false),
+  /** Restart Klipper afterwards so the new config is loaded. */
+  restart: z.boolean().default(false),
+});
+export type ConfigSave = z.infer<typeof configSaveSchema>;
+
+export const configBackupSchema = z.object({
+  id: z.uuid(),
+  path: z.string(),
+  size: z.number(),
+  createdAt: z.iso.datetime(),
+  createdBy: z.string().nullable(),
+});
+export type ConfigBackupDto = z.infer<typeof configBackupSchema>;
+
+export const restartRequestSchema = z.discriminatedUnion("target", [
+  z.object({ target: z.literal("klipper") }),
+  z.object({ target: z.literal("firmware") }),
+  z.object({ target: z.literal("service"), service: z.string().regex(/^[\w@.-]{1,64}$/) }),
+  z.object({ target: z.literal("host"), action: z.enum(["reboot", "shutdown"]) }),
+]);
+export type RestartRequest = z.infer<typeof restartRequestSchema>;
+
+export const hostServiceSchema = z.object({ name: z.string(), state: z.string().nullable() });
+export type HostServiceDto = z.infer<typeof hostServiceSchema>;

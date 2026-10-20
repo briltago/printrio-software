@@ -416,3 +416,35 @@ export const powerRequestSchema = z.object({
   on: z.boolean(),
 });
 export type PowerRequest = z.infer<typeof powerRequestSchema>;
+
+const point = z.tuple([z.number(), z.number()]);
+
+export const bedMeshSchema = z.object({
+  activeProfile: z.string().nullable(),
+  min: point.nullable(),
+  max: point.nullable(),
+  probed: z.array(z.array(z.number())),
+  mesh: z.array(z.array(z.number())),
+  profiles: z.array(
+    z.object({
+      name: z.string(),
+      points: z.array(z.array(z.number())),
+      min: point.nullable(),
+      max: point.nullable(),
+    }),
+  ),
+});
+export type BedMeshDto = z.infer<typeof bedMeshSchema>;
+
+export const meshProfileNameSchema = z
+  .string()
+  .regex(/^[A-Za-z0-9_-]{1,64}$/, "Use letters, numbers, dashes or underscores.");
+
+export const bedMeshActionSchema = z.discriminatedUnion("op", [
+  z.object({ op: z.literal("calibrate") }),
+  z.object({ op: z.literal("clear") }),
+  z.object({ op: z.literal("load"), profile: meshProfileNameSchema }),
+  z.object({ op: z.literal("save"), profile: meshProfileNameSchema }),
+  z.object({ op: z.literal("remove"), profile: meshProfileNameSchema }),
+]);
+export type BedMeshActionDto = z.infer<typeof bedMeshActionSchema>;

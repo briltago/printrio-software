@@ -1,5 +1,7 @@
 import type {
   Axis,
+  BedMesh,
+  BedMeshAction,
   ConfigFile,
   ConsoleEntry,
   FileListing,
@@ -95,6 +97,35 @@ export function parseMacroParams(gcode: string): { name: string; defaultValue: s
 }
 
 export class MoonrakerError extends Error {}
+
+interface MoonrakerBedMesh {
+  profile_name?: string;
+  mesh_min?: unknown;
+  mesh_max?: unknown;
+  probed_matrix?: unknown;
+  mesh_matrix?: unknown;
+  profiles?: Record<
+    string,
+    {
+      points?: unknown;
+      mesh_params?: { min_x?: number; max_x?: number; min_y?: number; max_y?: number };
+    }
+  >;
+}
+
+function toPoint(value: unknown): [number, number] | null {
+  if (!Array.isArray(value)) return null;
+  const [x, y] = value;
+  return typeof x === "number" && typeof y === "number" ? [x, y] : null;
+}
+
+/** Klipper reports "no mesh" as `[[]]`; keep only non-empty numeric rows. */
+function toMatrix(value: unknown): number[][] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((row): row is unknown[] => Array.isArray(row) && row.length > 0)
+    .map((row) => row.map((z) => Number(z)));
+}
 
 interface MoonrakerSystemInfo {
   cpu_info?: {
@@ -784,6 +815,50 @@ export class MoonrakerDriver implements PrinterDriver {
       device: name,
       action: on ? "on" : "off",
     });
+  }
+
+  async getBedMesh(): Promise<BedMesh | null> {
+    const list = (await this.call("printer.objects.list")) as { objects?: string[] };
+    if (!list.objects?.includes("bed_mesh")) return null;
+    const result = (await this.call("printer.objects.query", { objects: { bed_mesh: null } })) as {
+      status?: { bed_mesh?: MoonrakerBedMesh };
+    };
+    const mesh = result.status?.bed_mesh ?? {};
+    return {
+      activeProfile: mesh.profile_name || null,
+      min: toPoint(mesh.mesh_min),
+      max: toPoint(mesh.mesh_max),
+      probed: toMatrix(mesh.probed_matrix),
+      mesh: toMatrix(mesh.mesh_matrix),
+      profiles: Object.entries(mesh.profiles ?? {})
+        .map(([name, profile]) => {
+          const params = profile.mesh_params ?? {};
+          return {
+            name,
+            points: toMatrix(profile.points),
+            min: toPoint([params.min_x, params.min_y]),
+            max: toPoint([params.max_x, params.max_y]),
+          };
+        })
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    };
+  }
+
+  async bedMesh(action: BedMeshAction) {
+    if ("profile" in action && !/^[A-Za-z0-9_-]{1,64}$/.test(action.profile))
+      throw new MoonrakerError("Invalid profile name.");
+    const homed = String(this.objects.toolhead?.homed_axes ?? "");
+    const script = {
+      calibrate: () =>
+        `${["x", "y", "z"].every((axis) => homed.includes(axis)) ? "" : "G28\n"}BED_MESH_CALIBRATE`,
+      clear: () => "BED_MESH_CLEAR",
+      load: () => `BED_MESH_PROFILE LOAD=${"profile" in action ? action.profile : ""}`,
+      // Profiles live in printer.cfg; SAVE_CONFIG writes them and restarts Klipper.
+      save: () => `BED_MESH_PROFILE SAVE=${"profile" in action ? action.profile : ""}\nSAVE_CONFIG`,
+      remove: () =>
+        `BED_MESH_PROFILE REMOVE=${"profile" in action ? action.profile : ""}\nSAVE_CONFIG`,
+    }[action.op]();
+    await this.sendGcode(script);
   }
 
   private authHeaders(): Record<string, string> {

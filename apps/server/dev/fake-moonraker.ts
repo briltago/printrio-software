@@ -150,7 +150,50 @@ const SAMPLE_LOGS: Record<string, string> = {
   "crowsnest.log": "[10/20/26 08:00:02] crowsnest: Starting\n",
 };
 
+/** A probed bed: slight tilt plus a bowl, in mm (5×5 points on 20–220 mm). */
+function probeBed(seed = 0): number[][] {
+  return Array.from({ length: 5 }, (_, row) =>
+    Array.from({ length: 5 }, (_, col) => {
+      const x = col / 2 - 1;
+      const y = row / 2 - 1;
+      const z =
+        0.04 * x - 0.03 * y + 0.08 * (x * x + y * y) - 0.09 + seed * 0.01 * Math.sin(row + col);
+      return Math.round(z * 10000) / 10000;
+    }),
+  );
+}
+
+/** Bilinear interpolation of a probed matrix (Klipper interpolates with more points). */
+function interpolate(points: number[][], size = 13): number[][] {
+  const rows = points.length;
+  const cols = points[0]?.length ?? 0;
+  if (rows < 2 || cols < 2) return [];
+  return Array.from({ length: size }, (_, i) =>
+    Array.from({ length: size }, (_, j) => {
+      const fy = (i / (size - 1)) * (rows - 1);
+      const fx = (j / (size - 1)) * (cols - 1);
+      const y0 = Math.min(Math.floor(fy), rows - 2);
+      const x0 = Math.min(Math.floor(fx), cols - 2);
+      const ty = fy - y0;
+      const tx = fx - x0;
+      const at = (r: number, c: number) => points[r]?.[c] ?? 0;
+      const z =
+        at(y0, x0) * (1 - tx) * (1 - ty) +
+        at(y0, x0 + 1) * tx * (1 - ty) +
+        at(y0 + 1, x0) * (1 - tx) * ty +
+        at(y0 + 1, x0 + 1) * tx * ty;
+      return Math.round(z * 10000) / 10000;
+    }),
+  );
+}
+
+const MESH_PARAMS = { min_x: 20, max_x: 220, min_y: 20, max_y: 220, x_count: 5, y_count: 5 };
+
 export class FakeMoonraker {
+  private meshProfiles: Record<string, number[][]> = {
+    default: probeBed(),
+    pei_textured: probeBed(3),
+  };
   readonly power: Record<string, { status: string; locked: boolean }> = {
     printer: { status: "on", locked: true },
     lights: { status: "off", locked: false },
@@ -227,11 +270,20 @@ export class FakeMoonraker {
       },
       ...(options.creality ? { "output_pin fan0": { value: 0 } } : { fan: { speed: 0 } }),
       "heater_fan hotend_fan": { speed: 0 },
+      bed_mesh: {
+        profile_name: "default",
+        mesh_min: [20, 20],
+        mesh_max: [220, 220],
+        probed_matrix: probeBed(),
+        mesh_matrix: interpolate(probeBed()),
+        profiles: {},
+      },
       ...Object.fromEntries(
         Object.values(MACROS).map((macro) => [`gcode_macro ${macro.name}`, {}]),
       ),
       exclude_object: { objects: [], excluded_objects: [], current_object: null },
     };
+    Object.assign(this.objects.bed_mesh ?? {}, { profiles: this.meshProfileStatus() });
     if (options.printing) this.startPrint(options.printing.fileName, options.printing.progress);
     // Ten minutes of plausible history so charts have something to draw immediately.
     for (const name of HEATERS) {
@@ -389,6 +441,11 @@ export class FakeMoonraker {
     if (state === "shutdown") this.notify("notify_klippy_shutdown", []);
   }
 
+  /** Removes a Klipper object, as if the printer config lacked that section. */
+  removeObject(name: string) {
+    delete this.objects[name];
+  }
+
   /** Drops all client connections (as if the printer host went away). */
   dropConnections() {
     for (const client of this.clients) client.terminate();
@@ -521,6 +578,43 @@ export class FakeMoonraker {
           this.update({ [pin]: { value: Number(arg("VALUE=")) / 255 } });
           break;
         }
+        case "BED_MESH_CALIBRATE": {
+          if (!["x", "y", "z"].every((a) => String(toolhead.homed_axes).includes(a)))
+            return "Must home axis first";
+          this.meshProfiles.default = probeBed(1);
+          this.activateMesh("default");
+          break;
+        }
+        case "BED_MESH_CLEAR":
+          this.update({
+            bed_mesh: { profile_name: "", probed_matrix: [[]], mesh_matrix: [[]] },
+          });
+          break;
+        case "BED_MESH_PROFILE": {
+          const load = arg("LOAD=");
+          const save = arg("SAVE=");
+          const remove = arg("REMOVE=");
+          if (load !== undefined) {
+            if (!this.meshProfiles[load]) return `bed_mesh: Unknown profile [${load}]`;
+            this.activateMesh(load);
+          } else if (save !== undefined) {
+            const probed = this.objects.bed_mesh?.probed_matrix as number[][];
+            if (!probed?.[0]?.length) return "Unable to save to profile, no mesh is loaded";
+            this.meshProfiles[save] = probed;
+            this.activateMesh(save);
+          } else if (remove !== undefined) {
+            delete this.meshProfiles[remove];
+            this.update({ bed_mesh: { profiles: this.meshProfileStatus() } });
+          }
+          break;
+        }
+        case "SAVE_CONFIG":
+          this.actions.push("save_config");
+          setTimeout(() => {
+            this.setKlippyState("startup");
+            setTimeout(() => this.setKlippyState("ready"), 20);
+          }, 0);
+          break;
         case "EXCLUDE_OBJECT": {
           const exclusion = this.objects.exclude_object ?? {};
           const excluded = [
@@ -579,6 +673,39 @@ export class FakeMoonraker {
     this.notify("notify_status_update", [changes, Date.now() / 1000]);
   }
 
+  private configfile() {
+    return {
+      settings: { "output_pin fan0": { pwm: true, scale: 255 } },
+      config: Object.fromEntries(
+        Object.entries(MACROS).map(([key, { description, gcode }]) => [
+          key,
+          { ...(description ? { description } : {}), gcode },
+        ]),
+      ),
+    };
+  }
+
+  private meshProfileStatus() {
+    return Object.fromEntries(
+      Object.entries(this.meshProfiles).map(([name, points]) => [
+        name,
+        { points, mesh_params: MESH_PARAMS },
+      ]),
+    );
+  }
+
+  private activateMesh(name: string) {
+    const points = this.meshProfiles[name] ?? [];
+    this.update({
+      bed_mesh: {
+        profile_name: name,
+        probed_matrix: points,
+        mesh_matrix: interpolate(points),
+        profiles: this.meshProfileStatus(),
+      },
+    });
+  }
+
   /** A console line: broadcast like Klipper's gcode responses and kept in the gcode store. */
   private respond(line: string) {
     this.gcodeStore = [
@@ -630,21 +757,14 @@ export class FakeMoonraker {
         case "printer.objects.list":
           if (klippyState !== "ready") return fail(503, "Klippy not ready");
           return reply({ objects: Object.keys(this.objects) });
-        case "printer.objects.query":
-          return reply({
-            eventtime: Date.now() / 1000,
-            status: {
-              configfile: {
-                settings: { "output_pin fan0": { pwm: true, scale: 255 } },
-                config: Object.fromEntries(
-                  Object.entries(MACROS).map(([key, { description, gcode }]) => [
-                    key,
-                    { ...(description ? { description } : {}), gcode },
-                  ]),
-                ),
-              },
-            },
-          });
+        case "printer.objects.query": {
+          const status: Objects = {};
+          for (const name of Object.keys(params.objects ?? {})) {
+            if (name === "configfile") status.configfile = this.configfile();
+            else if (this.objects[name]) status[name] = structuredClone(this.objects[name]);
+          }
+          return reply({ eventtime: Date.now() / 1000, status });
+        }
         case "printer.gcode.help":
           return reply({
             ...GCODE_HELP,

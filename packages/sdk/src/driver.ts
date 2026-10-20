@@ -210,6 +210,32 @@ export interface PowerDevice {
   lockedWhilePrinting: boolean;
 }
 
+export interface BedMeshProfile {
+  name: string;
+  /** Probed heights, rows from min Y to max Y, each from min X to max X (mm). */
+  points: number[][];
+  min: [number, number] | null;
+  max: [number, number] | null;
+}
+
+export interface BedMesh {
+  /** Loaded profile; null when no mesh is active. */
+  activeProfile: string | null;
+  min: [number, number] | null;
+  max: [number, number] | null;
+  /** Active mesh as probed and as interpolated by the firmware (same row order as profiles). */
+  probed: number[][];
+  mesh: number[][];
+  profiles: BedMeshProfile[];
+}
+
+export type BedMeshAction =
+  | { op: "calibrate" }
+  | { op: "clear" }
+  | { op: "load"; profile: string }
+  | { op: "save"; profile: string }
+  | { op: "remove"; profile: string };
+
 export type HostAction = "reboot" | "shutdown";
 
 export interface PrinterConnection {
@@ -272,6 +298,10 @@ export interface PrinterDriver {
   /** Switchable power outlets/relays; empty when the host has none configured. */
   listPowerDevices(): Promise<PowerDevice[]>;
   setPowerDevice(name: string, on: boolean): Promise<void>;
+  /** Null when the printer has no bed mesh support configured. */
+  getBedMesh(): Promise<BedMesh | null>;
+  /** Saving or removing a profile persists it in the printer config, which restarts the firmware. */
+  bedMesh(action: BedMeshAction): Promise<void>;
   pause(): Promise<void>;
   resume(): Promise<void>;
   cancel(): Promise<void>;

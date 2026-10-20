@@ -98,30 +98,36 @@ export function PrinterPage() {
           </span>
         }
         actions={
-          isAdmin && (
-            <>
-              <Link
-                to="/printers/$printerId/maintenance"
-                params={{ printerId: printer.id }}
-                className="btn btn-secondary"
-              >
-                {t("maintenance.open")}
-              </Link>
-              <button type="button" className="btn btn-secondary" onClick={() => setEditing(true)}>
-                {t("common.edit")}
-              </button>
-              <button
-                type="button"
-                className="btn btn-danger"
-                onClick={() =>
-                  window.confirm(t("printer.deleteConfirm", { name: printer.name })) &&
-                  remove.mutate()
-                }
-              >
-                {t("common.delete")}
-              </button>
-            </>
-          )
+          <>
+            <Link
+              to="/printers/$printerId/maintenance"
+              params={{ printerId: printer.id }}
+              className="btn btn-secondary"
+            >
+              {t("maintenance.open")}
+            </Link>
+            {isAdmin && (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setEditing(true)}
+                >
+                  {t("common.edit")}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={() =>
+                    window.confirm(t("printer.deleteConfirm", { name: printer.name })) &&
+                    remove.mutate()
+                  }
+                >
+                  {t("common.delete")}
+                </button>
+              </>
+            )}
+          </>
         }
       />
       {!printer.withinLimit && (

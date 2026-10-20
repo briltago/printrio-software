@@ -578,6 +578,27 @@ describe("printer administration", () => {
     expect((await set("toaster", true)).statusCode).toBe(404);
   });
 
+  it("serves the bed mesh and runs mesh actions with role checks", async () => {
+    const { fake, id } = await connectedPrinter();
+    const mesh = (await api("GET", `/api/printers/${id}/bed-mesh`, undefined, operator)).json()
+      .mesh;
+    expect(mesh.activeProfile).toBe("default");
+    const act = (body: object, cookie = operator) =>
+      api("POST", `/api/printers/${id}/bed-mesh`, body, cookie);
+    expect((await act({ op: "load", profile: "pei_textured" })).statusCode).toBe(200);
+    expect((await act({ op: "calibrate" })).statusCode).toBe(200);
+    expect((await act({ op: "save", profile: "mine" })).statusCode).toBe(403);
+    expect((await act({ op: "save", profile: "bad name" }, admin)).statusCode).toBe(400);
+    expect((await act({ op: "save", profile: "mine" }, admin)).statusCode).toBe(200);
+    expect(fake.actions).toContain("save_config");
+  });
+
+  it("refuses mesh actions while printing", async () => {
+    const { id } = await connectedPrinter({ printing: { fileName: "cube.gcode", progress: 0.3 } });
+    const res = await api("POST", `/api/printers/${id}/bed-mesh`, { op: "clear" });
+    expect(res.statusCode).toBe(409);
+  });
+
   it("refuses restarts while printing", async () => {
     const { id } = await connectedPrinter({ printing: { fileName: "cube.gcode", progress: 0.3 } });
     const res = await api("POST", `/api/printers/${id}/restart`, { target: "klipper" });

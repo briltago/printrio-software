@@ -41,6 +41,10 @@
   --color-series-2: #d95926;
   --color-series-3: #199e70;
   --color-series-4: #c98500;
+  /* Diverging scale (bed mesh): blue below, red above, neutral gray at zero. */
+  --color-diverging-low: #3987e5;
+  --color-diverging-mid: #383835;
+  --color-diverging-high: #e66767;
 }
 
 /* Light theme: same token names, applied via <html data-theme="light"> (see lib/theme.ts). */
@@ -64,6 +68,9 @@
   --color-series-2: #eb6834;
   --color-series-3: #1baf7a;
   --color-series-4: #eda100;
+  --color-diverging-low: #2a78d6;
+  --color-diverging-mid: #f0efec;
+  --color-diverging-high: #e34948;
 }
 
 @layer base {

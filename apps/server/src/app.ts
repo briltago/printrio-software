@@ -173,7 +173,13 @@ export async function buildApp({
   queueRoutes(app, db, printerManager, recorder, library, withinLimit, () =>
     changes.dispatchEvent(new Event("queue")),
   );
-  orderRoutes(app, db, () => changes.dispatchEvent(new Event("jobs")));
+  orderRoutes(app, db, () => changes.dispatchEvent(new Event("jobs")), {
+    library,
+    onEvent: (event, order) => {
+      emitModuleEvent(event, { order });
+      notify("jobs");
+    },
+  });
   realtimeRoutes(app, printerManager, changes);
 
   octoprintRoutes(

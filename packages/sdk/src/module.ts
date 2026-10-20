@@ -1,4 +1,4 @@
-import type { JobRecordDto, Lease, PrinterStatusDto, Tier } from "@printrio/shared";
+import type { JobRecordDto, Lease, OrderDto, PrinterStatusDto, Tier } from "@printrio/shared";
 import type { PrinterDriverFactory } from "./driver.ts";
 
 /**
@@ -62,6 +62,9 @@ export interface ModuleEvents {
   "job.started": { job: JobRecordDto };
   "job.finished": { job: JobRecordDto };
   "licence.changed": { lease: Lease | null };
+  "order.created": { order: OrderDto };
+  "order.updated": { order: OrderDto };
+  "order.deleted": { order: OrderDto };
 }
 
 /** Data the module changed, so open browsers refetch it. */

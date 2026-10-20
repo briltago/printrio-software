@@ -19,6 +19,39 @@ import { GCODE_FILE } from "./printer-files.ts";
 
 const fileName = (path: string) => path.slice(path.lastIndexOf("/") + 1);
 
+/** API shape of library entries, with the uploader's display name. */
+export async function libraryFileDtos(
+  db: Database,
+  entries: LibraryEntry[],
+): Promise<LibraryFileDto[]> {
+  const ids = [...new Set(entries.map((e) => e.uploadedBy).filter((id): id is string => !!id))];
+  const names = ids.length
+    ? new Map(
+        (
+          await db
+            .select({ id: users.id, name: users.displayName })
+            .from(users)
+            .where(inArray(users.id, ids))
+        ).map((row) => [row.id, row.name]),
+      )
+    : new Map<string, string>();
+  return entries.map((entry) => ({
+    path: entry.path,
+    name: fileName(entry.path),
+    size: entry.size,
+    modified: entry.modified.toISOString(),
+    slicer: entry.slicer,
+    estimatedSeconds: entry.estimatedSeconds,
+    filamentMm: entry.filamentMm,
+    filamentGrams: entry.filamentGrams,
+    layerHeight: entry.layerHeight,
+    objectHeight: entry.objectHeight,
+    material: entry.material,
+    hasThumbnail: entry.thumbnail !== null,
+    uploadedBy: entry.uploadedBy ? (names.get(entry.uploadedBy) ?? null) : null,
+  }));
+}
+
 /**
  * The G-code library: upload once, keep in Printrio's volume, send or print on
  * any printer. Independent of the files stored on each printer.
@@ -39,34 +72,7 @@ export function libraryRoutes(
       .send({ error: error instanceof Error ? error.message : "The printer did not answer." });
   };
 
-  const toDtos = async (entries: LibraryEntry[]): Promise<LibraryFileDto[]> => {
-    const ids = [...new Set(entries.map((e) => e.uploadedBy).filter((id): id is string => !!id))];
-    const names = ids.length
-      ? new Map(
-          (
-            await db
-              .select({ id: users.id, name: users.displayName })
-              .from(users)
-              .where(inArray(users.id, ids))
-          ).map((row) => [row.id, row.name]),
-        )
-      : new Map<string, string>();
-    return entries.map((entry) => ({
-      path: entry.path,
-      name: fileName(entry.path),
-      size: entry.size,
-      modified: entry.modified.toISOString(),
-      slicer: entry.slicer,
-      estimatedSeconds: entry.estimatedSeconds,
-      filamentMm: entry.filamentMm,
-      filamentGrams: entry.filamentGrams,
-      layerHeight: entry.layerHeight,
-      objectHeight: entry.objectHeight,
-      material: entry.material,
-      hasThumbnail: entry.thumbnail !== null,
-      uploadedBy: entry.uploadedBy ? (names.get(entry.uploadedBy) ?? null) : null,
-    }));
-  };
+  const toDtos = (entries: LibraryEntry[]) => libraryFileDtos(db, entries);
 
   app.get("/api/library", { preHandler: requireUser }, async (request, reply) => {
     const query = parseOr400(reply, libraryDirectoryQuerySchema.safeParse(request.query));

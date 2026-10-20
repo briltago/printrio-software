@@ -4,17 +4,27 @@ import {
   type OrderDetailDto,
   type OrderDto,
   type OrderStatus,
+  renderFolderTemplate,
 } from "@printrio/shared";
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
-import { type FormEvent, useState } from "react";
+import { Link, useSearch } from "@tanstack/react-router";
+import { type FormEvent, useRef, useState } from "react";
 import { Dialog, EmptyState, Field, FormError, PageHeader } from "../components.tsx";
 import { Swatch } from "../features/filament-forms.tsx";
 import { useT } from "../i18n/index.tsx";
 import { api } from "../lib/api.ts";
-import { formatMoney, formatRelativeTime, formatWeight } from "../lib/format.ts";
+import {
+  formatBytes,
+  formatDuration,
+  formatMoney,
+  formatRelativeTime,
+  formatWeight,
+} from "../lib/format.ts";
 import { JOB_STATUS_CLASS } from "../lib/jobs.ts";
+import { settingsQuery } from "../lib/queries.ts";
 import { meQuery } from "../lib/session.ts";
 import { useStoredState } from "../lib/stored-state.ts";
+import { uploadFile } from "../lib/upload.ts";
 
 export const ORDER_STATUS_CLASS: Record<OrderStatus, string> = {
   new: "state-paused",
@@ -43,7 +53,8 @@ function useInvalidateOrders() {
 export function OrdersPage() {
   const t = useT();
   const [filter, setFilter] = useStoredState<Filter>("printrio-orders-filter", "active");
-  const [editing, setEditing] = useState<"new" | string | null>(null);
+  const { order: linked } = useSearch({ from: "/app/orders" });
+  const [editing, setEditing] = useState<"new" | string | null>(linked ?? null);
   const invalidate = useInvalidateOrders();
   const orders = useQuery({
     queryKey: ordersQueryKey,
@@ -192,12 +203,27 @@ function OrderForm({ order, onDone }: { order?: OrderDto; onDone: () => void }) 
   const t = useT();
   const invalidate = useInvalidateOrders();
   const [saved, setSaved] = useState(false);
+  const { data: settings } = useSuspenseQuery(settingsQuery);
+  const customers = useQuery({
+    queryKey: [...ordersQueryKey, "customers"],
+    queryFn: () => api<{ customers: string[] }>("/api/orders/customers"),
+  });
+  // Live preview of where a new order's files will go (the server renders the same template).
+  const [name, setName] = useState(order?.name ?? "");
+  const [customer, setCustomer] = useState(order?.customer ?? "");
+  const folderPreview = renderFolderTemplate(settings.orderFolders.template, {
+    order: name.trim() || t("orders.name"),
+    customer: customer.trim() || null,
+    date: new Date(),
+  });
   const save = useMutation({
     mutationFn: (form: FormData) => {
+      const folder = String(form.get("folder") ?? "").trim();
       const body = {
         name: String(form.get("name") ?? ""),
         customer: String(form.get("customer") ?? ""),
         notes: String(form.get("notes") ?? ""),
+        ...(!order && folder ? { folder } : {}),
       };
       return order
         ? api(`/api/orders/${order.id}`, { method: "PATCH", body })
@@ -219,15 +245,37 @@ function OrderForm({ order, onDone }: { order?: OrderDto; onDone: () => void }) 
       <Field
         label={t("orders.name")}
         name="name"
-        defaultValue={order?.name ?? ""}
+        value={name}
+        onChange={(event) => setName(event.target.value)}
         autoFocus={!order}
       />
       <Field
         label={t("orders.customer")}
         name="customer"
         required={false}
-        defaultValue={order?.customer ?? ""}
+        value={customer}
+        onChange={(event) => setCustomer(event.target.value)}
+        list="order-customers"
+        autoComplete="off"
       />
+      <datalist id="order-customers" aria-label={t("orders.customerSuggestions")}>
+        {(customers.data?.customers ?? []).map((value) => (
+          <option key={value} value={value} />
+        ))}
+      </datalist>
+      {!order && (
+        <Field
+          label={t("orders.folder")}
+          name="folder"
+          required={false}
+          placeholder={
+            settings.orderFolders.enabled ? `Files/${folderPreview}` : t("orders.noFolder")
+          }
+          hint={t("orders.folderHint")}
+          className="input font-mono text-sm"
+          spellCheck={false}
+        />
+      )}
       <label className="mb-4 block text-sm">
         <span className="mb-1.5 block text-muted">{t("orders.notes")}</span>
         <textarea name="notes" className="input min-h-20" defaultValue={order?.notes ?? ""} />
@@ -286,6 +334,7 @@ function OrderDetail({ orderId, onDone }: { orderId: string; onDone: () => void 
   return (
     <div>
       <OrderForm order={order} onDone={onDone} />
+      <OrderFiles order={order} />
       <section className="mt-6 border-line border-t pt-4" aria-label={t("orders.prints")}>
         <div className="mb-3 flex items-center justify-between gap-2">
           <h3 className="text-sm font-semibold">
@@ -375,5 +424,96 @@ function OrderDetail({ orderId, onDone }: { orderId: string; onDone: () => void 
         </div>
       )}
     </div>
+  );
+}
+
+/** The order's folder in Files: upload G-code straight into it and see what is there. */
+function OrderFiles({ order }: { order: OrderDetailDto }) {
+  const t = useT();
+  const queryClient = useQueryClient();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [progress, setProgress] = useState<{ name: string; fraction: number } | null>(null);
+  const upload = useMutation({
+    mutationFn: async (files: File[]) => {
+      for (const file of files) {
+        setProgress({ name: file.name, fraction: 0 });
+        await uploadFile(`/api/orders/${order.id}/files`, file, (fraction) =>
+          setProgress({ name: file.name, fraction }),
+        );
+      }
+    },
+    onSettled: () => {
+      setProgress(null);
+      void queryClient.invalidateQueries({ queryKey: [...ordersQueryKey, order.id] });
+      void queryClient.invalidateQueries({ queryKey: ["library"] });
+    },
+  });
+
+  return (
+    <section className="mt-6 border-line border-t pt-4" aria-label={t("orders.files")}>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold">{t("orders.files")}</h3>
+          <p className="truncate font-mono text-xs text-subtle" title={order.folder ?? undefined}>
+            {order.folder ? `Files/${order.folder}` : t("orders.noFolder")}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {order.folder && (
+            <Link to="/files" search={{ dir: order.folder }} className="btn btn-secondary btn-sm">
+              {t("orders.openInFiles")}
+            </Link>
+          )}
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            disabled={upload.isPending}
+            onClick={() => inputRef.current?.click()}
+          >
+            {t("orders.upload")}
+          </button>
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".gcode,.g,.gco"
+            multiple
+            hidden
+            onChange={(event) => {
+              const files = [...(event.target.files ?? [])];
+              event.target.value = "";
+              if (files.length) upload.mutate(files);
+            }}
+          />
+        </div>
+      </div>
+      <FormError error={upload.error} />
+      {progress && (
+        <p className="mb-2 text-xs text-muted" role="status">
+          {t("orders.uploading", {
+            name: progress.name,
+            percent: Math.round(progress.fraction * 100),
+          })}
+        </p>
+      )}
+      {order.files.length === 0 ? (
+        <p className="text-sm text-subtle">{t("orders.noFiles")}</p>
+      ) : (
+        <ul className="grid gap-1.5">
+          {order.files.map((file) => (
+            <li key={file.path} className="flex items-center gap-2 text-sm">
+              <span aria-hidden="true" className="text-subtle">
+                ▤
+              </span>
+              <span className="min-w-0 flex-1 truncate">{file.name}</span>
+              <span className="shrink-0 text-xs text-subtle">
+                {[formatDuration(t, file.estimatedSeconds), formatBytes(file.size)]
+                  .filter((part) => part !== "—")
+                  .join(" · ")}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

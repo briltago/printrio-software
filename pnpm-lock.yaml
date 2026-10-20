@@ -96,6 +96,9 @@ importers:
       '@lezer/highlight':
         specifier: 1.2.3
         version: 1.2.3
+      '@printrio/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
       '@printrio/shared':
         specifier: workspace:*
         version: link:../../packages/shared

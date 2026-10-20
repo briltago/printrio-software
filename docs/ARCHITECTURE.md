@@ -235,17 +235,38 @@ stay in `localStorage`.
 
 ## 6. Modules (Pro / Business)
 
-- A module is a JavaScript bundle implementing `PrintrioModule` from
-  `@printrio/sdk`. It receives a **host context** (scoped DB access via its own
-  schema/migrations, route registration, UI extension points, event bus,
-  licence information).
-- Modules are **only obtainable after activation**: the core downloads them
-  from `printrio-licensing` using the instance's licence lease.
-- Every module bundle is **signed (Ed25519)**; the core refuses to load
-  unsigned or tampered bundles. Public keys are pinned in the core.
-- Modules re-check the licence themselves (not only the core), are minified
-  and obfuscated, and some value is server-side (push notifications, remote
-  access, backups, later AI failure detection) so it cannot be unlocked locally.
+- A module is a **signed bundle** with a server part (an ES module whose
+  default export implements `PrintrioModule` from `@printrio/sdk`) and an
+  optional web part (default export `PrintrioWebModule`).
+- Modules are **only obtainable after activation**: the core downloads the
+  modules listed in the lease from `printrio-licensing`
+  (`GET /v1/modules/:id/:version`, `Authorization: Bearer <lease>`) and caches
+  them in `DATA_DIR/modules`.
+- Bundle format (`moduleBundleSchema` in `@printrio/shared`): JSON with
+  `manifest`, base64 `server`/`web` code, their SHA-256 and an **Ed25519
+  signature** over `moduleSigningMessage(...)`, made offline with the module
+  key. The core verifies hashes and signature against the **pinned public key**
+  (`packages/shared/src/licensing-keys.ts`) every time it loads a bundle, and
+  checks that the lease's tier covers `requiresTier` and that
+  `manifest.coreVersion` equals `MODULE_API_VERSION`.
+- **Server host context** (`ModuleContext`): logger, current lease, SQL access
+  (`search_path` = the module's own schema `module_<id>`, then `public`),
+  migrations applied once each in that schema, routes under
+  `/api/modules/<id>/…` (signed-in users; `adminOnly` for admins), driver
+  registration, core events (`printer.status`, `job.started`, `job.finished`,
+  `licence.changed`) and `notifyChange` to refresh open browsers.
+- **Web extension points**: after sign-in the UI imports
+  `/api/modules/<id>/web.js` and calls `setup(host)`. The host passes its own
+  React, JSX runtime, TanStack Query, `api()`, UI components and formatters
+  (also as `window.PrintrioHost`, so bundles never ship a second React).
+  A module can add sidebar entries, pages (`/m/<id>/<path>`), settings tabs
+  and printer-page panels.
+- When the lease ends or no longer lists a module, the module is deactivated:
+  its routes and UI disappear, its data stays in its schema until
+  reactivation.
+- Modules re-check the licence themselves (not only the core), are minified,
+  and some value is server-side (push notifications, remote access, backups,
+  later AI failure detection) so it cannot be unlocked locally.
 - The open-source core contains **no Pro/Business feature code**, only
   extension points. Per the module exception to AGPL, modules using only the
   public SDK are not covered by the AGPL.
@@ -273,8 +294,24 @@ goal is that cracking is not worth it, not that it is impossible.
 6. Limits and features are plain values in the lease, so add-on packs or
    per-printer billing need no code change in the core.
 
-Payment provider webhooks (Paddle / Lemon Squeezy) update subscriptions in
+Payment provider webhooks (Paddle Billing) update subscriptions in
 `printrio-licensing`; the next refresh picks up the change.
+
+Implementation in the core (`apps/server/src/licensing/`):
+
+- `identity.ts` — Ed25519 instance key in `instance_settings`
+  (`instance_identity`, private key encrypted with the instance secret).
+  Instance ID = first 32 hex characters of sha256(raw public key).
+- `licence.ts` — activation, refresh every 6 h (retry every 15 min after a
+  failure), deactivation, customer-portal link. The lease is verified with the
+  pinned lease key and must name this instance. Limits for printers and users
+  come from `licence.limits()`.
+- `modules.ts` — download, verification, loading and unloading of modules.
+- Settings → Licence (admins) shows the plan, activates a key, checks now,
+  opens the subscription portal and deactivates.
+- Builds without pinned keys (self-built from source) stay on Free;
+  activation explains that an official release is needed. Tests pass their
+  own keys through `buildApp({ licensing })`.
 
 ## 8. Security baseline
 

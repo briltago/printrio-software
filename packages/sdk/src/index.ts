@@ -1,2 +1,3 @@
 export type * from "./driver.ts";
-export type * from "./module.ts";
+export * from "./module.ts";
+export type * from "./web.ts";

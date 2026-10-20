@@ -8,11 +8,13 @@ import {
 } from "@printrio/shared";
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useSearch } from "@tanstack/react-router";
-import { type FormEvent, useState } from "react";
+import { createElement, type FC, type FormEvent, useState } from "react";
 import { Dialog, Field, FormError, PageHeader, Section } from "../components.tsx";
+import { LicenceSettings } from "../features/licence-settings.tsx";
 import { SlicerSettings } from "../features/slicer-settings.tsx";
 import { useT } from "../i18n/index.tsx";
 import { api } from "../lib/api.ts";
+import { useModules } from "../lib/modules.tsx";
 import { groupsQuery, settingsQuery, usersQuery, useUpdateSettings } from "../lib/queries.ts";
 import { meQuery } from "../lib/session.ts";
 import { setTheme, type ThemePreference, useTheme } from "../lib/theme.ts";
@@ -24,17 +26,29 @@ export const SETTINGS_TABS = [
   "slicer",
   "groups",
   "users",
+  "licence",
 ] as const;
 export type SettingsTab = (typeof SETTINGS_TABS)[number];
-const ADMIN_TABS = new Set<SettingsTab>(["general", "sidebar", "groups", "users"]);
+const ADMIN_TABS = new Set<string>(["general", "sidebar", "groups", "users", "licence"]);
 
 export function SettingsPage() {
   const t = useT();
   const { tab = "general" } = useSearch({ from: "/app/settings" });
   const { data: me } = useSuspenseQuery(meQuery);
   const isAdmin = me?.role === "admin";
-  const tabs = SETTINGS_TABS.filter((id) => isAdmin || !ADMIN_TABS.has(id));
-  const active = tabs.includes(tab) ? tab : "appearance";
+  const { settingsTabs } = useModules();
+  // Built-in tabs, then tabs added by modules ("<module>:<tab>").
+  const tabs: { id: string; label: string }[] = [
+    ...SETTINGS_TABS.filter((id) => isAdmin || !ADMIN_TABS.has(id)).map((id) => ({
+      id,
+      label: t(`settings.tabs.${id}`),
+    })),
+    ...settingsTabs
+      .filter((entry) => isAdmin || !entry.adminOnly)
+      .map((entry) => ({ id: `${entry.moduleId}:${entry.id}`, label: entry.label })),
+  ];
+  const active = tabs.some((entry) => entry.id === tab) ? tab : "appearance";
+  const moduleTab = settingsTabs.find((entry) => `${entry.moduleId}:${entry.id}` === active);
 
   return (
     <main className="mx-auto max-w-4xl p-6 md:p-8">
@@ -44,7 +58,7 @@ export function SettingsPage() {
         className="mt-6 flex gap-1 overflow-x-auto border-line border-b"
         aria-label={t("settings.title")}
       >
-        {tabs.map((id) => (
+        {tabs.map(({ id, label }) => (
           <Link
             key={id}
             to="/settings"
@@ -56,7 +70,7 @@ export function SettingsPage() {
             }`}
             aria-current={active === id ? "page" : undefined}
           >
-            {t(`settings.tabs.${id}`)}
+            {label}
           </Link>
         ))}
       </nav>
@@ -67,6 +81,8 @@ export function SettingsPage() {
         {active === "groups" && <GroupSettings />}
         {active === "users" && <UserSettings />}
         {active === "slicer" && <SlicerSettings />}
+        {active === "licence" && <LicenceSettings />}
+        {moduleTab && createElement(moduleTab.component as FC)}
       </div>
     </main>
   );

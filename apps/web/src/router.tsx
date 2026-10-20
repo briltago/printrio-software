@@ -19,11 +19,12 @@ import { JobsPage } from "./pages/jobs.tsx";
 import { LibraryPage } from "./pages/library.tsx";
 import { LoginPage } from "./pages/login.tsx";
 import { MAINTENANCE_TABS, MaintenancePage } from "./pages/maintenance.tsx";
+import { ModulePage } from "./pages/module.tsx";
 import { OnboardingPage } from "./pages/onboarding.tsx";
 import { OrdersPage } from "./pages/orders.tsx";
 import { PlaceholderPage } from "./pages/placeholder.tsx";
 import { PrinterPage } from "./pages/printer.tsx";
-import { SETTINGS_TABS, SettingsPage } from "./pages/settings.tsx";
+import { SettingsPage } from "./pages/settings.tsx";
 import { SetupPage } from "./pages/setup.tsx";
 
 const rootRoute = createRootRouteWithContext<{ queryClient: QueryClient }>()({
@@ -95,7 +96,8 @@ const maintenanceRoute = createRoute({
 const settingsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/settings",
-  validateSearch: z.object({ tab: z.enum(SETTINGS_TABS).optional() }),
+  // Built-in tabs, or "<module>:<tab>" for tabs added by modules.
+  validateSearch: z.object({ tab: z.string().optional() }),
   component: SettingsPage,
 });
 
@@ -124,6 +126,13 @@ const costsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/costs",
   component: CostsPage,
+});
+
+/** Pages added by modules (Pro, Business). */
+const moduleRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/m/$moduleId/$",
+  component: ModulePage,
 });
 
 /** Sections with their own route above; the rest render a placeholder until they ship. */
@@ -175,6 +184,7 @@ export function createAppRouter(queryClient: QueryClient) {
         ordersRoute,
         filesRoute,
         settingsRoute,
+        moduleRoute,
         ...placeholderRoutes,
       ]),
       onboardingRoute,

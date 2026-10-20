@@ -1,6 +1,6 @@
 import {
   createUserSchema,
-  effectiveLimits,
+  type Limits,
   type UsersResponse,
   updateUserSchema,
 } from "@printrio/shared";
@@ -14,9 +14,9 @@ import { parseOr400, requireAdmin } from "./guards.ts";
 
 const idParams = z.object({ id: z.uuid() });
 
-export function userRoutes(app: FastifyInstance, db: Database) {
-  // Licensing (F2) supplies a lease; until then the Free limits apply.
-  const userLimit = () => effectiveLimits(null).users;
+/** `limits` returns the plan in force (the licence lease, or Free). */
+export function userRoutes(app: FastifyInstance, db: Database, limits: () => Limits) {
+  const userLimit = () => limits().users;
   const otherAdmins = async (id: string) =>
     (
       await db

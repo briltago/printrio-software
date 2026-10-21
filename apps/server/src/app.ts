@@ -17,6 +17,7 @@ import {
 import { eq } from "drizzle-orm";
 import Fastify from "fastify";
 import { Sso } from "./auth/sso.ts";
+import { Backups } from "./backups/backups.ts";
 import type { Config } from "./config.ts";
 import type { SecretBox } from "./crypto.ts";
 import type { Database } from "./db/client.ts";
@@ -31,6 +32,7 @@ import { OrderService } from "./orders/service.ts";
 import type { PrinterManager } from "./printers/manager.ts";
 import { apiKeyRoutes } from "./routes/api-keys.ts";
 import { authRoutes } from "./routes/auth.ts";
+import { backupRoutes } from "./routes/backups.ts";
 import { filamentRoutes } from "./routes/filament.ts";
 import { healthRoutes } from "./routes/health.ts";
 import { jobRoutes } from "./routes/jobs.ts";
@@ -51,6 +53,7 @@ import { queueRoutes } from "./routes/queue.ts";
 import { realtimeRoutes } from "./routes/realtime.ts";
 import { settingsRoutes } from "./routes/settings.ts";
 import { userRoutes } from "./routes/users.ts";
+import { VERSION } from "./version.ts";
 
 export interface AppOptions {
   config: Config;
@@ -63,6 +66,8 @@ export interface AppOptions {
    * Licensing endpoints and keys. Official builds use the pinned keys
    * (@printrio/shared licensing-keys.ts); tests pass their own.
    */
+  /** Backups (created before migrations in index.ts); built here when absent. */
+  backups?: Backups;
   licensing?: {
     url?: string;
     leasePublicKey?: string;
@@ -82,6 +87,7 @@ export async function buildApp({
   manager,
   factories = defaultDriverFactories(),
   licensing = {},
+  backups: givenBackups,
 }: AppOptions) {
   const app = Fastify({
     logger: config.NODE_ENV === "test" ? false : { level: config.LOG_LEVEL },
@@ -190,6 +196,16 @@ export async function buildApp({
   });
 
   healthRoutes(app, db);
+  const backups =
+    givenBackups ??
+    new Backups({
+      db,
+      databaseUrl: config.DATABASE_URL,
+      dataDir: config.DATA_DIR,
+      version: VERSION,
+      log: app.log,
+    });
+  backupRoutes(app, backups);
   const sso = new Sso(db, secrets, () => licence.current()?.features.includes("business") === true);
   authRoutes(app, { db, cookieSecure: config.COOKIE_SECURE, sso });
   settingsRoutes(app, db);
@@ -244,7 +260,9 @@ export async function buildApp({
   await recorder.start();
   await licence.start();
   void modules.sync();
+  if (config.NODE_ENV !== "test") backups.start();
   app.addHook("onClose", async () => {
+    await backups.stop();
     licence.stop();
     printerManager.off("status", onPrinterStatus);
     await modules.stop();

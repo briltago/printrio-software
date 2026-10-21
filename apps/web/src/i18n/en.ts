@@ -2,6 +2,7 @@
 export const en = {
   common: {
     save: "Save",
+    saved: "Saved",
     saving: "Saving…",
     cancel: "Cancel",
     delete: "Delete",
@@ -67,6 +68,38 @@ export const en = {
     search: "Search…",
     openMenu: "Open menu",
     closeMenu: "Close menu",
+  },
+  backups: {
+    title: "Backups",
+    hint: "Database (printers, spools, jobs, orders, Pro and Business data) and the instance key. Stored in {directory} — download them now and then, so a copy lives off this machine.",
+    create: "Create backup",
+    creating: "Creating…",
+    includeFiles: "Include the G-code library (can be large)",
+    upload: "Upload backup…",
+    uploading: "Uploading…",
+    empty: "No backups yet.",
+    download: "Download",
+    restore: "Restore",
+    deleteConfirm: "Delete this backup?",
+    kinds: {
+      manual: "Manual",
+      scheduled: "Daily",
+      "pre-update": "Before update",
+      uploaded: "Uploaded",
+    },
+    restoreTitle: "Restore backup",
+    restoreHint:
+      "All current data is replaced with the backup from {date}. Changes made since then are lost. Printrio restarts; running prints are not affected.",
+    restoreConfirm: "Replace all data and restart",
+    restoring: "Restoring…",
+    restarting: "Restored. Printrio is restarting — this page reloads by itself.",
+    unavailable:
+      "Backups need the PostgreSQL tools (pg_dump, psql). They are included in the Printrio Docker image; install the PostgreSQL client when running from source.",
+    scheduleTitle: "Automatic backups",
+    scheduleHint: "A daily backup, plus one before every update that changes the database.",
+    scheduleEnabled: "Back up every day",
+    hour: "Time (server)",
+    keep: "Daily backups to keep",
   },
   onboarding: {
     step: "Step {current} of {total}",
@@ -170,6 +203,7 @@ export const en = {
       sso: "Single sign-on",
       slicer: "Slicer upload",
       licence: "Licence",
+      backups: "Backups",
     },
     sections: {
       workspace: "Workspace",
@@ -186,6 +220,7 @@ export const en = {
       users: "People who can sign in, and what they are allowed to do.",
       sso: "Sign in with your company's identity provider (OpenID Connect).",
       licence: "Your plan, licence key and subscription.",
+      backups: "Copies of all data — to move to another machine or to undo a mistake.",
       module: "Settings of the {module} module.",
     },
     sectionsLabel: "Settings sections",

@@ -266,6 +266,13 @@ stay in `localStorage`.
 - **API keys for module routes**: integrations call `/api/modules/<id>/…`
   with `Authorization: Bearer prk_…` (personal API keys, Settings → Slicer
   upload) and act as that user. The core's own API stays session-only.
+- **Roles and audit for modules**: every change request is mapped to a
+  permission (`permissionFor` in `@printrio/shared`: printers.control,
+  printers.manage, files.manage, queue.manage, orders.manage, filament.manage,
+  module.pro, module.business). For non-admin users, authorizers registered
+  with `ctx.registerAuthorizer` may refuse it (403; fail-closed on errors).
+  After each change request the core emits `request.completed` (user, method,
+  path, route, status, permission, IP — never bodies) for audit logs.
 - **Orders for modules**: `ctx.orders` (get, create, update) runs the same
   order logic as the HTTP API — folder from the workspace template, order
   events — so Business can turn an accepted quote into a normal order.

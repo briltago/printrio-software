@@ -68,6 +68,9 @@ export default {
       } },
     ]);
     ctx.on("order.created", ({ order }) => { globalThis.__moduleOrderEvents = [...(globalThis.__moduleOrderEvents ?? []), order.name]; });
+    ctx.on("request.completed", (event) => { globalThis.__moduleAudit = [...(globalThis.__moduleAudit ?? []), event]; });
+    // A custom role: operators may not change orders.
+    ctx.registerAuthorizer((user, permission) => (permission === "orders.manage" ? false : undefined));
   },
 };
 `;

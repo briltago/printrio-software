@@ -8,7 +8,12 @@ import rateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
 import websocket from "@fastify/websocket";
 import type { ModuleChange, ModuleEvents, PrinterDriverFactory } from "@printrio/sdk";
-import { LEASE_PUBLIC_KEY, LICENSING_URL, MODULE_PUBLIC_KEY } from "@printrio/shared";
+import {
+  LEASE_PUBLIC_KEY,
+  LICENSING_URL,
+  MODULE_PUBLIC_KEY,
+  permissionFor,
+} from "@printrio/shared";
 import { eq } from "drizzle-orm";
 import Fastify from "fastify";
 import type { Config } from "./config.ts";
@@ -150,6 +155,38 @@ export async function buildApp({
   await app.register(websocket);
   // G-code uploads (printer files and the library): one file per request, up to 1 GB.
   await app.register(multipart, { limits: { fileSize: 1024 * 1024 * 1024, files: 1 } });
+
+  // Custom roles (Business): change requests of non-admins need the modules' consent.
+  app.addHook("preHandler", async (request, reply) => {
+    const user = request.user;
+    if (!user || user.role === "admin") return;
+    const permission = permissionFor(
+      request.method,
+      request.routeOptions.url ?? "",
+      request.url.split("?")[0],
+    );
+    if (permission && !(await modules.authorize(user, permission)))
+      return reply.code(403).send({ error: "Your role does not allow this.", permission });
+  });
+  // Audit trail for modules: who changed what (never request bodies).
+  app.addHook("onResponse", async (request, reply) => {
+    if (request.method === "GET" || request.method === "HEAD" || request.method === "OPTIONS")
+      return;
+    const path = request.url.split("?")[0] ?? "";
+    if (!path.startsWith("/api/") || !moduleEvents.listenerCount("request.completed")) return;
+    const route = request.routeOptions.url ?? path;
+    emitModuleEvent("request.completed", {
+      userId: request.user?.id ?? null,
+      userName: request.user?.displayName ?? null,
+      method: request.method,
+      path,
+      route,
+      status: reply.statusCode,
+      permission: permissionFor(request.method, route, path),
+      ip: request.ip,
+      at: new Date().toISOString(),
+    });
+  });
 
   healthRoutes(app, db);
   authRoutes(app, { db, cookieSecure: config.COOKIE_SECURE });

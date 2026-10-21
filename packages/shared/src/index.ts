@@ -6,6 +6,7 @@ export * from "./library.ts";
 export * from "./licensing.ts";
 export * from "./licensing-keys.ts";
 export * from "./orders.ts";
+export * from "./permissions.ts";
 export * from "./printers.ts";
 export * from "./queue.ts";
 export * from "./settings.ts";

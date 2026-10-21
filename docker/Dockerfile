@@ -29,6 +29,8 @@ ENV NODE_ENV=production \
     MIGRATIONS_DIR=/app/drizzle \
     DATA_DIR=/data
 WORKDIR /app
+# pg_dump/psql for backups (17 also dumps PostgreSQL 16 servers).
+RUN apk add --no-cache postgresql17-client tar
 COPY --from=build /out/node_modules ./node_modules
 COPY --from=build /repo/apps/server/dist ./dist
 COPY --from=build /repo/apps/server/drizzle ./drizzle

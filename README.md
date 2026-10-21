@@ -1,41 +1,93 @@
 # Printrio
 
-Self-hosted control centre for 3D printing — printers, files, filament spools,
-job costs and orders in one workspace. Klipper/Moonraker first; more printer
-ecosystems through drivers.
+Self-hosted control centre for 3D printing: printers, files, filament spools,
+job costs, orders and queues in one workspace. Printrio runs on your own
+hardware (a home server, NAS, mini PC, Raspberry Pi 4/5 or a VPS) and talks to
+Klipper printers through Moonraker.
 
-> Status: preparing the first beta (phases F0–F2 done, see the roadmap in
-> [`docs/VISION.md`](docs/VISION.md)). Not ready for production use yet.
+Website and documentation: **[printrio.app](https://printrio.app)** ·
+[Installation guide](https://printrio.app/installation) ·
+[Documentation](https://printrio.app/docs)
 
-**Editions.** This repository is the free, open-source core (AGPL-3.0 with a
-module exception): printer control and maintenance, files and slicer upload,
-spools, job costs, orders and per-printer queues. **Pro** (fleet queue,
+## Features
+
+- **Printers**: live status, webcams, temperatures, motion and print tuning,
+  console and macros, printer groups and tags.
+- **Maintenance**: Klipper config editor with backups and restarts, logs,
+  system info, power devices, bed mesh, Moonraker update manager.
+- **Files**: G-code library with folders, upload from OrcaSlicer, PrusaSlicer
+  and Cura (OctoPrint-compatible endpoint).
+- **Filament**: per-spool inventory with material, colour and remaining weight;
+  import from Spoolman.
+- **Jobs and costs**: print history with filament, energy and machine cost.
+- **Orders and queues**: simple orders with their own folder, per-printer
+  queues.
+- **Team**: administrator and operator accounts.
+- **Backups**: database and data in one archive, scheduled or on demand,
+  restore from Settings → Backups; automatic backup before each update.
+- **Languages**: English, Czech and German.
+
+Printrio Free covers up to 3 printers and 2 users. **Pro** (fleet queue,
 orders with items and deadlines, customers, statistics, notifications) and
-**Business** (quotes to invoices, CRM, e-shops, API and webhooks, roles and
-audit log, single sign-on, stock and purchasing, service levels, escalation,
-multiple sites) are closed-source modules the core downloads after licence
-activation.
+**Business** (quotes to invoices, CRM, e-shop import, API and webhooks, roles
+and audit log, single sign-on, stock and purchasing, service levels,
+escalation, multiple sites) are add-on modules unlocked with a licence key —
+see [pricing](https://printrio.app/pricing).
 
-- Product vision: [`docs/VISION.md`](docs/VISION.md)
-- Architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+## Install
 
-## Run with Docker Compose
+Requirements: Docker with the Compose plugin, amd64 or arm64.
 
 ```sh
-cp .env.example .env        # set POSTGRES_PASSWORD
-docker compose up -d --build
+mkdir printrio && cd printrio
+curl -fsSLO https://raw.githubusercontent.com/briltago/printrio-software/main/docker-compose.yml
+curl -fsSL -o .env https://raw.githubusercontent.com/briltago/printrio-software/main/.env.example
+# edit .env: set POSTGRES_PASSWORD to a long random value
+docker compose up -d
 ```
 
-Open `http://<host>:3000` (or the `PRINTRIO_PORT` you set in `.env`, e.g.
-8080 — Printrio then listens on 8080 inside the container too), create the administrator account and follow the
-setup wizard to add your first Klipper printer (Moonraker address, usually
-`http://<printer-ip>:7125`). When Printrio is served over HTTPS (reverse proxy,
-Tailscale Serve, …) set `COOKIE_SECURE=true`.
+Open `http://<host>:3000`, create the administrator account and follow the
+setup wizard to add your first printer (its Moonraker address, usually
+`http://<printer-ip>:7125`).
 
-Printer API keys are encrypted with a secret stored in the `printrio-data`
-volume (or `APP_SECRET` if you set one). The same volume holds the G-code
-library (`/data/files`); files you copy there show up under Files. Back it up
-together with the database.
+### Configuration (`.env`)
+
+| Variable            | Default  | Meaning |
+| ------------------- | -------- | ------- |
+| `POSTGRES_PASSWORD` | —        | Password of the bundled PostgreSQL database (required, any characters; write a literal `$` as `$$`). |
+| `PRINTRIO_PORT`     | `3000`   | Port Printrio listens on, inside the container and on the host. |
+| `COOKIE_SECURE`     | `false`  | Set to `true` when Printrio is served over HTTPS. |
+| `PRINTRIO_VERSION`  | `latest` | Image tag to run: `latest`, a release such as `0.9.0`, or `edge` (newest build from `main`). |
+
+Further settings, passed as environment variables of the `printrio` service:
+`APP_SECRET` (encrypts printer credentials; generated and stored in the data
+volume when unset), `LOG_LEVEL` (`info`), `UPDATE_CHECK` (`true`; set `false`
+to stop checking GitHub for new releases).
+
+### HTTPS and remote access
+
+Printrio itself serves plain HTTP. For access from outside your network put it
+behind a reverse proxy with TLS (Caddy, Traefik, nginx) or use Tailscale
+Serve, and set `COOKIE_SECURE=true`. Never expose Moonraker directly to the
+internet.
+
+### Updates
+
+```sh
+docker compose pull && docker compose up -d
+```
+
+Administrators see a notice in the app when a new release is out. Before
+database migrations run, Printrio saves a backup automatically. To stay on a
+version, set `PRINTRIO_VERSION` in `.env`.
+
+### Backups
+
+Settings → Backups creates and downloads backups (the database and the data
+volume, optionally including the G-code library) and can run them daily with a
+retention you choose. Backups are stored in the `printrio-data` volume, so also
+copy them off the machine. Restoring a backup replaces all data and restarts
+Printrio.
 
 ## Development
 
@@ -48,24 +100,33 @@ pnpm dev            # server on :3000, web UI on :5173 (proxies /api)
 pnpm --filter @printrio/server dev:printers   # six simulated Klipper printers on :7125–7130
 ```
 
-| Command          | What it does |
-| ---------------- | ------------ |
-| `pnpm lint`      | Biome lint + format check (`pnpm format` to fix) |
-| `pnpm typecheck` | TypeScript across all packages |
-| `pnpm test`      | Unit tests + server integration tests (needs `TEST_DATABASE_URL` or a local `printrio_test` database) |
-| `pnpm build`     | Production build (server bundle + web UI) |
+| Command            | What it does |
+| ------------------ | ------------ |
+| `pnpm lint`        | Biome lint + format check (`pnpm format` to fix) |
+| `pnpm typecheck`   | TypeScript across all packages |
+| `pnpm test`        | Unit tests + server integration tests (needs `TEST_DATABASE_URL` or a local `printrio_test` database) |
+| `pnpm build`       | Production build (server bundle + web UI) |
 | `pnpm db:generate` | Generate a SQL migration after changing `apps/server/src/db/schema.ts` |
 
-## Repository layout
+To build the image yourself: `docker compose build`. Self-built images run the
+Free edition; licence keys work with the official images.
 
 ```
-apps/server      Fastify API, auth, migrations; serves the built web UI
+apps/server      Fastify API, printer drivers, module host; serves the built web UI
 apps/web         React UI (Vite, TanStack Router/Query, Tailwind)
 packages/shared  Zod schemas and types shared by server, web and modules
-packages/sdk     Public module + printer driver SDK
+packages/sdk     Module and printer driver SDK
 docker/          Container image
-docs/            Vision and architecture
+docs/            Architecture
 ```
+
+How the pieces fit together is described in
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+## Support
+
+Questions and bug reports: [GitHub issues](https://github.com/briltago/printrio-software/issues)
+or [support@printrio.app](mailto:support@printrio.app).
 
 ## Licence
 

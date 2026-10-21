@@ -1,17 +1,16 @@
 # Printrio — Architecture
 
-> Companion to [`VISION.md`](VISION.md). Describes how the pieces fit; details
-> evolve with the code, decisions recorded here are binding until changed here.
+> How the pieces of Printrio fit together, for contributors and module
+> authors. Details evolve with the code.
 
-## 1. Repositories
+## 1. Components
 
-| Repository           | Visibility | Licence                         | Contents |
-| -------------------- | ---------- | ------------------------------- | -------- |
-| `printrio-software`  | public     | AGPL-3.0 + module exception     | The self-hosted app (Free tier), module SDK, Docker images |
-| `printrio-pro`       | private    | proprietary                     | Pro module, built against `@printrio/sdk` |
-| `printrio-business`  | private    | proprietary                     | Business module, built against `@printrio/sdk` |
-| `printrio-licensing` | private    | proprietary                     | Licence + module distribution service (Cloudflare Workers, D1, R2) |
-| `printrio-website`   | private    | —                               | Marketing site (printrio.app) |
+- **Printrio core** (this repository, AGPL-3.0 with a module exception): the
+  self-hosted app with the Free features, the module SDK and the Docker image.
+- **Pro and Business modules** (closed source): built against `@printrio/sdk`,
+  downloaded by the core after licence activation.
+- **Licensing service** (printrio.app): issues licence leases and serves
+  signed module bundles.
 
 ## 2. Stack
 
@@ -23,11 +22,10 @@ TypeScript end to end, so types are shared between server, web UI and modules.
 | Package manager    | pnpm workspaces + Turborepo |
 | HTTP server        | Fastify 5 |
 | Database           | PostgreSQL 16+ with Drizzle ORM and SQL migrations |
-| Background jobs    | pg-boss (PostgreSQL-backed, no extra service) |
 | Realtime           | WebSocket (`@fastify/websocket`) |
 | Validation         | Zod (shared between server and web) |
 | Web UI             | React 19, Vite, TanStack Router + Query, Tailwind CSS |
-| Tests              | Vitest (unit + integration against PostgreSQL), Playwright (e2e, later) |
+| Tests              | Vitest (unit + integration against PostgreSQL) |
 | Lint/format        | Biome |
 | Packaging          | One Docker image (server serves the built web UI) + Docker Compose |
 
@@ -40,8 +38,8 @@ apps/
 packages/
   shared/        Zod schemas and types shared by server, web and modules (tiers, lease, API DTOs)
   sdk/           Public module SDK: PrintrioModule, PrinterDriver, host context types
-docker/          Dockerfile and Compose files
-docs/            Vision, architecture, decisions
+docker/          Dockerfile
+docs/            Architecture
 ```
 
 ## 4. Deployment
@@ -60,11 +58,10 @@ docs/            Vision, architecture, decisions
 
 - **Home / LAN:** NAS, mini PC, home server. Printers reachable directly.
 - **Hosted:** VPS or paid hosting; printers reached over Tailscale (or another
-  overlay VPN). Later option: a small outbound-connecting *Printrio agent* on
-  the printer host, removing the VPN requirement.
+  overlay VPN).
 - Raspberry Pi 4/5 (arm64) is a supported target, so images are multi-arch.
-- Exposed to the internet ⇒ authentication is mandatory from F0, HTTPS via a
-  reverse proxy (optional Caddy service in Compose).
+- Every request needs a signed-in user; when exposed to the internet, serve
+  Printrio over HTTPS through a reverse proxy and set `COOKIE_SECURE=true`.
 
 ## 5. Printer drivers
 
@@ -226,10 +223,12 @@ stay in `localStorage`.
 
 ### Web app conventions
 
-- All UI strings go through `useT()` (`apps/web/src/i18n`). English is the only
-  locale today; another language is a file shaped like `en.ts`.
-- Theme tokens are CSS variables; `<html data-theme="light|dark">` switches them
-  (see `docs/DESIGN.md`).
+- All UI strings go through `useT()` (`apps/web/src/i18n`). Locales: English
+  (`en.ts`, the source), Czech and German; each is typed by `Translation`, so a
+  missing key fails the type check. Plurals use `{count|one|few|other}`.
+  Modules receive the language as `host.locale`.
+- Theme tokens are CSS variables in `apps/web/src/styles.css`;
+  `<html data-theme="light|dark">` switches them.
 - `pnpm dev:printers` (in `apps/server`) starts six simulated Moonraker printers
   for UI work; tests use the same simulator.
 
@@ -239,7 +238,7 @@ stay in `localStorage`.
   default export implements `PrintrioModule` from `@printrio/sdk`) and an
   optional web part (default export `PrintrioWebModule`).
 - Modules are **only obtainable after activation**: the core downloads the
-  modules listed in the lease from `printrio-licensing`
+  modules listed in the lease from the licensing service
   (`GET /v1/modules/:id/:version`, `Authorization: Bearer <lease>`) and caches
   them in `DATA_DIR/modules`.
 - Bundle format (`moduleBundleSchema` in `@printrio/shared`): JSON with
@@ -279,15 +278,9 @@ stay in `localStorage`.
 - When the lease ends or no longer lists a module, the module is deactivated:
   its routes and UI disappear, its data stays in its schema until
   reactivation.
-- Modules re-check the licence themselves (not only the core), are minified,
-  and some value is server-side (push notifications, remote access, backups,
-  later AI failure detection) so it cannot be unlocked locally.
 - The open-source core contains **no Pro/Business feature code**, only
   extension points. Per the module exception to AGPL, modules using only the
   public SDK are not covered by the AGPL.
-
-Honest threat model: a determined attacker can patch client-side code. The
-goal is that cracking is not worth it, not that it is impossible.
 
 ## 7. Licensing protocol
 
@@ -309,8 +302,7 @@ goal is that cracking is not worth it, not that it is impossible.
 6. Limits and features are plain values in the lease, so changing what a
    plan includes needs no code change in the core.
 
-Payment provider webhooks (Paddle Billing) update subscriptions in
-`printrio-licensing`; the next refresh picks up the change.
+Subscription changes reach the instance with the next refresh.
 
 Implementation in the core (`apps/server/src/licensing/`):
 

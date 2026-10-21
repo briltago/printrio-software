@@ -1,7 +1,8 @@
 # Printrio — self-hosted stack. Copy .env.example to .env and set a strong POSTGRES_PASSWORD.
 services:
   printrio:
-    image: ghcr.io/briltago/printrio:latest
+    # Released image; set PRINTRIO_VERSION in .env to pin a version (e.g. 1.2.0).
+    image: ghcr.io/briltago/printrio:${PRINTRIO_VERSION:-latest}
     build:
       context: .
       dockerfile: docker/Dockerfile

@@ -16,4 +16,6 @@ await build({
   format: "esm",
   sourcemap: true,
   external,
+  // Release version: PRINTRIO_VERSION from the release build (git tag), else package.json.
+  define: { __PRINTRIO_VERSION__: JSON.stringify(process.env.PRINTRIO_VERSION || pkg.version) },
 });

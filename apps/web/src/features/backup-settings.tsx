@@ -7,6 +7,7 @@ import { ApiError, api } from "../lib/api.ts";
 import { formatBytes } from "../lib/format.ts";
 
 const KEY = ["settings", "backups"];
+const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 
 /** Waits until the server answers again after a restore, then reloads the app. */
 async function waitForRestart() {
@@ -228,7 +229,7 @@ function ScheduleSection({ settings }: { settings: BackupsDto["settings"] }) {
           <label className="block text-sm">
             <span className="mb-1.5 block text-muted">{t("backups.hour")}</span>
             <select name="hour" className="input" defaultValue={settings.hour}>
-              {Array.from({ length: 24 }, (_, hour) => (
+              {HOURS.map((hour) => (
                 <option key={hour} value={hour}>
                   {`${String(hour).padStart(2, "0")}:00`}
                 </option>

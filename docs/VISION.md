@@ -73,7 +73,7 @@ tooling — Pro is still worth buying.
 
 |                              | **Free (core)**                                   | **Pro**                                                     | **Business**                                              |
 | ---------------------------- | ------------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------- |
-| Printers                     | 3                                                 | 8 included, add-on packs of +5 (max 20)                      | 20 included, then per printer, no cap                     |
+| Printers                     | 3                                                 | 10                                                          | Unlimited                                                 |
 | User accounts                | 2                                                 | 10                                                          | Unlimited                                                 |
 | Printer control, webcam, console, macros | ✓                                     | ✓                                                           | ✓                                                         |
 | Files, slicer upload (Orca/Prusa/Cura) | ✓ incl. a folder per order from a customizable layout (e.g. `Commercial/{customer}/{order}`), upload into the order | ✓                                     | ✓                                                         |
@@ -87,10 +87,11 @@ tooling — Pro is still worth buying.
 | Roles & permissions          | Admin / operator                                   | Admin / operator                                            | Granular roles, audit log, SSO                            |
 | Integrations                 | —                                                 | —                                                           | REST API, webhooks, multiple sites                        |
 
-**Printer-count pricing (decision):** Pro includes 8 printers and sells
-add-on packs of +5 up to 20; Business includes 20 and is billed per additional
-printer. This avoids forcing a 10-printer farm without a team into Business,
-and keeps the licence model simple: limits are numbers in the signed licence.
+**Printer-count pricing (decision):** Pro is one flat plan with 10 printers
+and no add-ons — nothing to sort out when a subscription is changed or
+cancelled; Business has no printer or user limit. A 10-printer farm without a
+team fits Pro, and the licence model stays simple: limits are numbers in the
+signed licence.
 
 ### Replacing Mainsail / Fluidd
 

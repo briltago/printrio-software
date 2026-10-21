@@ -306,8 +306,8 @@ goal is that cracking is not worth it, not that it is impossible.
    - running prints are never touched,
    - module data stays in the database, read-only/hidden until reactivation,
    - printers above the Free limit stay visible but cannot start new jobs.
-6. Limits and features are plain values in the lease, so add-on packs or
-   per-printer billing need no code change in the core.
+6. Limits and features are plain values in the lease, so changing what a
+   plan includes needs no code change in the core.
 
 Payment provider webhooks (Paddle Billing) update subscriptions in
 `printrio-licensing`; the next refresh picks up the change.

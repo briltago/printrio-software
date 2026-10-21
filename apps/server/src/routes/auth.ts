@@ -1,12 +1,20 @@
-import { loginRequestSchema, setupRequestSchema, type User } from "@printrio/shared";
+import { randomBytes } from "node:crypto";
+import {
+  loginRequestSchema,
+  type SsoPublicDto,
+  setupRequestSchema,
+  ssoSettingsInputSchema,
+  type User,
+} from "@printrio/shared";
 import { count, sql } from "drizzle-orm";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { findApiKeyUser } from "../auth/api-keys.ts";
 import { getDummyHash, hashPassword, verifyPassword } from "../auth/password.ts";
 import { createSession, deleteSession, findSessionUser, SESSION_COOKIE } from "../auth/sessions.ts";
+import { type Sso, SsoError } from "../auth/sso.ts";
 import type { Database } from "../db/client.ts";
 import { users } from "../db/schema.ts";
-import { requireUser } from "./guards.ts";
+import { requireAdmin, requireUser } from "./guards.ts";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -17,9 +25,11 @@ declare module "fastify" {
 interface AuthOptions {
   db: Database;
   cookieSecure: boolean;
+  /** OpenID Connect sign-in (Business). */
+  sso?: Sso;
 }
 
-export function authRoutes(app: FastifyInstance, { db, cookieSecure }: AuthOptions) {
+export function authRoutes(app: FastifyInstance, { db, cookieSecure, sso }: AuthOptions) {
   app.decorateRequest("user", null);
 
   app.addHook("onRequest", async (request) => {
@@ -88,9 +98,13 @@ export function authRoutes(app: FastifyInstance, { db, cookieSecure }: AuthOptio
 
       const session = await createSession(db, user.id);
       setSessionCookie(reply, session.token, session.expiresAt);
+      // So the audit trail knows who signed in.
+      request.user = await findSessionUser(db, session.token);
       return { ok: true };
     },
   );
+
+  if (sso) ssoRoutes(app, db, sso, setSessionCookie);
 
   app.post("/api/auth/logout", async (request, reply) => {
     const token = request.cookies[SESSION_COOKIE];
@@ -100,4 +114,105 @@ export function authRoutes(app: FastifyInstance, { db, cookieSecure }: AuthOptio
   });
 
   app.get("/api/auth/me", { preHandler: requireUser }, async (request) => request.user);
+}
+
+/** OpenID Connect: public sign-in endpoints and the admin settings. */
+function ssoRoutes(
+  app: FastifyInstance,
+  db: Database,
+  sso: Sso,
+  setSessionCookie: (reply: FastifyReply, token: string, expires: Date) => unknown,
+) {
+  const origin = (request: { protocol: string; host: string }) =>
+    `${request.protocol}://${request.host}`;
+  const failed = (reply: FastifyReply, message: string) =>
+    reply.redirect(`/login?sso_error=${encodeURIComponent(message)}`);
+
+  app.get("/api/auth/sso", async (): Promise<SsoPublicDto> => {
+    const config = await sso.active();
+    return { enabled: Boolean(config), label: config?.label ?? "SSO" };
+  });
+
+  app.get(
+    "/api/auth/sso/start",
+    { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      try {
+        return reply.redirect(await sso.start(origin(request)));
+      } catch (error) {
+        return failed(reply, error instanceof SsoError ? error.message : "Single sign-on failed.");
+      }
+    },
+  );
+
+  app.get(
+    "/api/auth/sso/callback",
+    { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const query = request.query as {
+        code?: string;
+        state?: string;
+        error?: string;
+        error_description?: string;
+      };
+      if (query.error)
+        return failed(
+          reply,
+          query.error_description || "The identity provider refused the sign-in.",
+        );
+      if (!query.code || !query.state) return failed(reply, "The sign-in was not completed.");
+      try {
+        const identity = await sso.finish(query.code, query.state);
+        let [user] = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(sql`lower(${users.email}) = ${identity.email}`)
+          .limit(1);
+        if (!user) {
+          if (!identity.autoCreate)
+            return failed(
+              reply,
+              `There is no Printrio account for ${identity.email}. Ask an admin to add you.`,
+            );
+          // A random password: this account signs in through the identity provider.
+          const passwordHash = await hashPassword(randomBytes(32).toString("base64url"));
+          [user] = await db
+            .insert(users)
+            .values({
+              email: identity.email,
+              displayName: identity.name,
+              passwordHash,
+              role: "operator",
+            })
+            .returning({ id: users.id });
+        }
+        if (!user) return failed(reply, "The account could not be created.");
+        const session = await createSession(db, user.id);
+        setSessionCookie(reply, session.token, session.expiresAt);
+        request.user = await findSessionUser(db, session.token);
+        return reply.redirect("/");
+      } catch (error) {
+        if (error instanceof SsoError) return failed(reply, error.message);
+        throw error;
+      }
+    },
+  );
+
+  app.get("/api/settings/sso", { preHandler: requireAdmin }, async (request) =>
+    sso.dto(await sso.config(), origin(request)),
+  );
+
+  app.put("/api/settings/sso", { preHandler: requireAdmin }, async (request, reply) => {
+    const parsed = ssoSettingsInputSchema.safeParse(request.body);
+    if (!parsed.success)
+      return reply
+        .code(400)
+        .send({ error: parsed.error.issues[0]?.message ?? "Invalid settings." });
+    try {
+      return sso.dto(await sso.save(parsed.data), origin(request));
+    } catch (error) {
+      if (error instanceof SsoError) return reply.code(400).send({ error: error.message });
+      throw error;
+    }
+  });
 }

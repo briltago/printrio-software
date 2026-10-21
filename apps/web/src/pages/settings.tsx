@@ -15,6 +15,7 @@ import { createElement, type FC, type FormEvent, useRef, useState } from "react"
 import { Dialog, Field, FormError, OptionCards, PageHeader, Section } from "../components.tsx";
 import { LicenceSettings } from "../features/licence-settings.tsx";
 import { SlicerSettings } from "../features/slicer-settings.tsx";
+import { SsoSettings } from "../features/sso-settings.tsx";
 import { useT } from "../i18n/index.tsx";
 import { api } from "../lib/api.ts";
 import { useModules } from "../lib/modules.tsx";
@@ -30,16 +31,17 @@ export const SETTINGS_TABS = [
   "slicer",
   "groups",
   "users",
+  "sso",
   "licence",
 ] as const;
 export type SettingsTab = (typeof SETTINGS_TABS)[number];
-const ADMIN_TABS = new Set<string>(["general", "sidebar", "groups", "users", "licence"]);
+const ADMIN_TABS = new Set<string>(["general", "sidebar", "groups", "users", "sso", "licence"]);
 
 /** Built-in tabs grouped as in the settings navigation. */
 const GROUPS: { id: "workspace" | "printers" | "team" | "plan"; tabs: SettingsTab[] }[] = [
   { id: "workspace", tabs: ["general", "appearance", "sidebar"] },
   { id: "printers", tabs: ["groups", "slicer"] },
-  { id: "team", tabs: ["users"] },
+  { id: "team", tabs: ["users", "sso"] },
   { id: "plan", tabs: ["licence"] },
 ];
 
@@ -66,6 +68,7 @@ const ICON_PATHS: Record<SettingsTab | "module", string[]> = {
     "M22 21v-2a4 4 0 0 0-3-3.87",
     "M16 3.13a4 4 0 0 1 0 7.75",
   ],
+  sso: ["M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z", "m9 12 2 2 4-4"],
   licence: [
     "M7.5 15.5a4.5 4.5 0 1 0 0-9a4.5 4.5 0 0 0 0 9z",
     "M10.7 9.3 21 2",
@@ -184,6 +187,7 @@ export function SettingsPage() {
           {active === "appearance" && <AppearanceSettings />}
           {active === "groups" && <GroupSettings />}
           {active === "users" && <UserSettings />}
+          {active === "sso" && <SsoSettings />}
           {active === "slicer" && <SlicerSettings />}
           {active === "licence" && <LicenceSettings />}
           {moduleTab && createElement(moduleTab.component as FC)}

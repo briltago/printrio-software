@@ -1,4 +1,5 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type { SsoPublicDto } from "@printrio/shared";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import type { FormEvent } from "react";
 import { AuthCard, Field, FormError, SubmitButton } from "../components.tsx";
@@ -18,6 +19,10 @@ export function LoginPage() {
     },
   });
 
+  const sso = useQuery({ queryKey: ["sso"], queryFn: () => api<SsoPublicDto>("/api/auth/sso") });
+  // Back from the identity provider with a reason it did not work.
+  const ssoError = new URLSearchParams(window.location.search).get("sso_error");
+
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     login.mutate(Object.fromEntries(new FormData(event.currentTarget)));
@@ -25,6 +30,15 @@ export function LoginPage() {
 
   return (
     <AuthCard title={t("auth.signInTitle")} subtitle={t("auth.signInSubtitle")}>
+      {ssoError && <FormError error={new Error(ssoError)} />}
+      {sso.data?.enabled && (
+        <>
+          <a className="btn btn-primary mb-4 flex w-full justify-center" href="/api/auth/sso/start">
+            {t("auth.ssoButton", { label: sso.data.label })}
+          </a>
+          <p className="mb-4 text-center text-xs text-subtle">{t("auth.or")}</p>
+        </>
+      )}
       <form onSubmit={onSubmit}>
         <FormError error={login.error} />
         <Field label={t("auth.email")} name="email" type="email" autoComplete="email" />

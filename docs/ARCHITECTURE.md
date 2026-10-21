@@ -333,6 +333,12 @@ Implementation in the core (`apps/server/src/licensing/`):
 - Passwords hashed with Argon2id; server-side sessions in PostgreSQL, opaque
   token in an `HttpOnly`, `SameSite=Lax` cookie (`Secure` when served over HTTPS).
 - First-run setup creates the initial admin; setup is closed once a user exists.
+- Single sign-on (Business licence): OpenID Connect authorization code flow
+  with PKCE, `state` and `nonce`; the ID token is verified against the
+  provider's JWKS, issuer and client ID. Users are matched by verified e-mail,
+  optionally limited to allowed domains, and optionally auto-created as
+  operators. The client secret is stored encrypted like printer credentials.
+  Password sign-in stays available (admins can always get in).
 - All input validated with Zod; no secrets in source; config via environment.
 - Printer credentials (API keys) encrypted at rest (AES-256-GCM) with
   `APP_SECRET`, or a secret generated on first start in `DATA_DIR`

@@ -16,6 +16,7 @@ import {
 } from "@printrio/shared";
 import { eq } from "drizzle-orm";
 import Fastify from "fastify";
+import { Sso } from "./auth/sso.ts";
 import type { Config } from "./config.ts";
 import type { SecretBox } from "./crypto.ts";
 import type { Database } from "./db/client.ts";
@@ -189,7 +190,8 @@ export async function buildApp({
   });
 
   healthRoutes(app, db);
-  authRoutes(app, { db, cookieSecure: config.COOKIE_SECURE });
+  const sso = new Sso(db, secrets, () => licence.current()?.features.includes("business") === true);
+  authRoutes(app, { db, cookieSecure: config.COOKIE_SECURE, sso });
   settingsRoutes(app, db);
   userRoutes(app, db, limits);
   printerRoutes(app, {

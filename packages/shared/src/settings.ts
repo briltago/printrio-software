@@ -12,15 +12,41 @@ export const NAV_ITEM_IDS = ["printers", "jobs", "files", "filament", "costs", "
 export const navItemIdSchema = z.enum(NAV_ITEM_IDS);
 export type NavItemId = z.infer<typeof navItemIdSchema>;
 
-export const sidebarItemSchema = z.object({ id: navItemIdSchema, visible: z.boolean() });
+/** Categories the sidebar is divided into (headings can be turned off). */
+export const SIDEBAR_GROUPS = ["workshop", "production", "sales", "insights"] as const;
+export const sidebarGroupSchema = z.enum(SIDEBAR_GROUPS);
+export type SidebarGroup = z.infer<typeof sidebarGroupSchema>;
+
+/** Category of each core section unless the user moved it. */
+export const NAV_ITEM_GROUPS: Record<NavItemId, SidebarGroup> = {
+  printers: "workshop",
+  jobs: "workshop",
+  files: "workshop",
+  filament: "workshop",
+  orders: "production",
+  costs: "insights",
+};
+
+/** A module's sidebar entry is stored as "<module id>:<item id>", e.g. "pro:fleet". */
+export const MODULE_NAV_ID = /^[a-z0-9-]{1,40}:[a-z0-9-]{1,40}$/;
+
+export const sidebarItemSchema = z.object({
+  id: z.union([navItemIdSchema, z.string().regex(MODULE_NAV_ID)]),
+  visible: z.boolean(),
+  /** Missing in settings saved before categories existed: the default category applies. */
+  group: sidebarGroupSchema.optional(),
+});
 export type SidebarItem = z.infer<typeof sidebarItemSchema>;
 
 const sidebarSchema = z
   .array(sidebarItemSchema)
+  .max(80)
   .refine(
-    (items) =>
-      items.length === NAV_ITEM_IDS.length &&
-      new Set(items.map((item) => item.id)).size === NAV_ITEM_IDS.length,
+    (items) => new Set(items.map((item) => item.id)).size === items.length,
+    "The sidebar lists a section twice.",
+  )
+  .refine(
+    (items) => NAV_ITEM_IDS.every((id) => items.some((item) => item.id === id)),
     "The sidebar must list every section exactly once.",
   );
 
@@ -80,6 +106,8 @@ export const workspaceSettingsSchema = z.object({
   usageMode: usageModeSchema,
   defaultView: defaultViewSchema,
   sidebar: sidebarSchema,
+  /** Show category headings in the sidebar. */
+  sidebarGroups: z.boolean(),
   costs: costSettingsSchema,
   orderFolders: orderFolderSettingsSchema,
 });
@@ -94,7 +122,37 @@ export function sidebarPreset(mode: UsageMode): SidebarItem[] {
   return NAV_ITEM_IDS.map((id) => ({
     id,
     visible: mode === "farm" || !hiddenForSingle.has(id),
+    group: NAV_ITEM_GROUPS[id],
   }));
+}
+
+/** An entry a loaded module offers for the sidebar. */
+export interface ModuleSidebarEntry {
+  /** "<module id>:<item id>" */
+  id: string;
+  group?: SidebarGroup;
+}
+
+/**
+ * The sidebar to show: the saved order and choices, with every entry in a
+ * category, entries of modules that are not loaded left out, and new module
+ * entries added (visible) at the end of their category.
+ */
+export function resolveSidebar(saved: SidebarItem[], modules: ModuleSidebarEntry[]) {
+  const offered = new Map(modules.map((entry) => [entry.id, entry]));
+  const groupOf = (item: SidebarItem): SidebarGroup =>
+    item.group ??
+    (item.id in NAV_ITEM_GROUPS
+      ? NAV_ITEM_GROUPS[item.id as NavItemId]
+      : (offered.get(item.id)?.group ?? "production"));
+  const items = saved
+    .filter((item) => !MODULE_NAV_ID.test(item.id) || offered.has(item.id))
+    .map((item) => ({ ...item, group: groupOf(item) }));
+  for (const entry of modules)
+    if (!saved.some((item) => item.id === entry.id))
+      items.push({ id: entry.id, visible: true, group: entry.group ?? "production" });
+  // Categories in their fixed order, entries in saved order within each.
+  return SIDEBAR_GROUPS.flatMap((group) => items.filter((item) => item.group === group));
 }
 
 export const DEFAULT_SETTINGS: WorkspaceSettings = {
@@ -102,6 +160,7 @@ export const DEFAULT_SETTINGS: WorkspaceSettings = {
   usageMode: "single",
   defaultView: "auto",
   sidebar: sidebarPreset("single"),
+  sidebarGroups: true,
   costs: { currency: "EUR", electricityPrice: 0.25, defaultPowerWatts: 120 },
   orderFolders: { enabled: true, template: DEFAULT_ORDER_FOLDER_TEMPLATE },
 };

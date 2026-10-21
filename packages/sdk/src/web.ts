@@ -29,6 +29,8 @@ export interface WebNavItem {
   icon: string;
   /** Page path below /m/<module id>/, "" for the module's main page. */
   path: string;
+  /** Default sidebar category; users can move the entry in Settings → Sidebar. */
+  group?: "workshop" | "production" | "sales" | "insights";
 }
 
 export interface WebPage {

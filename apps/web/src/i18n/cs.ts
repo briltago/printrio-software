@@ -70,6 +70,12 @@ export const cs: Translation = {
     search: "Hledat…",
     openMenu: "Otevřít menu",
     closeMenu: "Zavřít menu",
+    groups: {
+      workshop: "Dílna",
+      production: "Výroba",
+      sales: "Obchod",
+      insights: "Přehledy",
+    },
   },
   backups: {
     title: "Zálohy",
@@ -294,11 +300,14 @@ export const cs: Translation = {
     defaultViewPrinterHint: "Otevřít stránku první tiskárny.",
     visibleCount: "Zobrazeno {count} z {total}",
     sidebarHint:
-      "Vyberte sekce postranního panelu a přetažením je seřaďte. Nastavení je vždy zobrazené.",
+      "Vyberte, které sekce se zobrazí v postranním panelu, rozdělte je do kategorií a přetažením seřaďte — včetně sekcí Pro a Business. Nastavení je zobrazené vždy.",
     moveUp: "Posunout {name} nahoru",
     moveDown: "Posunout {name} dolů",
     show: "Zobrazit {name}",
     resetSidebar: "Obnovit předvolbu",
+    showGroups: "Zobrazit nadpisy kategorií",
+    groupEmpty: "Přetáhněte sem sekci.",
+    groupOf: "Kategorie: {name}",
     theme: "Motiv",
     themeSystem: "Podle systému",
     themeSystemHint: "Řídí se světlým nebo tmavým režimem zařízení.",

@@ -1,4 +1,4 @@
-import type { NavItemId } from "@printrio/shared";
+import type { NavItemId, SidebarGroup } from "@printrio/shared";
 
 export const NAV_ROUTES: Record<NavItemId, string> = {
   printers: "/printers",
@@ -28,3 +28,17 @@ export const LIVE_SECTIONS = new Set<NavItemId>([
   "costs",
   "orders",
 ]);
+
+/** Categories for entries of modules that do not name one (older Pro and Business versions). */
+export const MODULE_NAV_GROUPS: Record<string, SidebarGroup> = {
+  "pro:fleet": "production",
+  "pro:production": "production",
+  "pro:customers": "sales",
+  "pro:stats": "insights",
+  "business:pipeline": "sales",
+  "business:crm": "sales",
+  "business:quotes": "sales",
+  "business:invoices": "sales",
+  "business:stock": "production",
+  "business:sites": "insights",
+};

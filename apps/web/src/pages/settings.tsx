@@ -1,11 +1,11 @@
 import {
   type CreateUser,
   type DefaultView,
-  type NavItemId,
   ORDER_FOLDER_VARIABLES,
   orderFolderTemplateSchema,
   renderFolderTemplate,
-  type SidebarItem,
+  SIDEBAR_GROUPS,
+  type SidebarGroup,
   sidebarPreset,
   type UsageMode,
 } from "@printrio/shared";
@@ -29,8 +29,8 @@ import { api } from "../lib/api.ts";
 import { useModules } from "../lib/modules.tsx";
 import { groupsQuery, settingsQuery, usersQuery, useUpdateSettings } from "../lib/queries.ts";
 import { meQuery } from "../lib/session.ts";
+import { type SidebarEntry, toSaved, useSidebar } from "../lib/sidebar.ts";
 import { setTheme, type ThemePreference, useTheme } from "../lib/theme.ts";
-import { NAV_ICONS } from "../nav.ts";
 
 export const SETTINGS_TABS = [
   "general",
@@ -486,16 +486,24 @@ function SidebarSettings() {
   const t = useT();
   const { data: settings } = useSuspenseQuery(settingsQuery);
   const update = useUpdateSettings();
-  const [dragging, setDragging] = useState<NavItemId | null>(null);
-  const items = settings.sidebar;
-  const save = (sidebar: SidebarItem[]) => update.mutate({ sidebar });
-  const move = (from: number, to: number) => {
-    if (to < 0 || to >= items.length || from === to) return;
-    const next = [...items];
-    const [item] = next.splice(from, 1);
-    if (item) next.splice(to, 0, item);
-    save(next);
+  const { entries, showGroups, saved } = useSidebar();
+  const [dragging, setDragging] = useState<string | null>(null);
+  const save = (next: SidebarEntry[]) => update.mutate({ sidebar: toSaved(next, saved) });
+  const change = (id: string, patch: Partial<SidebarEntry>) =>
+    save(entries.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry)));
+  /** Moves an entry before `target` (taking its category), or to the end of `group`. */
+  const place = (id: string, target: { before: string } | { group: SidebarGroup }) => {
+    const entry = entries.find((e) => e.id === id);
+    if (!entry || ("before" in target && target.before === id)) return;
+    const rest = entries.filter((e) => e.id !== id);
+    if ("before" in target) {
+      const index = rest.findIndex((e) => e.id === target.before);
+      const group = rest[index]?.group ?? entry.group;
+      rest.splice(index, 0, { ...entry, group });
+    } else rest.push({ ...entry, group: target.group });
+    save(rest);
   };
+  const moduleName = (id: string) => (id === "pro" ? "Pro" : id === "business" ? "Business" : id);
 
   return (
     <Section
@@ -505,84 +513,137 @@ function SidebarSettings() {
         <button
           type="button"
           className="btn btn-secondary btn-sm"
-          onClick={() => save(sidebarPreset(settings.usageMode))}
+          onClick={() =>
+            update.mutate({ sidebar: sidebarPreset(settings.usageMode), sidebarGroups: true })
+          }
         >
           {t("settings.resetSidebar")}
         </button>
       }
     >
       <FormError error={update.error} />
+      <label className="mb-4 flex items-center gap-3 text-sm">
+        <input
+          type="checkbox"
+          className="accent-accent"
+          checked={showGroups}
+          onChange={(event) => update.mutate({ sidebarGroups: event.target.checked })}
+        />
+        {t("settings.showGroups")}
+      </label>
       <p className="mb-3 text-xs text-subtle">
         {t("settings.visibleCount", {
-          count: items.filter((item) => item.visible).length,
-          total: items.length,
+          count: entries.filter((entry) => entry.visible).length,
+          total: entries.length,
         })}
       </p>
-      <ol className="grid gap-2">
-        {items.map((item, index) => {
-          const name = t(`nav.${item.id}`);
+      <div className="grid gap-5">
+        {SIDEBAR_GROUPS.map((group) => {
+          const items = entries.filter((entry) => entry.group === group);
           return (
-            <li
-              key={item.id}
-              draggable
-              onDragStart={() => setDragging(item.id)}
-              onDragEnd={() => setDragging(null)}
+            <section
+              key={group}
+              aria-label={t(`nav.groups.${group}`)}
               onDragOver={(event) => event.preventDefault()}
-              onDrop={() =>
-                dragging &&
-                move(
-                  items.findIndex((i) => i.id === dragging),
-                  index,
-                )
-              }
-              className={`flex items-center gap-3 rounded-[10px] border px-3 py-2 transition-colors ${
-                item.visible ? "border-line bg-surface-2" : "border-dashed border-line"
-              } ${dragging === item.id ? "opacity-50" : ""}`}
+              onDrop={() => dragging && items.length === 0 && place(dragging, { group })}
             >
-              <span aria-hidden="true" className="cursor-grab text-subtle select-none">
-                ⠿
-              </span>
-              <label className="flex flex-1 items-center gap-3 text-sm">
-                <input
-                  type="checkbox"
-                  checked={item.visible}
-                  onChange={(event) =>
-                    save(
-                      items.map((i) =>
-                        i.id === item.id ? { ...i, visible: event.target.checked } : i,
-                      ),
-                    )
-                  }
-                  aria-label={t("settings.show", { name })}
-                  className="accent-accent"
-                />
-                <span aria-hidden="true" className="w-4 text-center text-subtle">
-                  {NAV_ICONS[item.id]}
-                </span>
-                <span className={item.visible ? "" : "text-subtle line-through"}>{name}</span>
-              </label>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm px-2"
-                disabled={index === 0}
-                onClick={() => move(index, index - 1)}
-                aria-label={t("settings.moveUp", { name })}
-              >
-                ↑
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm px-2"
-                disabled={index === items.length - 1}
-                onClick={() => move(index, index + 1)}
-                aria-label={t("settings.moveDown", { name })}
-              >
-                ↓
-              </button>
-            </li>
+              <h3 className="mb-2 text-[11px] font-semibold tracking-wider text-subtle uppercase">
+                {t(`nav.groups.${group}`)}
+              </h3>
+              {items.length === 0 && (
+                <p className="rounded-[10px] border border-dashed border-line px-3 py-2 text-xs text-subtle">
+                  {t("settings.groupEmpty")}
+                </p>
+              )}
+              <ol className="grid gap-2">
+                {items.map((entry, index) => (
+                  <li
+                    key={entry.id}
+                    draggable
+                    onDragStart={() => setDragging(entry.id)}
+                    onDragEnd={() => setDragging(null)}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={(event) => {
+                      event.stopPropagation();
+                      if (dragging) place(dragging, { before: entry.id });
+                    }}
+                    className={`flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[10px] border px-3 py-2 transition-colors ${
+                      entry.visible ? "border-line bg-surface-2" : "border-dashed border-line"
+                    } ${dragging === entry.id ? "opacity-50" : ""}`}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="cursor-grab text-subtle select-none max-sm:hidden"
+                    >
+                      ⠿
+                    </span>
+                    <label className="flex min-w-0 flex-1 items-center gap-3 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={entry.visible}
+                        onChange={(event) => change(entry.id, { visible: event.target.checked })}
+                        aria-label={t("settings.show", { name: entry.label })}
+                        className="accent-accent"
+                      />
+                      <span aria-hidden="true" className="w-4 text-center text-subtle">
+                        {entry.icon}
+                      </span>
+                      <span
+                        className={`truncate ${entry.visible ? "" : "text-subtle line-through"}`}
+                      >
+                        {entry.label}
+                      </span>
+                      {entry.moduleId && (
+                        <span className="rounded-full border border-line px-1.5 text-[10px] text-subtle">
+                          {moduleName(entry.moduleId)}
+                        </span>
+                      )}
+                    </label>
+                    <select
+                      className="input w-auto py-1 text-xs"
+                      value={entry.group}
+                      aria-label={t("settings.groupOf", { name: entry.label })}
+                      onChange={(event) =>
+                        place(entry.id, { group: event.target.value as SidebarGroup })
+                      }
+                    >
+                      {SIDEBAR_GROUPS.map((option) => (
+                        <option key={option} value={option}>
+                          {t(`nav.groups.${option}`)}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm px-2"
+                      disabled={index === 0}
+                      onClick={() => {
+                        const previous = items[index - 1];
+                        if (previous) place(entry.id, { before: previous.id });
+                      }}
+                      aria-label={t("settings.moveUp", { name: entry.label })}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm px-2"
+                      disabled={index === items.length - 1}
+                      onClick={() => {
+                        const next = items[index + 1];
+                        if (next) place(next.id, { before: entry.id });
+                      }}
+                      aria-label={t("settings.moveDown", { name: entry.label })}
+                    >
+                      ↓
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            </section>
           );
         })}
-      </ol>
+      </div>
     </Section>
   );
 }

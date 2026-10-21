@@ -1,3 +1,4 @@
+import { type NavItemId, SIDEBAR_GROUPS } from "@printrio/shared";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
@@ -7,12 +8,13 @@ import { PrinterForm } from "./features/printer-form.tsx";
 import { UpdateBanner } from "./features/updates.tsx";
 import { useT } from "./i18n/index.tsx";
 import { api } from "./lib/api.ts";
-import { ModulesProvider, useModules } from "./lib/modules.tsx";
+import { ModulesProvider } from "./lib/modules.tsx";
 import { settingsQuery } from "./lib/queries.ts";
 import { useRealtime } from "./lib/realtime.ts";
 import { meQuery } from "./lib/session.ts";
+import { type SidebarEntry, useSidebar } from "./lib/sidebar.ts";
 import { nextTheme, setTheme, useTheme } from "./lib/theme.ts";
-import { LIVE_SECTIONS, NAV_ICONS, NAV_ROUTES } from "./nav.ts";
+import { LIVE_SECTIONS, NAV_ICONS } from "./nav.ts";
 
 const navLinkClass =
   "flex items-center gap-3 rounded-lg border border-transparent px-3 py-2.5 text-[15px] whitespace-nowrap text-muted hover:text-text md:py-2 md:text-sm";
@@ -26,22 +28,56 @@ export function AppLayout() {
   );
 }
 
-/** Sidebar entries added by modules (Pro, Business). */
-function ModuleNavLinks() {
-  const { navItems } = useModules();
-  return navItems.map((item) => (
+function NavEntry({ entry }: { entry: SidebarEntry }) {
+  const t = useT();
+  const content = (
+    <>
+      <span aria-hidden="true">{entry.icon}</span>
+      {entry.label}
+      {!entry.moduleId && !LIVE_SECTIONS.has(entry.id as NavItemId) && (
+        <span className="ml-auto rounded-full border border-line px-1.5 text-[9px] tracking-wide text-subtle uppercase">
+          {t("common.soon")}
+        </span>
+      )}
+    </>
+  );
+  return "to" in entry.link ? (
+    <Link to={entry.link.to} className={navLinkClass} activeProps={activeLinkProps}>
+      {content}
+    </Link>
+  ) : (
     <Link
-      key={`${item.moduleId}:${item.id}`}
       to="/m/$moduleId/$"
-      params={{ moduleId: item.moduleId, _splat: item.path }}
+      params={{ moduleId: entry.link.moduleId, _splat: entry.link.path }}
       className={navLinkClass}
       activeProps={activeLinkProps}
       activeOptions={{ exact: true }}
     >
-      <span aria-hidden="true">{item.icon}</span>
-      {item.label}
+      {content}
     </Link>
-  ));
+  );
+}
+
+/** Core and module sections, by category (Settings → Sidebar). */
+function NavEntries() {
+  const t = useT();
+  const { entries, showGroups } = useSidebar();
+  const visible = entries.filter((entry) => entry.visible);
+  if (!showGroups) return visible.map((entry) => <NavEntry key={entry.id} entry={entry} />);
+  return SIDEBAR_GROUPS.map((group) => {
+    const items = visible.filter((entry) => entry.group === group);
+    if (items.length === 0) return null;
+    return (
+      <div key={group} className="flex flex-col gap-1 [&+&]:mt-3">
+        <p className="px-3 pb-1 text-[11px] font-semibold tracking-wider text-subtle uppercase">
+          {t(`nav.groups.${group}`)}
+        </p>
+        {items.map((entry) => (
+          <NavEntry key={entry.id} entry={entry} />
+        ))}
+      </div>
+    );
+  });
 }
 
 /** Half-filled circle: the universal light/dark toggle glyph. */
@@ -199,25 +235,7 @@ function AppShell() {
           <kbd className="rounded border border-line px-1.5 text-[10px]">{t("palette.hint")}</kbd>
         </button>
         <nav aria-label={t("nav.main")} className="mt-5 flex flex-1 flex-col gap-1">
-          {settings.sidebar
-            .filter((item) => item.visible)
-            .map((item) => (
-              <Link
-                key={item.id}
-                to={NAV_ROUTES[item.id]}
-                className={navLinkClass}
-                activeProps={activeLinkProps}
-              >
-                <span aria-hidden="true">{NAV_ICONS[item.id]}</span>
-                {t(`nav.${item.id}`)}
-                {!LIVE_SECTIONS.has(item.id) && (
-                  <span className="ml-auto rounded-full border border-line px-1.5 text-[9px] tracking-wide text-subtle uppercase">
-                    {t("common.soon")}
-                  </span>
-                )}
-              </Link>
-            ))}
-          <ModuleNavLinks />
+          <NavEntries />
           <Link to="/settings" className={`${navLinkClass} mt-auto`} activeProps={activeLinkProps}>
             <span aria-hidden="true">{NAV_ICONS.settings}</span>
             {t("nav.settings")}

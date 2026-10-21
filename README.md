@@ -19,7 +19,7 @@ Website and documentation: **[printrio.app](https://printrio.app)** ·
   and Cura (OctoPrint-compatible endpoint).
 - **Filament**: per-spool inventory with material, colour and remaining weight;
   import from Spoolman.
-- **Jobs and costs**: print history with filament, energy and machine cost.
+- **Jobs and costs**: print history with filament use and material and energy cost.
 - **Orders and queues**: simple orders with their own folder, per-printer
   queues.
 - **Team**: administrator and operator accounts.

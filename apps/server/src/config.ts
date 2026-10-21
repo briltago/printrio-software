@@ -23,6 +23,11 @@ const configSchema = z.object({
   /** printrio-licensing base URL (leases are verified with pinned keys either way). */
   LICENSING_URL: z.url().optional(),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
+  /** Look for new Printrio releases on GitHub (only the version is read; nothing is sent). */
+  UPDATE_CHECK: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((value) => value === "true"),
 });
 
 export type Config = z.infer<typeof configSchema>;

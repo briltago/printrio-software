@@ -1,4 +1,4 @@
-import { gcodeDirectorySchema } from "@printrio/shared";
+import { gcodeDirectorySchema, type Permission } from "@printrio/shared";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { findApiKeyUser } from "../auth/api-keys.ts";
@@ -29,7 +29,14 @@ export function octoprintRoutes(
   printerExists: (printerId: string) => Promise<boolean>,
   isWithinLimit: (printerId: string) => Promise<boolean>,
   onQueueChange: () => void,
+  /** Custom roles (Business): whether the key's user may do this. */
+  authorize: (
+    user: { id: string; role: "admin" | "operator" },
+    permission: Permission,
+  ) => Promise<boolean>,
 ) {
+  const allowed = async (request: FastifyRequest, permission: Permission) =>
+    !request.user || request.user.role === "admin" || (await authorize(request.user, permission));
   const authenticate = async (request: FastifyRequest, reply: FastifyReply) => {
     const header = request.headers["x-api-key"];
     const query = (request.query as { apikey?: string } | undefined)?.apikey;
@@ -67,6 +74,8 @@ export function octoprintRoutes(
     async (request, reply) => {
       const destination = await target(request, reply);
       if (!destination) return;
+      if (!(await allowed(request, "files.manage")))
+        return reply.code(403).send({ error: "Your role does not allow uploading G-code." });
       const upload = await request.file();
       if (!upload) return reply.code(400).send({ error: "No file." });
       if (!GCODE_FILE.test(upload.filename) || upload.filename.toLowerCase().endsWith(".ufp")) {
@@ -91,6 +100,10 @@ export function octoprintRoutes(
       let printing = false;
       if (destination !== "library") {
         const wantsPrint = field("print") === "true";
+        if (wantsPrint && !(await allowed(request, "queue.manage")))
+          return reply.code(403).send({
+            error: "Your role does not allow starting prints; the file was saved to the library.",
+          });
         const ready =
           manager.getStatus(destination).state === "idle" && (await isWithinLimit(destination));
         try {

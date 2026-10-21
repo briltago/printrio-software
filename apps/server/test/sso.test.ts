@@ -103,7 +103,12 @@ describe("single sign-on (OpenID Connect)", () => {
       "https://farm.example.com/api/auth/sso/callback",
     );
     expect(url.searchParams.get("code_challenge_method")).toBe("S256");
-    expect(await result).toEqual({ email: "eva@example.com", name: "Eva Nová", autoCreate: true });
+    expect(await result).toEqual({
+      email: "eva@example.com",
+      name: "Eva Nová",
+      autoCreate: true,
+      emailVerified: true,
+    });
     const sent = new URLSearchParams(provider.state.lastTokenRequest);
     expect(sent.get("code_verifier")).toBeTruthy();
     expect(sent.get("client_secret")).toBe("s3cret");
@@ -172,5 +177,12 @@ describe("single sign-on (OpenID Connect)", () => {
     const start = await ctx.app.inject({ method: "GET", url: "/api/auth/sso/start" });
     expect(start.statusCode).toBe(302);
     expect(start.headers.location).toContain("/login?sso_error=");
+    // A callback without this browser's state cookie (e.g. a link from someone else's flow) is refused.
+    const callback = await ctx.app.inject({
+      method: "GET",
+      url: "/api/auth/sso/callback?code=c&state=s",
+    });
+    expect(callback.statusCode).toBe(302);
+    expect(decodeURIComponent(callback.headers.location ?? "")).toContain("another browser");
   });
 });

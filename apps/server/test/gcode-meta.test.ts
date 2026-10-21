@@ -78,4 +78,11 @@ describe("parseGcodeMeta", () => {
       thumbnail: null,
     });
   });
+
+  it("stays fast on files full of unterminated thumbnail blocks", () => {
+    const head = "; thumbnail begin 1x1 1\n".repeat(40_000);
+    const started = performance.now();
+    expect(parseGcodeMeta(head, "").thumbnail).toBeNull();
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
 });

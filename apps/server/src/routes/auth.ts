@@ -117,6 +117,8 @@ export function authRoutes(app: FastifyInstance, { db, cookieSecure, sso }: Auth
 }
 
 /** OpenID Connect: public sign-in endpoints and the admin settings. */
+const SSO_STATE_COOKIE = "printrio_sso_state";
+
 function ssoRoutes(
   app: FastifyInstance,
   db: Database,
@@ -138,7 +140,16 @@ function ssoRoutes(
     { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } },
     async (request, reply) => {
       try {
-        return reply.redirect(await sso.start(origin(request)));
+        const target = await sso.start(origin(request));
+        // Bind the flow to this browser, so a callback link from someone else's flow is refused.
+        reply.setCookie(SSO_STATE_COOKIE, new URL(target).searchParams.get("state") ?? "", {
+          path: "/api/auth/sso",
+          httpOnly: true,
+          sameSite: "lax",
+          secure: request.protocol === "https",
+          maxAge: 600,
+        });
+        return reply.redirect(target);
       } catch (error) {
         return failed(reply, error instanceof SsoError ? error.message : "Single sign-on failed.");
       }
@@ -161,13 +172,23 @@ function ssoRoutes(
           query.error_description || "The identity provider refused the sign-in.",
         );
       if (!query.code || !query.state) return failed(reply, "The sign-in was not completed.");
+      const expectedState = request.cookies[SSO_STATE_COOKIE];
+      reply.clearCookie(SSO_STATE_COOKIE, { path: "/api/auth/sso" });
+      if (!expectedState || expectedState !== query.state)
+        return failed(reply, "The sign-in was started in another browser. Please try again.");
       try {
         const identity = await sso.finish(query.code, query.state);
         let [user] = await db
-          .select({ id: users.id })
+          .select({ id: users.id, role: users.role })
           .from(users)
           .where(sql`lower(${users.email}) = ${identity.email}`)
           .limit(1);
+        // Administrators are only matched by an address the provider confirms (email_verified).
+        if (user?.role === "admin" && !identity.emailVerified)
+          return failed(
+            reply,
+            "Your identity provider does not confirm this e-mail address, so administrators sign in with their password.",
+          );
         if (!user) {
           if (!identity.autoCreate)
             return failed(
@@ -184,7 +205,7 @@ function ssoRoutes(
               passwordHash,
               role: "operator",
             })
-            .returning({ id: users.id });
+            .returning({ id: users.id, role: users.role });
         }
         if (!user) return failed(reply, "The account could not be created.");
         const session = await createSession(db, user.id);

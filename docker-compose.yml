@@ -17,6 +17,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: printrio
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      # Behind a reverse proxy on the same Docker network/host, e.g. 1 or 172.16.0.0/12.
+      TRUST_PROXY: ${TRUST_PROXY:-false}
       # Printrio listens inside the container on the same port it is published on.
       PORT: ${PRINTRIO_PORT:-3000}
     volumes:

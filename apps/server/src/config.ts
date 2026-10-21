@@ -22,6 +22,24 @@ const configSchema = z.object({
   DATA_DIR: z.string().default("./data"),
   /** printrio-licensing base URL (leases are verified with pinned keys either way). */
   LICENSING_URL: z.url().optional(),
+  /**
+   * Which proxies may set X-Forwarded-For (client IP for rate limits and the
+   * audit log): "false" (default, the direct peer), "true" (any — only when
+   * the port is reachable solely through the proxy), a hop count such as "1",
+   * or addresses/CIDRs such as "172.16.0.0/12".
+   */
+  TRUST_PROXY: z
+    .string()
+    .default("false")
+    .transform((value): boolean | number | string =>
+      value === "true"
+        ? true
+        : value === "false" || value === ""
+          ? false
+          : /^\d+$/.test(value)
+            ? Number(value)
+            : value,
+    ),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
   /** Look for new Printrio releases on GitHub (only the version is read; nothing is sent). */
   UPDATE_CHECK: z

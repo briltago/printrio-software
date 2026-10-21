@@ -13,9 +13,7 @@ describe("permissionFor", () => {
     expect(permissionFor("PATCH", "/api/printers/:id")).toBe("printers.manage");
     expect(permissionFor("PUT", "/api/printers/:id/config/file")).toBe("printers.manage");
     expect(permissionFor("POST", "/api/library/send")).toBe("files.manage");
-    expect(permissionFor("POST", "/api/modules/*", "/api/modules/business/quotes")).toBe(
-      "module.business",
-    );
+    expect(permissionFor("POST", "/api/modules/:id/*", "business")).toBe("module.business");
     expect(permissionFor("PATCH", "/api/settings")).toBeNull(); // admin-only anyway
   });
 });

@@ -28,7 +28,7 @@ export function MaintenancePage() {
 
   if (!printer || !active) {
     return (
-      <main className="mx-auto max-w-6xl p-6 md:p-8">
+      <main className="mx-auto max-w-6xl px-4 py-5 sm:p-6 md:p-8">
         <EmptyState
           title={printer ? t("maintenance.adminOnly") : "Printer not found"}
           text={printer ? t("maintenance.adminOnlyText") : "It may have been removed."}
@@ -46,11 +46,11 @@ export function MaintenancePage() {
   const busy = printer.status.state === "printing" || printer.status.state === "paused";
 
   return (
-    <main className="mx-auto max-w-6xl p-6 md:p-8">
+    <main className="mx-auto max-w-6xl px-4 py-5 sm:p-6 md:p-8">
       <Link
         to="/printers/$printerId"
         params={{ printerId }}
-        className="mb-3 inline-block text-sm text-muted hover:text-text"
+        className="mb-1 inline-flex min-h-11 items-center text-sm text-muted hover:text-text md:mb-3 md:min-h-0"
       >
         ← {printer.name}
       </Link>

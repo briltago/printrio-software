@@ -65,6 +65,8 @@ export const en = {
     orders: "Orders",
     settings: "Settings",
     search: "Search…",
+    openMenu: "Open menu",
+    closeMenu: "Close menu",
   },
   onboarding: {
     step: "Step {current} of {total}",

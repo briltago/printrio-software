@@ -14,7 +14,7 @@ export function ModulePage() {
   );
   if (page) return createElement(page.component as FC);
   return (
-    <main className="mx-auto max-w-4xl p-6 md:p-8">
+    <main className="mx-auto max-w-4xl px-4 py-5 sm:p-6 md:p-8">
       {loading ? (
         <p className="text-sm text-muted">{t("common.loading")}</p>
       ) : (

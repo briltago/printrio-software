@@ -20,6 +20,10 @@ export function applyTheme(preference = read()) {
   const effective = preference === "system" ? (media().matches ? "light" : "dark") : preference;
   document.documentElement.dataset.theme = effective;
   document.documentElement.style.colorScheme = effective;
+  // Status bar / browser chrome colour on phones follows the theme.
+  document
+    .querySelector('meta[name="theme-color"]')
+    ?.setAttribute("content", effective === "light" ? "#efebf6" : "#0d0a14");
 }
 
 export function setTheme(preference: ThemePreference) {

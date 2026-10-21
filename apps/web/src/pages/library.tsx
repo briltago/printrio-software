@@ -119,7 +119,7 @@ export function LibraryPage() {
   const empty = listing.data && files.length === 0 && directories.length === 0;
 
   return (
-    <main className="mx-auto max-w-6xl p-6 md:p-8">
+    <main className="mx-auto max-w-6xl px-4 py-5 sm:p-6 md:p-8">
       <PageHeader
         title={t("nav.files")}
         subtitle={t("library.subtitle")}

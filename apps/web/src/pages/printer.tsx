@@ -61,7 +61,7 @@ export function PrinterPage() {
 
   if (!printer) {
     return (
-      <main className="mx-auto max-w-6xl p-6 md:p-8">
+      <main className="mx-auto max-w-6xl px-4 py-5 sm:p-6 md:p-8">
         <EmptyState
           title="Printer not found"
           text="It may have been removed."
@@ -85,9 +85,12 @@ export function PrinterPage() {
   const group = groupData?.groups.find((g) => g.id === printer.groupId)?.name;
 
   return (
-    <main className="mx-auto max-w-6xl p-6 md:p-8">
+    <main className="mx-auto max-w-6xl px-4 py-5 sm:p-6 md:p-8">
       {data.printers.length > 1 && (
-        <Link to="/printers" className="mb-3 inline-block text-sm text-muted hover:text-text">
+        <Link
+          to="/printers"
+          className="mb-1 inline-flex min-h-11 items-center text-sm text-muted hover:text-text md:mb-3 md:min-h-0"
+        >
           ← {t("printer.allPrinters")}
         </Link>
       )}

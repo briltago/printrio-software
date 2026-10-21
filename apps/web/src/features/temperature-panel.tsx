@@ -65,7 +65,7 @@ export function TemperaturePanel({
               type="button"
               aria-pressed={option.id === range.id}
               onClick={() => setRangeId(option.id)}
-              className={`rounded-[7px] px-2 py-0.5 text-[11px] font-semibold ${option.id === range.id ? "bg-accent/15 text-text" : "text-muted hover:text-text"}`}
+              className={`tap rounded-[7px] px-2 py-0.5 text-[11px] font-semibold ${option.id === range.id ? "bg-accent/15 text-text" : "text-muted hover:text-text"}`}
             >
               {option.label}
             </button>

@@ -10,7 +10,7 @@ import {
   type UsageMode,
 } from "@printrio/shared";
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
-import { Link, useSearch } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { createElement, type FC, type FormEvent, useRef, useState } from "react";
 import { Dialog, Field, FormError, OptionCards, PageHeader, Section } from "../components.tsx";
 import { LicenceSettings } from "../features/licence-settings.tsx";
@@ -138,21 +138,40 @@ export function SettingsPage() {
   const active = items.some((entry) => entry.id === tab) ? tab : "appearance";
   const current = items.find((entry) => entry.id === active);
   const moduleTab = settingsTabs.find((entry) => `${entry.moduleId}:${entry.id}` === active);
+  const navigate = useNavigate();
   const description = moduleTab
     ? t("settings.descriptions.module", { module: moduleName(moduleTab.moduleId) })
     : t(`settings.descriptions.${active as SettingsTab}`);
 
   return (
-    <main className="mx-auto max-w-6xl p-6 md:p-8">
+    <main className="mx-auto max-w-6xl px-4 py-5 sm:p-6 md:p-8">
       <PageHeader title={t("settings.title")} />
       {!isAdmin && <p className="mt-2 text-sm text-muted">{t("settings.adminOnly")}</p>}
       <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-[210px_minmax(0,1fr)] md:gap-8">
         <nav aria-label={t("settings.sectionsLabel")} className="min-w-0">
-          {/* Mobile: one scrollable row. Desktop: grouped list that stays in view. */}
-          <div className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 md:sticky md:top-6 md:mx-0 md:grid md:gap-5 md:overflow-visible md:px-0">
+          {/* Phones: every section in one native picker. Desktop: grouped list that stays in view. */}
+          <select
+            className="input md:hidden"
+            aria-label={t("settings.sectionsLabel")}
+            value={active}
+            onChange={(event) =>
+              void navigate({ to: "/settings", search: { tab: event.target.value } })
+            }
+          >
             {groups.map((group) => (
-              <div key={group.label} className="contents md:grid md:gap-0.5">
-                <p className="hidden px-3 pb-1 text-[11px] font-semibold tracking-wider text-subtle uppercase md:block">
+              <optgroup key={group.label} label={group.label}>
+                {group.items.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+          <div className="hidden md:sticky md:top-6 md:grid md:gap-5">
+            {groups.map((group) => (
+              <div key={group.label} className="grid gap-0.5">
+                <p className="px-3 pb-1 text-[11px] font-semibold tracking-wider text-subtle uppercase">
                   {group.label}
                 </p>
                 {group.items.map((item) => (
@@ -408,7 +427,7 @@ function OrderFolderSection() {
               type="button"
               disabled={!enabled}
               onClick={() => insert(name)}
-              className="rounded-full border border-line px-2 py-0.5 font-mono text-xs text-muted hover:border-accent hover:text-text disabled:opacity-50"
+              className="tap rounded-full border border-line px-2.5 py-0.5 font-mono text-xs text-muted hover:border-accent hover:text-text disabled:opacity-50"
               title={t(`settings.placeholders.${name}`)}
             >
               {`{${name}}`}
@@ -775,7 +794,7 @@ function UserSettings() {
             >
               {initials(user.displayName)}
             </span>
-            <div className="min-w-0 flex-1">
+            <div className="min-w-40 flex-1">
               <p className="truncate text-sm font-semibold">
                 {user.displayName}{" "}
                 {user.id === me?.id && (

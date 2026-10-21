@@ -68,7 +68,7 @@ export function BedMeshPanel({
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
       <section className="card min-w-0 p-5" aria-label={t("mesh.title")}>
         <div className="flex flex-wrap items-center gap-3">
-          <div className="min-w-0 flex-1">
+          <div className="min-w-40 flex-1">
             <h2 className="text-sm font-semibold">{t("mesh.title")}</h2>
             <p className="text-xs text-subtle">
               {data.activeProfile
@@ -223,7 +223,7 @@ function Segmented<T extends string>({
           key={id}
           type="button"
           aria-pressed={value === id}
-          className={`rounded-[8px] px-2.5 py-1 text-xs ${
+          className={`tap rounded-[8px] px-2.5 py-1 text-xs ${
             value === id ? "bg-surface-2 font-semibold text-text" : "text-muted hover:text-text"
           }`}
           onClick={() => onChange(id)}

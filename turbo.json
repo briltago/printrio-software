@@ -3,7 +3,8 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**"]
+      "outputs": ["dist/**"],
+      "env": ["PRINTRIO_VERSION"]
     },
     "typecheck": {
       "dependsOn": ["^build"]

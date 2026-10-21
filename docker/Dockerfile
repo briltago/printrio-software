@@ -6,13 +6,22 @@ RUN corepack enable
 WORKDIR /repo
 
 FROM base AS build
+# Release version (from the git tag in CI); package.json otherwise.
+ARG PRINTRIO_VERSION=""
 COPY . .
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
-RUN pnpm build
+RUN PRINTRIO_VERSION="$PRINTRIO_VERSION" pnpm build
 # Runtime dependencies of the server only; workspace packages are bundled into dist/.
 RUN pnpm --filter @printrio/server deploy --legacy --prod /out
 
 FROM node:22-alpine AS runtime
+ARG PRINTRIO_VERSION=""
+LABEL org.opencontainers.image.title="Printrio" \
+      org.opencontainers.image.description="Self-hosted control centre for 3D printing" \
+      org.opencontainers.image.source="https://github.com/briltago/printrio-software" \
+      org.opencontainers.image.url="https://printrio.app" \
+      org.opencontainers.image.licenses="AGPL-3.0-only" \
+      org.opencontainers.image.version="${PRINTRIO_VERSION}"
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000 \

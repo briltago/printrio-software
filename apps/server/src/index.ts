@@ -5,6 +5,7 @@ import { resolveAppSecret, SecretBox } from "./crypto.ts";
 import { createDatabase, runMigrations } from "./db/client.ts";
 import { PrinterManager } from "./printers/manager.ts";
 import { connectStoredPrinters } from "./routes/printers.ts";
+import { VERSION } from "./version.ts";
 
 const config = loadConfig();
 const { db, close } = createDatabase(config.DATABASE_URL);
@@ -31,3 +32,4 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 }
 
 await app.listen({ host: config.HOST, port: config.PORT });
+app.log.info(`Printrio ${VERSION} ready`);

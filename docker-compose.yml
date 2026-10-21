@@ -10,7 +10,11 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://printrio:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/printrio
+      # The server builds the database URL itself, so the password may contain any character.
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: printrio
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: printrio
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       # Printrio listens inside the container on the same port it is published on.
       PORT: ${PRINTRIO_PORT:-3000}

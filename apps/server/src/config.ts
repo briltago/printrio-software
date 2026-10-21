@@ -4,7 +4,9 @@ const configSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   HOST: z.string().default("0.0.0.0"),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
-  DATABASE_URL: z.url(),
+  DATABASE_URL: z.url(
+    "Invalid URL. Special characters in the password (@ : / ? # % …) must be percent-encoded — or set POSTGRES_PASSWORD (and POSTGRES_HOST, …) instead of DATABASE_URL.",
+  ),
   /** Directory with the built web UI. Served with SPA fallback when set. */
   WEB_DIR: z.string().optional(),
   /** Set the Secure flag on cookies. Enable when served over HTTPS. */
@@ -25,8 +27,23 @@ const configSchema = z.object({
 
 export type Config = z.infer<typeof configSchema>;
 
+/**
+ * DATABASE_URL, or one built from POSTGRES_HOST / POSTGRES_PORT / POSTGRES_USER /
+ * POSTGRES_PASSWORD / POSTGRES_DB with the user and password percent-encoded, so
+ * a password may contain any character (Docker Compose sets these).
+ */
+export function databaseUrl(env: NodeJS.ProcessEnv): string | undefined {
+  if (env.DATABASE_URL) return env.DATABASE_URL;
+  if (!env.POSTGRES_HOST || env.POSTGRES_PASSWORD === undefined) return undefined;
+  const user = encodeURIComponent(env.POSTGRES_USER || "printrio");
+  const password = encodeURIComponent(env.POSTGRES_PASSWORD);
+  const port = env.POSTGRES_PORT || "5432";
+  const database = encodeURIComponent(env.POSTGRES_DB || "printrio");
+  return `postgres://${user}:${password}@${env.POSTGRES_HOST}:${port}/${database}`;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
-  const result = configSchema.safeParse(env);
+  const result = configSchema.safeParse({ ...env, DATABASE_URL: databaseUrl(env) });
   if (!result.success) {
     const issues = result.error.issues.map((i) => `  ${i.path.join(".")}: ${i.message}`).join("\n");
     throw new Error(`Invalid configuration:\n${issues}`);

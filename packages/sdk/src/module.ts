@@ -1,4 +1,11 @@
-import type { JobRecordDto, Lease, OrderDto, PrinterStatusDto, Tier } from "@printrio/shared";
+import type {
+  JobRecordDto,
+  Lease,
+  OrderDto,
+  Permission,
+  PrinterStatusDto,
+  Tier,
+} from "@printrio/shared";
 import type { PrinterDriverFactory } from "./driver.ts";
 
 /**
@@ -65,6 +72,20 @@ export interface ModuleEvents {
   "order.created": { order: OrderDto };
   "order.updated": { order: OrderDto };
   "order.deleted": { order: OrderDto };
+  /** A request that changed something (POST/PUT/PATCH/DELETE under /api), after the response. No bodies. */
+  "request.completed": {
+    userId: string | null;
+    userName: string | null;
+    method: string;
+    /** Path without the query string. */
+    path: string;
+    /** Route pattern, e.g. "/api/printers/:id/commands". */
+    route: string;
+    status: number;
+    permission: Permission | null;
+    ip: string;
+    at: string;
+  };
 }
 
 /** Data the module changed, so open browsers refetch it. */
@@ -110,6 +131,16 @@ export interface ModuleContext {
   notifyChange(change: ModuleChange): void;
   /** Optional: cores before Nov 2026 do not provide it. */
   orders?: ModuleOrders;
+  /**
+   * Custom roles: called for change requests of non-admin users; returning
+   * false refuses the request (403). Optional: cores before Nov 2026 lack it.
+   */
+  registerAuthorizer?(
+    authorize: (
+      user: { id: string; role: "admin" | "operator" },
+      permission: Permission,
+    ) => Promise<boolean | undefined> | boolean | undefined,
+  ): void;
 }
 
 export interface PrintrioModule {

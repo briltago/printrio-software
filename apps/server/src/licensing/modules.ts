@@ -17,6 +17,7 @@ import {
   type ModuleBundle,
   moduleBundleSchema,
   moduleSigningMessage,
+  type Permission,
 } from "@printrio/shared";
 import type { Database } from "../db/client.ts";
 import type { OrderService } from "../orders/service.ts";
@@ -56,6 +57,8 @@ interface Route extends ModuleRoute {
   names: string[];
 }
 
+type Authorizer = Parameters<NonNullable<ModuleContext["registerAuthorizer"]>>[0];
+
 interface Loaded {
   id: string;
   version: string;
@@ -73,6 +76,24 @@ interface Loaded {
  * missing or tampered signature means the module does not run.
  */
 export class ModuleHost {
+  private readonly authorizers = new Set<Authorizer>();
+
+  /**
+   * Asks the modules' authorizers (custom roles) whether a user may do
+   * something. Fails closed: an error refuses the request.
+   */
+  async authorize(user: { id: string; role: "admin" | "operator" }, permission: Permission) {
+    for (const authorize of this.authorizers) {
+      try {
+        if ((await authorize(user, permission)) === false) return false;
+      } catch (error) {
+        this.options.logger.error(`Authorizer failed: ${error}`);
+        return false;
+      }
+    }
+    return true;
+  }
+
   private loaded = new Map<string, Loaded>();
   private syncing: Promise<void> = Promise.resolve();
   private root: string;
@@ -327,6 +348,10 @@ export class ModuleHost {
         return off;
       },
       notifyChange: (change) => this.options.notifyChange(change),
+      registerAuthorizer: (authorize) => {
+        this.authorizers.add(authorize);
+        entry.cleanup.push(() => this.authorizers.delete(authorize));
+      },
       orders: this.options.orders && {
         get: (orderId) => (this.options.orders as OrderService).get(orderId),
         create: (input) => (this.options.orders as OrderService).create(input),

@@ -41,6 +41,7 @@ describe("workspace settings", () => {
       usageMode: "single",
       defaultView: "auto",
       sidebar: sidebarPreset("single"),
+      sidebarGroups: true,
       costs: DEFAULT_SETTINGS.costs,
       orderFolders: DEFAULT_SETTINGS.orderFolders,
     });
@@ -60,6 +61,7 @@ describe("workspace settings", () => {
       usageMode: "farm",
       defaultView: "fleet",
       sidebar,
+      sidebarGroups: true,
       costs: DEFAULT_SETTINGS.costs,
       orderFolders: DEFAULT_SETTINGS.orderFolders,
     });

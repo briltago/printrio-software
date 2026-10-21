@@ -71,6 +71,12 @@ export const de: Translation = {
     search: "Suchen…",
     openMenu: "Menü öffnen",
     closeMenu: "Menü schließen",
+    groups: {
+      workshop: "Werkstatt",
+      production: "Produktion",
+      sales: "Vertrieb",
+      insights: "Auswertungen",
+    },
   },
   backups: {
     title: "Sicherungen",
@@ -300,11 +306,14 @@ export const de: Translation = {
     defaultViewPrinterHint: "Die Seite des ersten Druckers öffnen.",
     visibleCount: "{count} von {total} angezeigt",
     sidebarHint:
-      "Wählen Sie die Bereiche der Seitenleiste und ziehen Sie sie in die gewünschte Reihenfolge. Einstellungen werden immer angezeigt.",
+      "Wählen Sie, welche Bereiche in der Seitenleiste erscheinen, ordnen Sie sie Kategorien zu und sortieren Sie sie per Ziehen — auch die Bereiche von Pro und Business. Die Einstellungen werden immer angezeigt.",
     moveUp: "{name} nach oben",
     moveDown: "{name} nach unten",
     show: "{name} anzeigen",
     resetSidebar: "Auf Vorgabe zurücksetzen",
+    showGroups: "Kategorie-Überschriften anzeigen",
+    groupEmpty: "Ziehen Sie einen Bereich hierher.",
+    groupOf: "Kategorie von {name}",
     theme: "Design",
     themeSystem: "System",
     themeSystemHint: "Folgt dem hellen oder dunklen Modus des Geräts.",

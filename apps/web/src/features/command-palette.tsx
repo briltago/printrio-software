@@ -2,10 +2,10 @@ import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useT } from "../i18n/index.tsx";
-import { printersQuery, settingsQuery } from "../lib/queries.ts";
+import { printersQuery } from "../lib/queries.ts";
 import { meQuery } from "../lib/session.ts";
+import { useSidebar } from "../lib/sidebar.ts";
 import { nextTheme, setTheme, useTheme } from "../lib/theme.ts";
-import { NAV_ROUTES } from "../nav.ts";
 
 interface Command {
   id: string;
@@ -20,7 +20,7 @@ export function CommandPalette({ onAddPrinter }: { onAddPrinter: () => void }) {
   const navigate = useNavigate();
   const theme = useTheme();
   const { data: me } = useSuspenseQuery(meQuery);
-  const { data: settings } = useQuery(settingsQuery);
+  const { entries: sidebar } = useSidebar();
   const { data: printerData } = useQuery(printersQuery);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -57,13 +57,19 @@ export function CommandPalette({ onAddPrinter }: { onAddPrinter: () => void }) {
 
   const commands = useMemo<Command[]>(() => {
     const go = (to: string) => () => void navigate({ to });
-    const pages: Command[] = (settings?.sidebar ?? [])
-      .filter((item) => item.visible)
-      .map((item) => ({
-        id: `page-${item.id}`,
+    const pages: Command[] = sidebar
+      .filter((entry) => entry.visible)
+      .map((entry) => ({
+        id: `page-${entry.id}`,
         group: t("palette.pages"),
-        label: t(`nav.${item.id}`),
-        run: go(NAV_ROUTES[item.id]),
+        label: entry.label,
+        run:
+          "to" in entry.link
+            ? go(entry.link.to)
+            : () => {
+                const { moduleId, path } = entry.link as { moduleId: string; path: string };
+                void navigate({ to: "/m/$moduleId/$", params: { moduleId, _splat: path } });
+              },
       }));
     pages.push({
       id: "page-settings",
@@ -93,7 +99,7 @@ export function CommandPalette({ onAddPrinter }: { onAddPrinter: () => void }) {
         run: onAddPrinter,
       });
     return [...printers, ...pages, ...actions];
-  }, [settings, printerData, me, theme, t, navigate, onAddPrinter]);
+  }, [sidebar, printerData, me, theme, t, navigate, onAddPrinter]);
 
   const results = commands.filter((command) =>
     command.label.toLowerCase().includes(query.trim().toLowerCase()),

@@ -68,6 +68,12 @@ export const en = {
     search: "Search…",
     openMenu: "Open menu",
     closeMenu: "Close menu",
+    groups: {
+      workshop: "Workshop",
+      production: "Production",
+      sales: "Sales",
+      insights: "Insights",
+    },
   },
   backups: {
     title: "Backups",
@@ -291,11 +297,14 @@ export const en = {
     defaultViewPrinterHint: "Open the first printer's page.",
     visibleCount: "{count} of {total} shown",
     sidebarHint:
-      "Choose which sections appear in the sidebar and drag them into order. Settings is always shown.",
+      "Choose which sections appear in the sidebar, sort them into categories and drag them into order — including Pro and Business sections. Settings is always shown.",
     moveUp: "Move {name} up",
     moveDown: "Move {name} down",
     show: "Show {name}",
     resetSidebar: "Reset to preset",
+    showGroups: "Show category headings",
+    groupEmpty: "Drag a section here.",
+    groupOf: "Category of {name}",
     theme: "Theme",
     themeSystem: "System",
     themeSystemHint: "Follows your device's light or dark mode.",

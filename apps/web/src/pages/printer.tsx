@@ -63,8 +63,8 @@ export function PrinterPage() {
     return (
       <main className="mx-auto max-w-6xl px-4 py-5 sm:p-6 md:p-8">
         <EmptyState
-          title="Printer not found"
-          text="It may have been removed."
+          title={t("printer.notFound")}
+          text={t("printer.notFoundText")}
           action={
             <Link to="/printers" className="btn btn-secondary">
               {t("printer.allPrinters")}

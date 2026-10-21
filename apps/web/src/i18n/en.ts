@@ -186,16 +186,19 @@ export const en = {
     send: "Send",
     consoleEmpty: "Console output appears here.",
     allPrinters: "All printers",
+    notFound: "Printer not found",
+    notFoundText: "It may have been removed.",
   },
   fleet: {
     title: "Printers",
-    subtitle: "{count} printers · {printing} printing",
+    subtitle: "{count} {count|printer|printers} · {printing} printing",
     empty: "No printers yet",
     emptyText: "Connect a Klipper printer through Moonraker to get started.",
     noMatches: "No printers match these filters.",
     viewCards: "Cards",
     viewCompact: "Compact",
     viewList: "List",
+    view: "View",
     filterState: "Status",
     filterGroup: "Group",
     filterTag: "Tag",
@@ -301,7 +304,10 @@ export const en = {
     themeLight: "Light",
     themeLightHint: "Bright and high-contrast.",
     themeHint: "Stored in this browser only.",
-    groupCount: "{count} printers",
+    language: "Language",
+    languageHint: "Stored in this browser only. Automatic follows the browser's language.",
+    languageSystem: "Automatic ({language})",
+    groupCount: "{count} {count|printer|printers}",
     groupsHint: "Groups organise printers by room, site or purpose.",
     newGroup: "New group name",
     addGroup: "Add group",
@@ -586,7 +592,7 @@ export const en = {
   },
   filament: {
     tabs: { spools: "Spools", filaments: "Filaments" },
-    summary: "{spools} spools in stock · {weight} of filament",
+    summary: "{spools} {spools|spool|spools} in stock · {weight} of filament",
     importSpoolman: "Import from Spoolman",
     importTitle: "Import from Spoolman",
     importHint:
@@ -644,7 +650,7 @@ export const en = {
     noFilamentsText: "Filaments are created together with your first spool.",
   },
   jobs: {
-    count: "{count} recorded prints",
+    count: "{count} recorded {count|print|prints}",
     printer: "Printer",
     allPrinters: "All printers",
     status: "Status",
@@ -754,7 +760,7 @@ export const en = {
     folderInvalid: "Use a name without slashes that does not start with a dot.",
     location: "Folder",
     root: "Library",
-    uploadedMany: "Uploaded {count} files.",
+    uploadedMany: "Uploaded {count} {count|file|files}.",
     onlyGcode: "Only G-code files (.gcode, .g, .gco) can be uploaded.",
     emptyTitle: "No files here yet",
     emptyText:
@@ -807,7 +813,7 @@ export const en = {
     refresh: "Refresh",
     download: "Download",
     truncated: "Showing the end of the log (last 256 KB). Download it for the full file.",
-    matching: "{count} matching lines",
+    matching: "{count} matching {count|line|lines}",
   },
   systemInfo: {
     title: "Host",
@@ -878,3 +884,7 @@ export const en = {
 };
 
 export type Messages = typeof en;
+
+/** Same shape with any strings: what every other locale file exports. */
+type DeepString<T> = { [K in keyof T]: T[K] extends string ? string : DeepString<T[K]> };
+export type Translation = DeepString<Messages>;

@@ -2,7 +2,7 @@ import type { LicenceStatus } from "@printrio/shared";
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
 import { FormError, Section } from "../components.tsx";
-import { useT } from "../i18n/index.tsx";
+import { currentLocale, useT } from "../i18n/index.tsx";
 import { api } from "../lib/api.ts";
 import { formatRelativeTime } from "../lib/format.ts";
 import { modulesQuery } from "../lib/modules.tsx";
@@ -123,12 +123,14 @@ export function LicenceSettings() {
             <dt className="text-muted">{t("licence.validUntil")}</dt>
             <dd>
               {licence.validUntil
-                ? new Date(licence.validUntil).toLocaleDateString()
+                ? new Date(licence.validUntil).toLocaleDateString(currentLocale())
                 : t("licence.renews")}
             </dd>
             <dt className="text-muted">{t("licence.leaseUntil")}</dt>
             <dd>
-              {licence.leaseExpiresAt ? new Date(licence.leaseExpiresAt).toLocaleString() : "—"}
+              {licence.leaseExpiresAt
+                ? new Date(licence.leaseExpiresAt).toLocaleString(currentLocale())
+                : "—"}
             </dd>
             <dt className="text-muted">{t("licence.lastCheck")}</dt>
             <dd>

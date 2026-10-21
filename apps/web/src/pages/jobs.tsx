@@ -4,7 +4,7 @@ import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { EmptyState, FormError, PageHeader } from "../components.tsx";
 import { Swatch } from "../features/filament-forms.tsx";
-import { useT } from "../i18n/index.tsx";
+import { currentLocale, useT } from "../i18n/index.tsx";
 import { api } from "../lib/api.ts";
 import { formatDuration, formatMoney, formatRelativeTime, formatWeight } from "../lib/format.ts";
 import { JOB_STATUS_CLASS } from "../lib/jobs.ts";
@@ -128,7 +128,7 @@ export function JobsPage() {
                     <p className="truncate text-xs text-subtle">
                       <time
                         dateTime={job.startedAt}
-                        title={new Date(job.startedAt).toLocaleString()}
+                        title={new Date(job.startedAt).toLocaleString(currentLocale())}
                       >
                         {formatRelativeTime(job.startedAt)}
                       </time>

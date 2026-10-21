@@ -2,7 +2,7 @@ import type { ConfigBackupDto, ConfigFileContentDto, ConfigFileDto } from "@prin
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { Dialog, FormError } from "../components.tsx";
-import { useT } from "../i18n/index.tsx";
+import { currentLocale, useT } from "../i18n/index.tsx";
 import { ApiError, api } from "../lib/api.ts";
 import { formatBytes, formatRelativeTime } from "../lib/format.ts";
 
@@ -330,7 +330,7 @@ function BackupsDialog({
               <p className="text-sm font-medium">
                 <time
                   dateTime={backup.createdAt}
-                  title={new Date(backup.createdAt).toLocaleString()}
+                  title={new Date(backup.createdAt).toLocaleString(currentLocale())}
                 >
                   {formatRelativeTime(backup.createdAt)}
                 </time>

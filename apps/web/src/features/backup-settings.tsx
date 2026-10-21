@@ -2,7 +2,7 @@ import type { BackupDto, BackupKind, BackupsDto } from "@printrio/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ChangeEvent, type FormEvent, useRef, useState } from "react";
 import { FormError, Section } from "../components.tsx";
-import { useT } from "../i18n/index.tsx";
+import { currentLocale, useT } from "../i18n/index.tsx";
 import { ApiError, api } from "../lib/api.ts";
 import { formatBytes } from "../lib/format.ts";
 
@@ -122,7 +122,7 @@ export function BackupSettings() {
               <li key={backup.name} className="flex flex-wrap items-center gap-3 py-3">
                 <div className="min-w-40 flex-1">
                   <p className="text-sm font-semibold">
-                    {new Date(backup.createdAt).toLocaleString()}
+                    {new Date(backup.createdAt).toLocaleString(currentLocale())}
                   </p>
                   <p className="text-xs text-subtle">
                     {kindLabel(backup.kind)} · Printrio {backup.version} ·{" "}
@@ -161,7 +161,9 @@ export function BackupSettings() {
       {restoring && (
         <Section
           title={t("backups.restoreTitle")}
-          hint={t("backups.restoreHint", { date: new Date(restoring.createdAt).toLocaleString() })}
+          hint={t("backups.restoreHint", {
+            date: new Date(restoring.createdAt).toLocaleString(currentLocale()),
+          })}
         >
           {restore.isSuccess ? (
             <p className="text-sm text-muted">{t("backups.restarting")}</p>

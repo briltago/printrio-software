@@ -17,7 +17,14 @@ import { BackupSettings } from "../features/backup-settings.tsx";
 import { LicenceSettings } from "../features/licence-settings.tsx";
 import { SlicerSettings } from "../features/slicer-settings.tsx";
 import { SsoSettings } from "../features/sso-settings.tsx";
-import { useT } from "../i18n/index.tsx";
+import {
+  detectLocaleIgnoringChoice,
+  LOCALE_NAMES,
+  type Locale,
+  setLocale,
+  storedLocale,
+  useT,
+} from "../i18n/index.tsx";
 import { api } from "../lib/api.ts";
 import { useModules } from "../lib/modules.tsx";
 import { groupsQuery, settingsQuery, usersQuery, useUpdateSettings } from "../lib/queries.ts";
@@ -630,21 +637,40 @@ const THEME_KEYS = {
 function AppearanceSettings() {
   const t = useT();
   const theme = useTheme();
+  const stored = storedLocale();
+  const automatic = LOCALE_NAMES[detectLocaleIgnoringChoice()];
   return (
-    <Section title={t("settings.theme")} hint={t("settings.themeHint")}>
-      <OptionCards<ThemePreference>
-        name="theme"
-        columns={3}
-        value={theme}
-        options={(["system", "dark", "light"] as const).map((mode) => ({
-          value: mode,
-          label: t(THEME_KEYS[mode][0]),
-          description: t(THEME_KEYS[mode][1]),
-          preview: <ThemePreview mode={mode} />,
-        }))}
-        onChange={setTheme}
-      />
-    </Section>
+    <>
+      <Section title={t("settings.language")} hint={t("settings.languageHint")}>
+        <select
+          className="input max-w-xs"
+          aria-label={t("settings.language")}
+          value={stored}
+          onChange={(event) => setLocale(event.target.value as Locale | "system")}
+        >
+          <option value="system">{t("settings.languageSystem", { language: automatic })}</option>
+          {(Object.keys(LOCALE_NAMES) as Locale[]).map((locale) => (
+            <option key={locale} value={locale} lang={locale}>
+              {LOCALE_NAMES[locale]}
+            </option>
+          ))}
+        </select>
+      </Section>
+      <Section title={t("settings.theme")} hint={t("settings.themeHint")}>
+        <OptionCards<ThemePreference>
+          name="theme"
+          columns={3}
+          value={theme}
+          options={(["system", "dark", "light"] as const).map((mode) => ({
+            value: mode,
+            label: t(THEME_KEYS[mode][0]),
+            description: t(THEME_KEYS[mode][1]),
+            preview: <ThemePreview mode={mode} />,
+          }))}
+          onChange={setTheme}
+        />
+      </Section>
+    </>
   );
 }
 

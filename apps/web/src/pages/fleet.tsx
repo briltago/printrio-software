@@ -97,7 +97,7 @@ export function FleetPage() {
               />
             )}
             <fieldset className="ml-auto flex rounded-[11px] border border-line p-0.5">
-              <legend className="sr-only">View</legend>
+              <legend className="sr-only">{t("fleet.view")}</legend>
               {(["cards", "compact", "list"] as const).map((mode) => (
                 <button
                   key={mode}

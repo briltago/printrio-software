@@ -20,6 +20,18 @@ describe("translator", () => {
     expect(t("fleet.subtitle", { count: 3, printing: 2 })).toBe("3 printers · 2 printing");
   });
 
+  it("picks plural forms per language", () => {
+    const cs = createTranslator("cs");
+    expect(cs("fleet.subtitle", { count: 1, printing: 0 })).toBe("1 tiskárna · 0 tiskne");
+    expect(cs("fleet.subtitle", { count: 3, printing: 1 })).toBe("3 tiskárny · 1 tiskne");
+    expect(cs("fleet.subtitle", { count: 12, printing: 2 })).toBe("12 tiskáren · 2 tiskne");
+    expect(t("jobs.count", { count: 1 })).toBe("1 recorded print");
+    expect(t("jobs.count", { count: 4 })).toBe("4 recorded prints");
+    expect(createTranslator("de")("filament.summary", { spools: 1, weight: "1 kg" })).toBe(
+      "1 Spule auf Lager · 1 kg Filament",
+    );
+  });
+
   it("falls back to English for unknown locales", () => {
     expect(createTranslator("xx")("nav.printers")).toBe("Printers");
   });

@@ -1,4 +1,4 @@
-import type { Translate } from "../i18n/index.tsx";
+import { currentLocale, type Translate } from "../i18n/index.tsx";
 
 export function formatDuration(t: Translate, seconds: number | null | undefined) {
   if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) return "—";
@@ -53,7 +53,6 @@ export const formatFilamentAmount = (grams: number | null, mm: number | null) =>
       ? formatFilament(mm)
       : "—";
 
-const relative = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 /** "3 hours ago", "yesterday", … — dates older than a month are shown in full. */
 export function formatRelativeTime(iso: string, now = Date.now()) {
   const seconds = (new Date(iso).getTime() - now) / 1000;
@@ -65,10 +64,14 @@ export function formatRelativeTime(iso: string, now = Date.now()) {
   ];
   let value = seconds;
   for (const [unit, size] of steps) {
-    if (Math.abs(value) < size) return relative.format(Math.round(value), unit);
+    if (Math.abs(value) < size)
+      return new Intl.RelativeTimeFormat(currentLocale(), { numeric: "auto" }).format(
+        Math.round(value),
+        unit,
+      );
     value /= size;
   }
-  return new Date(iso).toLocaleDateString("en", {
+  return new Date(iso).toLocaleDateString(currentLocale(), {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -80,7 +83,7 @@ export function formatMoney(value: number | null | undefined, currency: string) 
   if (value === null || value === undefined || !Number.isFinite(value)) return "—";
   const digits = value !== 0 && Math.abs(value) < 0.1 ? 3 : 2;
   try {
-    return new Intl.NumberFormat("en", {
+    return new Intl.NumberFormat(currentLocale(), {
       style: "currency",
       currency,
       minimumFractionDigits: digits,

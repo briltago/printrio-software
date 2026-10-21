@@ -23,7 +23,7 @@ import {
   Section,
 } from "../components.tsx";
 import { Panel } from "../features/panel.tsx";
-import { createTranslator } from "../i18n/index.tsx";
+import { createTranslator, detectLocale } from "../i18n/index.tsx";
 import { api } from "./api.ts";
 import * as format from "./format.ts";
 
@@ -55,14 +55,14 @@ const EMPTY: ModuleExtensions = {
 
 const ModulesContext = createContext<ModuleExtensions>(EMPTY);
 
-const t = createTranslator();
+const t = createTranslator(detectLocale());
 /** What module web bundles get from the core (see @printrio/sdk web.ts). */
 const host: WebModuleHost = {
   React,
   jsxRuntime,
   query: ReactQuery,
   api,
-  locale: "en",
+  locale: detectLocale(),
   components: {
     Dialog,
     EmptyState,

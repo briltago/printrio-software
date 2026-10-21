@@ -161,7 +161,7 @@ function AppShell() {
       )}
       <aside
         id="app-menu"
-        className={`safe-drawer flex min-w-0 flex-col bg-sidebar px-4 py-5 max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-[min(86vw,320px)] max-md:overflow-y-auto max-md:border-line max-md:border-r max-md:shadow-2xl max-md:transition-transform max-md:duration-200 md:sticky md:top-0 md:h-screen md:border-line md:border-r ${
+        className={`safe-drawer flex min-w-0 flex-col bg-sidebar px-4 py-5 max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-[min(86vw,320px)] max-md:overflow-y-auto max-md:border-line max-md:border-r max-md:shadow-2xl max-md:transition-transform max-md:duration-200 md:sticky md:top-0 md:h-dvh md:overflow-y-auto md:border-line md:border-r ${
           menuOpen ? "max-md:translate-x-0" : "max-md:invisible max-md:-translate-x-full"
         }`}
       >

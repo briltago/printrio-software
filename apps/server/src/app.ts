@@ -34,6 +34,7 @@ import { apiKeyRoutes } from "./routes/api-keys.ts";
 import { authRoutes } from "./routes/auth.ts";
 import { backupRoutes } from "./routes/backups.ts";
 import { filamentRoutes } from "./routes/filament.ts";
+import { requireAdmin } from "./routes/guards.ts";
 import { healthRoutes } from "./routes/health.ts";
 import { jobRoutes } from "./routes/jobs.ts";
 import { libraryRoutes } from "./routes/library.ts";
@@ -53,6 +54,7 @@ import { queueRoutes } from "./routes/queue.ts";
 import { realtimeRoutes } from "./routes/realtime.ts";
 import { settingsRoutes } from "./routes/settings.ts";
 import { userRoutes } from "./routes/users.ts";
+import { UpdateChecker } from "./updates.ts";
 import { VERSION } from "./version.ts";
 
 export interface AppOptions {
@@ -206,6 +208,12 @@ export async function buildApp({
       log: app.log,
     });
   backupRoutes(app, backups);
+  const updates = new UpdateChecker({
+    version: VERSION,
+    enabled: config.UPDATE_CHECK && config.NODE_ENV !== "test",
+    fetch: licensing.fetch,
+  });
+  app.get("/api/system/update", { preHandler: requireAdmin }, () => updates.info());
   const sso = new Sso(db, secrets, () => licence.current()?.features.includes("business") === true);
   authRoutes(app, { db, cookieSecure: config.COOKIE_SECURE, sso });
   settingsRoutes(app, db);

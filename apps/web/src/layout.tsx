@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Brand, Dialog } from "./components.tsx";
 import { CommandPalette } from "./features/command-palette.tsx";
 import { PrinterForm } from "./features/printer-form.tsx";
+import { UpdateBanner } from "./features/updates.tsx";
 import { useT } from "./i18n/index.tsx";
 import { api } from "./lib/api.ts";
 import { ModulesProvider, useModules } from "./lib/modules.tsx";
@@ -274,6 +275,7 @@ function AppShell() {
             {t("auth.signOut")}
           </button>
         </header>
+        <UpdateBanner admin={user?.role === "admin"} />
         <div className="safe-bottom">
           <Outlet />
         </div>

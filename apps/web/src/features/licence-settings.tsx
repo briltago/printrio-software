@@ -6,6 +6,7 @@ import { useT } from "../i18n/index.tsx";
 import { api } from "../lib/api.ts";
 import { formatRelativeTime } from "../lib/format.ts";
 import { modulesQuery } from "../lib/modules.tsx";
+import { UpdateSection } from "./updates.tsx";
 
 export const licenceQuery = queryOptions({
   queryKey: ["licence"],
@@ -195,6 +196,7 @@ export function LicenceSettings() {
         </Section>
       )}
 
+      <UpdateSection />
       <p className="mt-2 text-xs text-subtle">
         {t("licence.instance")}: <code>{licence.instanceId}</code>
       </p>

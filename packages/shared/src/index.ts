@@ -12,4 +12,5 @@ export * from "./printers.ts";
 export * from "./queue.ts";
 export * from "./settings.ts";
 export * from "./sso.ts";
+export * from "./updates.ts";
 export * from "./users.ts";

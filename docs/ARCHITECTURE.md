@@ -263,6 +263,9 @@ stay in `localStorage`.
   (also as `window.PrintrioHost`, so bundles never ship a second React).
   A module can add sidebar entries, pages (`/m/<id>/<path>`), settings tabs,
   printer-page panels and order-detail sections (`orderPanels`).
+- **API keys for module routes**: integrations call `/api/modules/<id>/…`
+  with `Authorization: Bearer prk_…` (personal API keys, Settings → Slicer
+  upload) and act as that user. The core's own API stays session-only.
 - **Orders for modules**: `ctx.orders` (get, create, update) runs the same
   order logic as the HTTP API — folder from the workspace template, order
   events — so Business can turn an accepted quote into a normal order.

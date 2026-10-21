@@ -1,6 +1,7 @@
 import { loginRequestSchema, setupRequestSchema, type User } from "@printrio/shared";
 import { count, sql } from "drizzle-orm";
 import type { FastifyInstance, FastifyReply } from "fastify";
+import { findApiKeyUser } from "../auth/api-keys.ts";
 import { getDummyHash, hashPassword, verifyPassword } from "../auth/password.ts";
 import { createSession, deleteSession, findSessionUser, SESSION_COOKIE } from "../auth/sessions.ts";
 import type { Database } from "../db/client.ts";
@@ -24,6 +25,12 @@ export function authRoutes(app: FastifyInstance, { db, cookieSecure }: AuthOptio
   app.addHook("onRequest", async (request) => {
     const token = request.cookies[SESSION_COOKIE];
     request.user = token ? await findSessionUser(db, token) : null;
+    // Integrations call module APIs (e.g. Business /v1) with a personal API key.
+    // The core's own API stays session-only.
+    if (!request.user && request.url.startsWith("/api/modules/")) {
+      const match = /^Bearer\s+(prk_[\w-]+)$/.exec(request.headers.authorization ?? "");
+      if (match?.[1]) request.user = await findApiKeyUser(db, match[1]);
+    }
   });
 
   const setSessionCookie = (reply: FastifyReply, token: string, expires: Date) =>

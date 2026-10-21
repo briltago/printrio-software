@@ -1,5 +1,12 @@
 import { currentLocale, type Translate } from "../i18n/index.tsx";
 
+/** A number with fixed decimals in the UI language (1.25 / 1,25). */
+const fixed = (value: number, digits: number) =>
+  value.toLocaleString(currentLocale(), {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
+
 export function formatDuration(t: Translate, seconds: number | null | undefined) {
   if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) return "—";
   const total = Math.round(seconds / 60);
@@ -12,10 +19,10 @@ export function formatDuration(t: Translate, seconds: number | null | undefined)
 export const formatPercent = (value: number) => `${Math.round(value * 100)}%`;
 
 export function formatFilament(mm: number) {
-  return mm >= 1000 ? `${(mm / 1000).toFixed(2)} m` : `${Math.round(mm)} mm`;
+  return mm >= 1000 ? `${fixed(mm / 1000, 2)} m` : `${Math.round(mm)} mm`;
 }
 
-export const formatTemp = (value: number) => `${value.toFixed(1)}°C`;
+export const formatTemp = (value: number) => `${fixed(value, 1)}°C`;
 
 /** Human names for Klipper heaters; custom heaters/sensors keep their configured name. */
 export function heaterName(t: Translate, name: string) {
@@ -42,16 +49,12 @@ export function formatBytes(bytes: number) {
     value /= 1024;
     unit++;
   }
-  return `${value.toFixed(value < 10 ? 1 : 0)} ${units[unit]}`;
+  return `${fixed(value, value < 10 ? 1 : 0)} ${units[unit]}`;
 }
 
 /** Filament: grams when the slicer reports them, otherwise length. */
 export const formatFilamentAmount = (grams: number | null, mm: number | null) =>
-  grams !== null
-    ? `${grams.toFixed(grams < 10 ? 1 : 0)} g`
-    : mm !== null
-      ? formatFilament(mm)
-      : "—";
+  grams !== null ? `${fixed(grams, grams < 10 ? 1 : 0)} g` : mm !== null ? formatFilament(mm) : "—";
 
 /** "3 hours ago", "yesterday", … — dates older than a month are shown in full. */
 export function formatRelativeTime(iso: string, now = Date.now()) {
@@ -98,5 +101,5 @@ export const formatWeight = (grams: number | null | undefined) =>
   grams === null || grams === undefined
     ? "—"
     : grams >= 1000
-      ? `${(grams / 1000).toFixed(2)} kg`
-      : `${grams >= 10 ? Math.round(grams) : grams.toFixed(1)} g`;
+      ? `${fixed(grams / 1000, 2)} kg`
+      : `${fixed(grams, grams >= 10 ? 0 : 1)} g`;

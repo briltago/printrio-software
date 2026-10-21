@@ -26,7 +26,8 @@ cp .env.example .env        # set POSTGRES_PASSWORD
 docker compose up -d --build
 ```
 
-Open `http://<host>:3000`, create the administrator account and follow the
+Open `http://<host>:3000` (or the `PRINTRIO_PORT` you set in `.env`, e.g.
+8080 — Printrio then listens on 8080 inside the container too), create the administrator account and follow the
 setup wizard to add your first Klipper printer (Moonraker address, usually
 `http://<printer-ip>:7125`). When Printrio is served over HTTPS (reverse proxy,
 Tailscale Serve, …) set `COOKIE_SECURE=true`.

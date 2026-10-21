@@ -12,10 +12,12 @@ services:
     environment:
       DATABASE_URL: postgres://printrio:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/printrio
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      # Printrio listens inside the container on the same port it is published on.
+      PORT: ${PRINTRIO_PORT:-3000}
     volumes:
       - printrio-data:/data
     ports:
-      - "${PRINTRIO_PORT:-3000}:3000"
+      - "${PRINTRIO_PORT:-3000}:${PRINTRIO_PORT:-3000}"
 
   postgres:
     image: postgres:16-alpine

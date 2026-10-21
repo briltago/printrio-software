@@ -57,6 +57,7 @@ setup wizard to add your first printer (its Moonraker address, usually
 | `POSTGRES_PASSWORD` | —        | Password of the bundled PostgreSQL database (required, any characters; write a literal `$` as `$$`). |
 | `PRINTRIO_PORT`     | `3000`   | Port Printrio listens on, inside the container and on the host. |
 | `COOKIE_SECURE`     | `false`  | Set to `true` when Printrio is served over HTTPS. |
+| `TRUST_PROXY`       | `false`  | Behind a reverse proxy: `1` (one proxy hop) or the proxy's address/CIDR, so rate limits and logs see the real client address. |
 | `PRINTRIO_VERSION`  | `latest` | Image tag to run: `latest`, a release such as `0.9.0`, or `edge` (newest build from `main`). |
 
 Further settings, passed as environment variables of the `printrio` service:
@@ -68,7 +69,7 @@ to stop checking GitHub for new releases).
 
 Printrio itself serves plain HTTP. For access from outside your network put it
 behind a reverse proxy with TLS (Caddy, Traefik, nginx) or use Tailscale
-Serve, and set `COOKIE_SECURE=true`. Never expose Moonraker directly to the
+Serve, set `COOKIE_SECURE=true`, and set `TRUST_PROXY=1` when the proxy forwards the client address. Never expose Moonraker directly to the
 internet.
 
 ### Updates

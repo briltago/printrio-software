@@ -45,17 +45,34 @@ function lookup(lines: string[], pattern: RegExp): string | undefined {
 }
 
 function thumbnails(text: string): GcodeMeta["thumbnail"] {
+  // One linear pass over the lines (a single regex with a lazy body went
+  // quadratic on files full of unmatched "begin" lines).
   let best: GcodeMeta["thumbnail"] = null;
-  const pattern =
-    /^;\s*thumbnail(?:_(JPG|PNG))?\s+begin\s+(\d+)x(\d+)\s+\d+\s*\r?\n([\s\S]*?)^;\s*thumbnail(?:_(?:JPG|PNG))?\s+end/gim;
-  for (const match of text.matchAll(pattern)) {
-    const width = Number(match[2]);
-    const height = Number(match[3]);
-    if (best && width * height <= best.width * best.height) continue;
-    const base64 = (match[4] ?? "").replace(/^;\s?/gm, "").replace(/\s+/g, "");
-    const data = Buffer.from(base64, "base64");
-    const format = match[1]?.toUpperCase() === "JPG" ? "jpg" : "png";
-    if (data.length > 0) best = { format, width, height, data };
+  const begin = /^;\s*thumbnail(?:_(JPG|PNG))?\s+begin\s+(\d+)x(\d+)\s+\d+\s*$/i;
+  const end = /^;\s*thumbnail(?:_(?:JPG|PNG))?\s+end/i;
+  let current: { format: "jpg" | "png"; width: number; height: number; base64: string[] } | null =
+    null;
+  let blocks = 0;
+  for (const raw of text.split("\n")) {
+    const line = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
+    if (current) {
+      if (end.test(line)) {
+        const data = Buffer.from(current.base64.join(""), "base64");
+        if (data.length > 0 && (!best || current.width * current.height > best.width * best.height))
+          best = { format: current.format, width: current.width, height: current.height, data };
+        current = null;
+      } else current.base64.push(line.replace(/^;\s?/, "").replace(/\s+/g, ""));
+      continue;
+    }
+    const match = begin.exec(line);
+    if (!match) continue;
+    if (++blocks > 16) break;
+    current = {
+      format: match[1]?.toUpperCase() === "JPG" ? "jpg" : "png",
+      width: Number(match[2]),
+      height: Number(match[3]),
+      base64: [],
+    };
   }
   return best;
 }

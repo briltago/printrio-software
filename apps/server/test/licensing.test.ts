@@ -61,6 +61,7 @@ export default {
         return { ok: true };
       } },
       { method: "GET", path: "hello/:name", handler: async ({ params }) => ({ hello: params.name, tier: ctx.getLease()?.tier }) },
+      { method: "POST", path: "linked", permissions: ["orders.manage"], handler: async () => ({ ok: true }) },
       { method: "POST", path: "orders", handler: async ({ body }) => {
         const order = await ctx.orders.create({ name: body.name, customer: "Acme" });
         const done = await ctx.orders.update(order.id, { status: "in_progress" });
@@ -297,6 +298,17 @@ describe("licensing", () => {
     expect(
       (await ctx.app.inject({ method: "GET", url: "/api/modules/test/notes" })).statusCode,
     ).toBe(401);
+    // Routes that change core data also need the core permission (custom roles say no here).
+    expect((await api("POST", "/api/modules/test/linked", {}, operator)).statusCode).toBe(403);
+    expect((await api("POST", "/api/modules/test/linked", {})).statusCode).toBe(200);
+    // Browsers mark cross-site and sibling-subdomain requests: changes from there are refused.
+    const crossSite = await ctx.app.inject({
+      method: "POST",
+      url: "/api/modules/test/notes",
+      headers: { cookie: admin, "sec-fetch-site": "same-site" },
+      payload: { text: "csrf" },
+    });
+    expect(crossSite.statusCode).toBe(403);
   });
 
   it("refuses a module whose signature does not match", async () => {

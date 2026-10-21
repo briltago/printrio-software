@@ -137,8 +137,9 @@ export class ModuleHost {
       const found = route.pattern.exec(path);
       if (!found) continue;
       const params: Record<string, string> = {};
+      // The router already decoded the path once; decoding again would turn %252F into "/".
       route.names.forEach((name, index) => {
-        params[name] = decodeURIComponent(found[index + 1] ?? "");
+        params[name] = found[index + 1] ?? "";
       });
       return { route, params };
     }

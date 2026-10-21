@@ -219,6 +219,11 @@ export class Sso {
       typeof claims.name === "string" && claims.name.trim()
         ? claims.name.trim().slice(0, 80)
         : (email.split("@")[0] ?? email);
-    return { email, name, autoCreate: config.autoCreate };
+    return {
+      email,
+      name,
+      autoCreate: config.autoCreate,
+      emailVerified: claims.email_verified === true,
+    };
   }
 }

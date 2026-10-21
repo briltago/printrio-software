@@ -82,6 +82,10 @@ export interface AppOptions {
 export const defaultDriverFactories = () =>
   new Map<string, PrinterDriverFactory>([[moonrakerDriverFactory.id, moonrakerDriverFactory]]);
 
+/** The decoded module id of a request to /api/modules/:id/…, if any. */
+const moduleIdOf = (request: { params: unknown }) =>
+  (request.params as { id?: string } | undefined)?.id;
+
 export async function buildApp({
   config,
   db,
@@ -92,8 +96,25 @@ export async function buildApp({
   backups: givenBackups,
 }: AppOptions) {
   const app = Fastify({
-    logger: config.NODE_ENV === "test" ? false : { level: config.LOG_LEVEL },
-    trustProxy: true,
+    logger:
+      config.NODE_ENV === "test"
+        ? false
+        : {
+            level: config.LOG_LEVEL,
+            // Slicers may pass their API key as ?apikey=…; keep it out of the logs.
+            serializers: {
+              req: (req: { method: string; url: string; hostname?: string; ip?: string }) => ({
+                method: req.method,
+                url: req.url.replace(/([?&]apikey=)[^&]*/gi, "$1[redacted]"),
+                hostname: req.hostname,
+                remoteAddress: req.ip,
+              }),
+            },
+          },
+    trustProxy:
+      typeof config.TRUST_PROXY === "number"
+        ? (_address: string, hop: number) => hop < (config.TRUST_PROXY as number)
+        : config.TRUST_PROXY,
   });
   const printerManager = manager;
   const changes = new EventTarget();
@@ -159,6 +180,33 @@ export async function buildApp({
     emitModuleEvent("printer.status", { printerId, status });
   printerManager.on("status", onPrinterStatus);
 
+  // Cookie-authenticated changes must come from Printrio's own pages: browsers
+  // mark cross-site and sibling-subdomain requests in Sec-Fetch-Site (slicers and
+  // API clients send no such header). Also covers the WebSocket upgrade.
+  app.addHook("onRequest", async (request, reply) => {
+    const safe =
+      request.method === "GET" || request.method === "HEAD" || request.method === "OPTIONS";
+    const upgrade = request.headers.upgrade?.toLowerCase() === "websocket";
+    if (safe && !upgrade) return;
+    const site = request.headers["sec-fetch-site"];
+    if (site === "cross-site" || site === "same-site")
+      return reply.code(403).send({ error: "Cross-site request refused." });
+  });
+  // Plain-text bodies are only useful to cross-site forms; the API takes JSON and multipart.
+  app.removeContentTypeParser("text/plain");
+  app.addHook("onSend", async (_request, reply, payload) => {
+    reply.header("X-Content-Type-Options", "nosniff");
+    reply.header("Referrer-Policy", "same-origin");
+    reply.header("X-Frame-Options", "DENY");
+    const type = String(reply.getHeader("content-type") ?? "");
+    if (type.startsWith("text/html") && !reply.getHeader("content-security-policy"))
+      reply.header(
+        "Content-Security-Policy",
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:; media-src 'self' blob:; frame-src 'self' blob: data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+      );
+    return payload;
+  });
+
   await app.register(cookie);
   await app.register(rateLimit, { global: false });
   await app.register(websocket);
@@ -172,7 +220,7 @@ export async function buildApp({
     const permission = permissionFor(
       request.method,
       request.routeOptions.url ?? "",
-      request.url.split("?")[0],
+      moduleIdOf(request),
     );
     if (permission && !(await modules.authorize(user, permission)))
       return reply.code(403).send({ error: "Your role does not allow this.", permission });
@@ -191,7 +239,7 @@ export async function buildApp({
       path,
       route,
       status: reply.statusCode,
-      permission: permissionFor(request.method, route, path),
+      permission: permissionFor(request.method, route, moduleIdOf(request)),
       ip: request.ip,
       at: new Date().toISOString(),
     });
@@ -263,6 +311,7 @@ export async function buildApp({
       (await db.select({ id: printers.id }).from(printers).where(eq(printers.id, id))).length > 0,
     withinLimit,
     () => changes.dispatchEvent(new Event("queue")),
+    (user, permission) => modules.authorize(user, permission),
   );
   apiKeyRoutes(app, db);
   await recorder.start();

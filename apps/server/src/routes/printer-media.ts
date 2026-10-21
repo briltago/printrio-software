@@ -90,7 +90,7 @@ export function printerMediaRoutes(app: FastifyInstance, manager: PrinterManager
         request.raw.on("close", () => controller.abort());
         let upstream: Response;
         try {
-          upstream = await fetch(target, { signal: controller.signal });
+          upstream = await fetch(target, { signal: controller.signal, redirect: "manual" });
         } catch {
           return reply.code(502).send({ error: "The webcam did not respond." });
         } finally {
@@ -98,10 +98,17 @@ export function printerMediaRoutes(app: FastifyInstance, manager: PrinterManager
         }
         if (!upstream.ok || !upstream.body)
           return reply.code(502).send({ error: `The webcam answered ${upstream.status}.` });
+        // Images and MJPEG streams only: anything else (e.g. HTML) would run on Printrio's origin.
+        const type = upstream.headers.get("content-type") ?? "image/jpeg";
+        if (!/^(image\/[\w.+-]+|multipart\/x-mixed-replace)\b/i.test(type)) {
+          await upstream.body.cancel().catch(() => {});
+          return reply.code(502).send({ error: "The webcam did not send an image." });
+        }
         reply
-          .header("Content-Type", upstream.headers.get("content-type") ?? "image/jpeg")
+          .header("Content-Type", type)
           .header("Cache-Control", "no-store")
-          .header("X-Content-Type-Options", "nosniff");
+          .header("X-Content-Type-Options", "nosniff")
+          .header("Content-Security-Policy", "default-src 'none'; sandbox");
         return reply.send(
           Readable.fromWeb(upstream.body as import("node:stream/web").ReadableStream),
         );

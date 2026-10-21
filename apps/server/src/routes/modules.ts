@@ -38,6 +38,11 @@ export function moduleRoutes(app: FastifyInstance, host: ModuleHost) {
       if (!found) return reply.code(404).send({ error: "Not found." });
       if (found.route.adminOnly && user.role !== "admin")
         return reply.code(403).send({ error: "Only administrators can do this." });
+      // Core permissions the module route also needs (e.g. it creates orders or queues prints).
+      if (user.role !== "admin" && request.method !== "GET")
+        for (const permission of found.route.permissions ?? [])
+          if (!(await host.authorize(user, permission)))
+            return reply.code(403).send({ error: "Your role does not allow this.", permission });
       try {
         const result = await found.route.handler({
           userId: user.id,

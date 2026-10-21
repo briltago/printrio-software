@@ -50,6 +50,12 @@ export interface ModuleRoute {
   path: string;
   /** Only administrators may call it (default: any signed-in user). */
   adminOnly?: boolean;
+  /**
+   * Core permissions a change request also needs, because the route changes
+   * core data (e.g. "orders.manage", "queue.manage", "filament.manage").
+   * Custom roles (Business) are asked for each, like for core routes.
+   */
+  permissions?: Permission[];
   /** Returns the JSON response body. Throw a `ModuleHttpError`-like error ({ statusCode }) for 4xx. */
   handler(ctx: ModuleRouteHandlerContext): Promise<unknown>;
 }

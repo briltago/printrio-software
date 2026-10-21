@@ -43,11 +43,13 @@ const RULES: [RegExp, Permission][] = [
 /**
  * The permission a request needs, from its method and route pattern
  * (e.g. "/api/printers/:id/commands"); null when roles do not apply.
+ * `moduleId` is the decoded `:id` of module routes (never taken from the raw
+ * URL, which may be percent-encoded).
  */
-export function permissionFor(method: string, route: string, url = route): Permission | null {
+export function permissionFor(method: string, route: string, moduleId?: string): Permission | null {
   if (method === "GET" || method === "HEAD" || method === "OPTIONS") return null;
-  const module = /^\/api\/modules\/(pro|business)\//.exec(url);
-  if (module) return `module.${module[1]}` as Permission;
+  if (route === "/api/modules/:id/*")
+    return moduleId === "pro" || moduleId === "business" ? `module.${moduleId}` : null;
   for (const [pattern, permission] of RULES) if (pattern.test(route)) return permission;
   return null;
 }

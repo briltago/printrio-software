@@ -4,7 +4,17 @@ Self-hosted control centre for 3D printing — printers, files, filament spools,
 job costs and orders in one workspace. Klipper/Moonraker first; more printer
 ecosystems through drivers.
 
-> Status: early development (phase F0 — foundation). Not ready for production use.
+> Status: preparing the first beta (phases F0–F2 done, see the roadmap in
+> [`docs/VISION.md`](docs/VISION.md)). Not ready for production use yet.
+
+**Editions.** This repository is the free, open-source core (AGPL-3.0 with a
+module exception): printer control and maintenance, files and slicer upload,
+spools, job costs, orders and per-printer queues. **Pro** (fleet queue,
+orders with items and deadlines, customers, statistics, notifications) and
+**Business** (quotes to invoices, CRM, e-shops, API and webhooks, roles and
+audit log, single sign-on, stock and purchasing, service levels, escalation,
+multiple sites) are closed-source modules the core downloads after licence
+activation.
 
 - Product vision: [`docs/VISION.md`](docs/VISION.md)
 - Architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)

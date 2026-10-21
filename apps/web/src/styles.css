@@ -76,6 +76,24 @@
 @layer base {
   html {
     color-scheme: dark;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  /* Touch: no grey flash on tap, no double-tap zoom delay on controls. */
+  a,
+  button,
+  select,
+  summary,
+  label,
+  input {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button,
+  a,
+  select,
+  summary,
+  [role="button"] {
+    touch-action: manipulation;
   }
   body {
     background: var(--color-bg);
@@ -83,6 +101,11 @@
     font-family: var(--font-sans);
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
+  }
+  /* Drawer open on a phone: the page behind it does not scroll. */
+  html.menu-open,
+  html.menu-open body {
+    overflow: hidden;
   }
   :focus-visible {
     outline: 2px solid var(--color-accent-2);
@@ -116,8 +139,10 @@
       border-color 0.2s,
       background 0.2s;
   }
-  .btn:hover:not(:disabled) {
-    transform: translateY(-1px);
+  @media (hover: hover) {
+    .btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+    }
   }
   .btn:disabled {
     opacity: 0.6;
@@ -220,8 +245,14 @@
     transition: width 0.6s ease;
   }
   .dialog {
-    width: min(520px, calc(100vw - 32px));
-    max-height: calc(100dvh - 32px);
+    width: min(520px, calc(100vw - 24px));
+    max-height: calc(
+      100dvh -
+      24px -
+      env(safe-area-inset-top, 0px) -
+      env(safe-area-inset-bottom, 0px)
+    );
+    overscroll-behavior: contain;
     margin: auto;
     padding: 0;
     border: 1px solid var(--color-line);
@@ -234,12 +265,72 @@
     background: #05030acc;
     backdrop-filter: blur(4px);
   }
+  /* Square icon button with a finger-sized hit area (top bar, drawer). */
+  .icon-btn {
+    display: inline-grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    border-radius: 12px;
+    color: var(--color-muted);
+  }
+  .icon-btn:hover,
+  .icon-btn:active {
+    background: var(--color-surface-2);
+    color: var(--color-text);
+  }
+  /* iPhone notch / Dynamic Island, home indicator and landscape sides (viewport-fit=cover). */
+  .safe-top {
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+  .safe-drawer {
+    padding-top: max(1.25rem, env(safe-area-inset-top));
+    padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+    padding-left: max(1rem, env(safe-area-inset-left));
+  }
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
   .brand {
     display: inline-flex;
     align-items: center;
     gap: 10px;
     font-weight: 700;
     letter-spacing: -0.8px;
+  }
+}
+
+/*
+ * Touch screens and phone-sized windows (iPhone): text fields at 16px so Safari does not zoom in on focus,
+ * and controls at least 44px tall (Apple's minimum tap size).
+ */
+@media (pointer: coarse), (max-width: 767px) {
+  .input,
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+  .btn {
+    min-height: 44px;
+  }
+  .btn-sm {
+    min-height: 40px;
+    min-width: 40px;
+  }
+  input[type="checkbox"],
+  input[type="radio"] {
+    width: 20px;
+    height: 20px;
+  }
+  /* Buttons inside segmented controls and chip rows. */
+  .tap {
+    min-height: 36px;
   }
 }
 

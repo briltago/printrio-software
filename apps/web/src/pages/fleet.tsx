@@ -44,7 +44,7 @@ export function FleetPage() {
   );
 
   return (
-    <main className="mx-auto max-w-7xl p-6 md:p-8">
+    <main className="mx-auto max-w-7xl px-4 py-5 sm:p-6 md:p-8">
       <PageHeader
         kicker={t("nav.printers")}
         title={t("fleet.title")}
@@ -104,7 +104,7 @@ export function FleetPage() {
                   type="button"
                   aria-pressed={view === mode}
                   onClick={() => setView(mode)}
-                  className={`rounded-[9px] px-3 py-1.5 text-xs font-semibold ${view === mode ? "bg-accent/15 text-text" : "text-muted hover:text-text"}`}
+                  className={`tap rounded-[9px] px-3 py-1.5 text-xs font-semibold ${view === mode ? "bg-accent/15 text-text" : "text-muted hover:text-text"}`}
                 >
                   {t(`fleet.view${mode[0]?.toUpperCase()}${mode.slice(1)}` as "fleet.viewCards")}
                 </button>

@@ -168,7 +168,7 @@ function StepPicker<T extends string>({
             type="button"
             aria-pressed={step === value}
             onClick={() => onChange(step)}
-            className={`flex-1 rounded-[7px] px-2 py-1 font-mono text-xs ${step === value ? "bg-accent/15 font-semibold text-text" : "text-muted hover:text-text"}`}
+            className={`tap flex-1 rounded-[7px] px-2 py-1 font-mono text-xs ${step === value ? "bg-accent/15 font-semibold text-text" : "text-muted hover:text-text"}`}
           >
             {step}
           </button>

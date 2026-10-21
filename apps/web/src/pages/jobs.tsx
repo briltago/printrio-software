@@ -55,7 +55,7 @@ export function JobsPage() {
   const total = jobs.data?.pages[0]?.total ?? 0;
 
   return (
-    <main className="mx-auto max-w-6xl p-6 md:p-8">
+    <main className="mx-auto max-w-6xl px-4 py-5 sm:p-6 md:p-8">
       <PageHeader title={t("nav.jobs")} subtitle={jobs.data && t("jobs.count", { count: total })} />
       <div className="mt-6 mb-4 flex flex-wrap gap-2">
         <select

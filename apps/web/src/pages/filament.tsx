@@ -87,7 +87,7 @@ export function FilamentPage() {
           : t("filament.importTitle");
 
   return (
-    <main className="mx-auto max-w-6xl p-6 md:p-8">
+    <main className="mx-auto max-w-6xl px-4 py-5 sm:p-6 md:p-8">
       <PageHeader
         title={t("nav.filament")}
         subtitle={

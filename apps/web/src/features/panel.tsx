@@ -22,10 +22,10 @@ export function Panel({
   const open = state === "open";
   return (
     <section className={`card ${className}`} aria-label={title}>
-      <header className="flex items-center gap-2 px-5 py-3.5">
+      <header className="flex items-center gap-2 px-5 py-1 md:py-3.5">
         <button
           type="button"
-          className="flex flex-1 items-center gap-2 text-left text-sm font-semibold"
+          className="flex min-h-11 flex-1 items-center gap-2 text-left text-sm font-semibold md:min-h-0"
           aria-expanded={open}
           aria-controls={bodyId}
           aria-label={t(open ? "panels.collapse" : "panels.expand", { name: title })}

@@ -162,14 +162,22 @@ function FilamentFields({
   );
 }
 
-function FormButtons({ pending, onCancel }: { pending: boolean; onCancel: () => void }) {
+function FormButtons({
+  pending,
+  disabled = false,
+  onCancel,
+}: {
+  pending: boolean;
+  disabled?: boolean;
+  onCancel: () => void;
+}) {
   const t = useT();
   return (
     <div className="mt-2 flex justify-end gap-2">
       <button type="button" className="btn btn-secondary" onClick={onCancel}>
         {t("common.cancel")}
       </button>
-      <button type="submit" className="btn btn-primary" disabled={pending}>
+      <button type="submit" className="btn btn-primary" disabled={pending || disabled}>
         {pending ? t("common.saving") : t("common.save")}
       </button>
     </div>
@@ -391,7 +399,7 @@ export function WeighForm({ spool, onDone }: { spool: SpoolDto; onDone: () => vo
         {t("filament.remainingWeight")}:{" "}
         <strong className="tabular-nums">{result !== null ? formatGrams(result) : "—"}</strong>
       </p>
-      <FormButtons pending={save.isPending || result === null} onCancel={onDone} />
+      <FormButtons pending={save.isPending} disabled={result === null} onCancel={onDone} />
     </form>
   );
 }

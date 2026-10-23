@@ -3,6 +3,7 @@ import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-q
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { Brand, Dialog } from "./components.tsx";
+import { AboutLine } from "./features/about.tsx";
 import { CommandPalette } from "./features/command-palette.tsx";
 import { PrinterForm } from "./features/printer-form.tsx";
 import { UpdateBanner } from "./features/updates.tsx";
@@ -241,6 +242,7 @@ function AppShell() {
             {t("nav.settings")}
           </Link>
         </nav>
+        <AboutLine className="mt-3 px-3" />
         {/* Phones: account controls live in the drawer (the desktop header is hidden). */}
         <div className="mt-4 flex items-center gap-2 border-line border-t pt-4 md:hidden">
           <span

@@ -1,0 +1,39 @@
+Printrio
+Copyright (C) 2026 Jakub Banci
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License version 3 only, as published
+by the Free Software Foundation, with the additional permission in
+LICENSE-EXCEPTION.md.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU Affero General Public License (LICENSE) for
+more details.
+
+Source code: https://github.com/briltago/printrio-software
+
+"Printrio" and the Printrio logo are trademarks of Jakub Banci. The licence
+grants no rights to use them (AGPL-3.0 section 7(e)).
+
+Third-party components are listed with their licences in
+third-party-licenses.md, which is shipped with the web interface.
+
+The icons of the settings navigation are based on Lucide (https://lucide.dev):
+
+  ISC License
+  Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2022 as part
+  of Feather (MIT). All other copyright (c) for Lucide are held by Lucide
+  Contributors 2022.
+
+  Permission to use, copy, modify, and/or distribute this software for any
+  purpose with or without fee is hereby granted, provided that the above
+  copyright notice and this permission notice appear in all copies.
+
+  THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+  REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+  FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+  INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+  OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+  TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+  THIS SOFTWARE.

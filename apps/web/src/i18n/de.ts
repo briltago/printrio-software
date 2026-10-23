@@ -59,6 +59,11 @@ export const de: Translation = {
     redirect: "Weiterleitungs-URI für die Registrierung beim Anbieter",
     saved: "Gespeichert",
   },
+  about: {
+    line: "Printrio {version} · freie Software unter der AGPL-3.0 ·",
+    source: "Quellcode",
+    licences: "Lizenzen",
+  },
   nav: {
     main: "Hauptnavigation",
     printers: "Drucker",
@@ -372,7 +377,7 @@ export const de: Translation = {
     problem:
       "Die letzte Prüfung ist fehlgeschlagen: {error} Printrio arbeitet mit der aktuellen Lizenz weiter, bis die Kulanzzeit endet.",
     unavailable:
-      "Dieser Build hat keine Lizenzschlüssel (selbst aus dem Quellcode gebaut). Lizenzen lassen sich in offiziellen Versionen aktivieren.",
+      "Dieser Build hat keine Lizenzschlüssel. Lizenzen lassen sich in offiziellen Versionen oder in Builds mit den hinterlegten Schlüsseln aktivieren.",
     instance: "Instanz-ID",
     modules: "Module",
     moduleError: "Nicht geladen: {error}",

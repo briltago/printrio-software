@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compareVersions, parseVersion, UpdateChecker } from "../src/updates.ts";
+import { sourceUrl } from "../src/version.ts";
 
 const releases = [
   {
@@ -106,5 +107,15 @@ describe("update check", () => {
       fetch: fakeFetch({ calls: 0 }, {}, false),
     }).info();
     expect(unreachable).toMatchObject({ latest: null, updateAvailable: false });
+  });
+});
+
+describe("sourceUrl", () => {
+  it("points to the exact source of releases and edge builds, or an override", () => {
+    const repo = "https://github.com/briltago/printrio-software";
+    expect(sourceUrl("1.0.0", undefined)).toBe(`${repo}/tree/v1.0.0`);
+    expect(sourceUrl("edge-0123abcd", undefined)).toBe(`${repo}/commit/0123abcd`);
+    expect(sourceUrl("dev", undefined)).toBe(repo);
+    expect(sourceUrl("1.0.0", "https://git.example.com/fork")).toBe("https://git.example.com/fork");
   });
 });

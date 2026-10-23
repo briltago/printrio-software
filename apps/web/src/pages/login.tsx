@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import type { FormEvent } from "react";
 import { AuthCard, Field, FormError, SubmitButton } from "../components.tsx";
+import { AboutLine } from "../features/about.tsx";
 import { useT } from "../i18n/index.tsx";
 import { api } from "../lib/api.ts";
 
@@ -50,6 +51,7 @@ export function LoginPage() {
         />
         <SubmitButton pending={login.isPending}>{t("auth.signIn")}</SubmitButton>
       </form>
+      <AboutLine className="mt-6 text-center" />
     </AuthCard>
   );
 }

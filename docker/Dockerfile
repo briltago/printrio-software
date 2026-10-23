@@ -16,12 +16,14 @@ RUN pnpm --filter @printrio/server deploy --legacy --prod /out
 
 FROM node:22-alpine AS runtime
 ARG PRINTRIO_VERSION=""
+ARG PRINTRIO_REVISION=""
 LABEL org.opencontainers.image.title="Printrio" \
       org.opencontainers.image.description="Self-hosted control centre for 3D printing" \
       org.opencontainers.image.source="https://github.com/briltago/printrio-software" \
       org.opencontainers.image.url="https://printrio.app" \
-      org.opencontainers.image.licenses="AGPL-3.0-only" \
-      org.opencontainers.image.version="${PRINTRIO_VERSION}"
+      org.opencontainers.image.licenses="AGPL-3.0-only WITH AdditionRef-Printrio-Module-Exception" \
+      org.opencontainers.image.version="${PRINTRIO_VERSION}" \
+      org.opencontainers.image.revision="${PRINTRIO_REVISION}"
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000 \
@@ -36,6 +38,7 @@ COPY --from=build /repo/apps/server/dist ./dist
 COPY --from=build /repo/apps/server/drizzle ./drizzle
 COPY --from=build /repo/apps/web/dist ./web
 COPY --from=build /repo/apps/server/package.json ./package.json
+COPY --from=build /repo/LICENSE /repo/LICENSE-EXCEPTION.md /repo/COPYRIGHT ./
 # Instance data (generated APP_SECRET for encrypting printer credentials).
 RUN mkdir -p /data && chown node:node /data
 VOLUME /data

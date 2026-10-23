@@ -58,6 +58,11 @@ export const cs: Translation = {
     redirect: "Adresa pro přesměrování (redirect URI) k registraci u poskytovatele",
     saved: "Uloženo",
   },
+  about: {
+    line: "Printrio {version} · svobodný software pod licencí AGPL-3.0 ·",
+    source: "Zdrojový kód",
+    licences: "Licence",
+  },
   nav: {
     main: "Hlavní navigace",
     printers: "Tiskárny",
@@ -366,7 +371,7 @@ export const cs: Translation = {
     problem:
       "Poslední kontrola selhala: {error} Printrio běží se současnou licencí, dokud neskončí tolerance.",
     unavailable:
-      "Toto sestavení nemá licenční klíče (vlastní build ze zdrojáků). Licence lze aktivovat v oficiálních verzích.",
+      "Toto sestavení nemá licenční klíče. Licence lze aktivovat v oficiálních verzích nebo v buildech, které zachovávají připnuté klíče.",
     instance: "ID instance",
     modules: "Moduly",
     moduleError: "Nenačteno: {error}",

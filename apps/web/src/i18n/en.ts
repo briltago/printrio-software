@@ -56,6 +56,11 @@ export const en = {
     redirect: "Redirect URI to register with the provider",
     saved: "Saved",
   },
+  about: {
+    line: "Printrio {version} · free software under the AGPL-3.0 ·",
+    source: "Source code",
+    licences: "Licences",
+  },
   nav: {
     main: "Main navigation",
     printers: "Printers",
@@ -362,7 +367,7 @@ export const en = {
     problem:
       "The last check failed: {error} Printrio keeps working on the current licence until the grace period ends.",
     unavailable:
-      "This build has no licensing keys (self-built from source). Licences can be activated in official releases.",
+      "This build has no licensing keys. Licences can be activated in official releases or builds that keep the pinned keys.",
     instance: "Instance ID",
     modules: "Modules",
     moduleError: "Not loaded: {error}",

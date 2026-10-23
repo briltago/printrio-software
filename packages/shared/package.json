@@ -2,7 +2,7 @@
   "name": "@printrio/shared",
   "version": "0.0.0",
   "private": true,
-  "license": "AGPL-3.0-only",
+  "license": "AGPL-3.0-only WITH AdditionRef-Printrio-Module-Exception",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"

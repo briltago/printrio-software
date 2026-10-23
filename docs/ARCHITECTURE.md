@@ -72,7 +72,7 @@ usage) into shared types and exposes commands (pause, resume, cancel, G-code,
 upload, start). Nothing outside a driver knows about Moonraker specifics.
 
 Slicer upload: the server implements the OctoPrint-compatible upload endpoint
-(`/api/files/local`) that OrcaSlicer, PrusaSlicer and Cura already support, so
+(`/octoprint/<target>/api/files/local`) that PrusaSlicer, SuperSlicer, OrcaSlicer and Bambu Studio support, so
 slicers can send directly to Printrio.
 
 ### Live data
@@ -288,7 +288,8 @@ stay in `localStorage`.
    keypair, stored in the DB). Instance ID = hash of the public key.
 2. **Activation:** admin enters a licence key → core calls
    `POST /v1/activate` with key + instance public key. One licence binds to
-   one instance (re-binding via the customer portal / support).
+   one instance; it moves with Settings → Licence → Deactivate on the old instance
+   (at most 3 activations on a new instance in 30 days) or through support.
 3. The service returns a **signed lease** (Ed25519, compact JWS):
    `{ licenceId, instanceId, tier, limits: { printers, users }, features[], modules[], issuedAt, expiresAt }`
    where `expiresAt = issuedAt + 72 h`.
@@ -316,7 +317,7 @@ Implementation in the core (`apps/server/src/licensing/`):
 - `modules.ts` — download, verification, loading and unloading of modules.
 - Settings → Licence (admins) shows the plan, activates a key, checks now,
   opens the subscription portal and deactivates.
-- Builds without pinned keys (self-built from source) stay on Free;
+- Builds whose pinned keys are blanked stay on Free;
   activation explains that an official release is needed. Tests pass their
   own keys through `buildApp({ licensing })`.
 

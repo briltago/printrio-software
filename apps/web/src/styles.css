@@ -1,8 +1,7 @@
 @import "tailwindcss";
 
 /*
- * Printrio design tokens — shared with printrio.app (printrio-website
- * assets/styles.css :root). Keep both in sync; see docs/DESIGN.md.
+ * Printrio design tokens; keep in sync with printrio.app.
  */
 @theme {
   --font-sans:

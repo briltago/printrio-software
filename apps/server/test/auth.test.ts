@@ -23,6 +23,15 @@ describe("health", () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ status: "ok" });
   });
+
+  it("tells anyone the version and where its source code is (AGPL section 13)", async () => {
+    const res = await ctx.app.inject({ method: "GET", url: "/api/about" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      sourceUrl: expect.stringMatching(/^https:\/\/github\.com\/briltago\/printrio-software/),
+      license: "AGPL-3.0-only",
+    });
+  });
 });
 
 describe("first-run setup and authentication", () => {

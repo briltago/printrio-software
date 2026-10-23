@@ -15,8 +15,8 @@ Website and documentation: **[printrio.app](https://printrio.app)** ·
   console and macros, printer groups and tags.
 - **Maintenance**: Klipper config editor with backups and restarts, logs,
   system info, power devices, bed mesh, Moonraker update manager.
-- **Files**: G-code library with folders, upload from OrcaSlicer, PrusaSlicer
-  and Cura (OctoPrint-compatible endpoint).
+- **Files**: G-code library with folders, upload from PrusaSlicer, SuperSlicer,
+  OrcaSlicer and Bambu Studio (OctoPrint-compatible endpoint).
 - **Filament**: per-spool inventory with material, colour and remaining weight;
   import from Spoolman.
 - **Jobs and costs**: print history with filament use and material and energy cost.
@@ -63,7 +63,8 @@ setup wizard to add your first printer (its Moonraker address, usually
 Further settings, passed as environment variables of the `printrio` service:
 `APP_SECRET` (encrypts printer credentials; generated and stored in the data
 volume when unset), `LOG_LEVEL` (`info`), `UPDATE_CHECK` (`true`; set `false`
-to stop checking GitHub for new releases).
+to stop checking GitHub for new releases), `PRINTRIO_SOURCE_URL` (link to the source code shown in the app;
+set it to your repository if you run a modified version, as the AGPL requires).
 
 ### HTTPS and remote access
 
@@ -109,8 +110,8 @@ pnpm --filter @printrio/server dev:printers   # six simulated Klipper printers o
 | `pnpm build`       | Production build (server bundle + web UI) |
 | `pnpm db:generate` | Generate a SQL migration after changing `apps/server/src/db/schema.ts` |
 
-To build the image yourself: `docker compose build`. Self-built images run the
-Free edition; licence keys work with the official images.
+To build the image yourself: `docker compose build`. Licence keys work in builds
+that keep the pinned public keys in `packages/shared/src/licensing-keys.ts`.
 
 ```
 apps/server      Fastify API, printer drivers, module host; serves the built web UI
@@ -131,6 +132,9 @@ or [support@printrio.app](mailto:support@printrio.app).
 
 ## Licence
 
-Printrio is licensed under the [GNU AGPL-3.0](LICENSE) with an
-[additional permission for modules](LICENSE-EXCEPTION.md) built on the public
-module SDK. Contributions require agreeing to the [CLA](CLA.md).
+Copyright (C) 2026 Jakub Banci. Printrio is free software licensed under the
+[GNU AGPL-3.0-only](LICENSE) with an [additional permission for modules](LICENSE-EXCEPTION.md)
+built on the module interface; see [COPYRIGHT](COPYRIGHT). Every Printrio
+instance links to its source code at the bottom of the sidebar and on the sign-in page. Contributions require
+agreeing to the [CLA](CLA.md); see [CONTRIBUTING.md](CONTRIBUTING.md). Report
+security issues as described in [SECURITY.md](SECURITY.md).

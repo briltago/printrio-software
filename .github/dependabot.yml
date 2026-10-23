@@ -11,7 +11,15 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # Types follow the Node.js runtime (22 LTS), not the newest Node.js.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: docker
     directory: /docker
     schedule:
       interval: weekly
+    ignore:
+      # Node.js majors (LTS only) are upgraded by hand.
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]

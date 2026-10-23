@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM node:22-alpine AS base
+FROM node:25-alpine AS base
 ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH TURBO_TELEMETRY_DISABLED=1
 RUN corepack enable
 WORKDIR /repo
@@ -14,7 +14,7 @@ RUN PRINTRIO_VERSION="$PRINTRIO_VERSION" pnpm build
 # Runtime dependencies of the server only; workspace packages are bundled into dist/.
 RUN pnpm --filter @printrio/server deploy --legacy --prod /out
 
-FROM node:22-alpine AS runtime
+FROM node:25-alpine AS runtime
 ARG PRINTRIO_VERSION=""
 ARG PRINTRIO_REVISION=""
 LABEL org.opencontainers.image.title="Printrio" \

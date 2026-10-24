@@ -156,7 +156,7 @@ export function BedMeshPanel({
               return (
                 <li
                   key={profile.name}
-                  className="flex items-center gap-2 rounded-[10px] border border-line px-3 py-2"
+                  className="flex items-center gap-2 rounded-[7px] border border-line px-3 py-2"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-mono text-sm">{profile.name}</p>
@@ -216,16 +216,14 @@ function Segmented<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <fieldset className="inline-flex rounded-[10px] border border-line bg-sidebar p-0.5">
+    <fieldset className="seg">
       <legend className="sr-only">{label}</legend>
       {options.map(([id, text]) => (
         <button
           key={id}
           type="button"
           aria-pressed={value === id}
-          className={`tap rounded-[8px] px-2.5 py-1 text-xs ${
-            value === id ? "bg-surface-2 font-semibold text-text" : "text-muted hover:text-text"
-          }`}
+          className="text-xs"
           onClick={() => onChange(id)}
         >
           {text}
@@ -388,7 +386,7 @@ function MeshTable({ matrix, min, max }: GridProps) {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[10px] border border-line px-3 py-2">
+    <div className="rounded-[7px] border border-line px-3 py-2">
       <dt className="text-xs text-subtle">{label}</dt>
       <dd className="mt-0.5 font-semibold tabular-nums">{value}</dd>
     </div>

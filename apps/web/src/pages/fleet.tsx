@@ -11,7 +11,8 @@ import { meQuery } from "../lib/session.ts";
 import { useStoredState } from "../lib/stored-state.ts";
 
 type ViewMode = "cards" | "compact" | "list";
-const STATES: PrinterState[] = ["printing", "paused", "idle", "error", "offline", "connecting"];
+/** Filter order: what is running, what needs someone, what is free, what is away. */
+const STATES: PrinterState[] = ["printing", "error", "paused", "idle", "offline", "connecting"];
 
 export function FleetPage() {
   const t = useT();
@@ -36,7 +37,8 @@ export function FleetPage() {
       (!groupId || p.groupId === groupId) &&
       (!tag || p.tags.includes(tag)),
   );
-  const printing = printers.filter((p) => p.status.state === "printing").length;
+  const counts = new Map<PrinterState, number>();
+  for (const p of printers) counts.set(p.status.state, (counts.get(p.status.state) ?? 0) + 1);
   const addButton = isAdmin && (
     <button type="button" className="btn btn-primary" onClick={() => setAdding(true)}>
       {t("printer.add")}
@@ -44,19 +46,13 @@ export function FleetPage() {
   );
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-5 sm:p-6 md:p-8">
+    <main className="page">
       <PageHeader
-        kicker={t("nav.printers")}
         title={t("fleet.title")}
         subtitle={
-          <>
-            {t("fleet.subtitle", { count: printers.length, printing })}
-            {data.limit !== null && (
-              <span className="ml-2 text-subtle">
-                · {t("fleet.limit", { used: printers.length, limit: data.limit })}
-              </span>
-            )}
-          </>
+          data.limit !== null
+            ? t("fleet.limit", { used: printers.length, limit: data.limit })
+            : undefined
         }
         actions={addButton}
       />
@@ -65,20 +61,34 @@ export function FleetPage() {
         <EmptyState title={t("fleet.empty")} text={t("fleet.emptyText")} action={addButton} />
       ) : (
         <>
-          <div className="mt-6 flex flex-wrap items-center gap-2">
+          {/* Status with counts doubles as the filter: the fleet at a glance, one click to narrow it. */}
+          <fieldset className="seg mt-5">
+            <legend className="sr-only">{t("fleet.filterState")}</legend>
+            <button type="button" aria-pressed={state === ""} onClick={() => setState("")}>
+              {t("common.all")}
+              <span className="tabular-nums text-subtle">{printers.length}</span>
+            </button>
+            {STATES.filter((s) => counts.has(s) || state === s).map((s) => (
+              <button
+                key={s}
+                type="button"
+                aria-pressed={state === s}
+                onClick={() => setState(state === s ? "" : s)}
+              >
+                <span aria-hidden="true" className={`state-${s} h-2 w-2 rounded-full bg-current`} />
+                {t(`printer.states.${s}`)}
+                <span className="tabular-nums text-subtle">{counts.get(s) ?? 0}</span>
+              </button>
+            ))}
+          </fieldset>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <input
               type="search"
-              className="input max-w-56"
+              className="input w-full sm:max-w-60"
               placeholder={t("fleet.searchPlaceholder")}
               aria-label={t("fleet.searchPlaceholder")}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-            />
-            <Filter
-              label={t("fleet.filterState")}
-              value={state}
-              onChange={setState}
-              options={STATES.map((s) => [s, t(`printer.states.${s}`)])}
             />
             {groups.length > 0 && (
               <Filter
@@ -96,7 +106,7 @@ export function FleetPage() {
                 options={tags.map((x) => [x, x])}
               />
             )}
-            <fieldset className="ml-auto flex rounded-[11px] border border-line p-0.5">
+            <fieldset className="seg ml-auto">
               <legend className="sr-only">{t("fleet.view")}</legend>
               {(["cards", "compact", "list"] as const).map((mode) => (
                 <button
@@ -104,7 +114,6 @@ export function FleetPage() {
                   type="button"
                   aria-pressed={view === mode}
                   onClick={() => setView(mode)}
-                  className={`tap rounded-[9px] px-3 py-1.5 text-xs font-semibold ${view === mode ? "bg-accent/15 text-text" : "text-muted hover:text-text"}`}
                 >
                   {t(`fleet.view${mode[0]?.toUpperCase()}${mode.slice(1)}` as "fleet.viewCards")}
                 </button>
@@ -157,7 +166,7 @@ function Filter({
   const t = useT();
   return (
     <select
-      className="input w-auto py-2 text-sm"
+      className="input w-auto"
       aria-label={label}
       value={value}
       onChange={(event) => onChange(event.target.value)}
@@ -185,31 +194,37 @@ function PrinterCard({ printer, groups }: { printer: Printer; groups: PrinterGro
     <Link
       to="/printers/$printerId"
       params={{ printerId: printer.id }}
-      className="card block p-5 transition-colors hover:border-line-strong"
+      className="card block p-4 transition-colors hover:border-line-strong"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate font-semibold">{printer.name}</p>
+          <p className="truncate text-[15px] font-semibold">{printer.name}</p>
           {meta.length > 0 && (
             <p className="mt-0.5 truncate text-xs text-subtle">{meta.join(" · ")}</p>
           )}
         </div>
         <StateBadge state={status.state} />
       </div>
-      <div className="mt-5 min-h-[52px]">
+      <div className="mt-4 min-h-[52px]">
         {status.job ? (
           <>
             <div className="mb-2 flex justify-between gap-3 text-sm">
               <span className="truncate text-muted">{status.job.fileName}</span>
-              <span className="font-semibold">{formatPercent(status.job.progress)}</span>
+              <span className="font-semibold tabular-nums">
+                {formatPercent(status.job.progress)}
+              </span>
             </div>
             <ProgressBar value={status.job.progress} label={t("printer.progress")} />
-            <p className="mt-2 text-xs text-subtle">
+            <p className="mt-2 text-xs text-muted tabular-nums">
               {t("printer.remaining")}: {formatDuration(t, status.job.remainingSeconds)}
             </p>
           </>
         ) : (
-          <p className="text-sm text-subtle">{status.message ?? t("printer.noJob")}</p>
+          <p
+            className={`text-sm ${status.state === "error" ? "text-danger" : "text-muted"} line-clamp-2`}
+          >
+            {status.message ?? t("printer.noJob")}
+          </p>
         )}
       </div>
       {status.temperatures.length > 0 && (
@@ -217,7 +232,9 @@ function PrinterCard({ printer, groups }: { printer: Printer; groups: PrinterGro
           {status.temperatures.slice(0, 3).map((temp) => (
             <span key={temp.name}>
               {heaterName(t, temp.name)}{" "}
-              <span className="font-semibold text-text">{formatTemp(temp.current)}</span>
+              <span className="font-semibold text-text tabular-nums">
+                {formatTemp(temp.current)}
+              </span>
             </span>
           ))}
         </div>
@@ -242,7 +259,9 @@ function PrinterTile({ printer }: { printer: Printer }) {
       <div className="mt-2 flex items-center justify-between gap-2">
         <StateBadge state={status.state} />
         {status.job && (
-          <span className="text-xs font-semibold">{formatPercent(status.job.progress)}</span>
+          <span className="text-xs font-semibold tabular-nums">
+            {formatPercent(status.job.progress)}
+          </span>
         )}
       </div>
       {status.job && (
@@ -257,12 +276,12 @@ function PrinterTile({ printer }: { printer: Printer }) {
 function ListView({ printers, groups }: { printers: Printer[]; groups: PrinterGroup[] }) {
   const t = useT();
   return (
-    <div className="card mt-4 overflow-x-auto">
-      <table className="w-full min-w-[720px] text-left text-sm">
-        <thead className="border-line border-b text-xs text-subtle">
+    <div className="card mt-4 overflow-x-auto px-4 pt-3 pb-1">
+      <table className="table min-w-[720px]">
+        <thead>
           <tr>
             {(["name", "state", "job", "progress", "eta", "group"] as const).map((column) => (
-              <th key={column} scope="col" className="px-4 py-3 font-semibold">
+              <th key={column} scope="col">
                 {t(`fleet.columns.${column}`)}
               </th>
             ))}
@@ -270,23 +289,23 @@ function ListView({ printers, groups }: { printers: Printer[]; groups: PrinterGr
         </thead>
         <tbody>
           {printers.map((printer) => (
-            <tr key={printer.id} className="border-line border-b last:border-0 hover:bg-surface-2">
-              <td className="px-4 py-3 font-semibold">
+            <tr key={printer.id} className="hover:bg-surface-2">
+              <td className="font-semibold">
                 <Link
                   to="/printers/$printerId"
                   params={{ printerId: printer.id }}
-                  className="hover:text-accent-2"
+                  className="hover:underline"
                 >
                   {printer.name}
                 </Link>
               </td>
-              <td className="px-4 py-3">
+              <td>
                 <StateBadge state={printer.status.state} />
               </td>
-              <td className="max-w-56 truncate px-4 py-3 text-muted">
+              <td className="max-w-56 truncate text-muted">
                 {printer.status.job?.fileName ?? "—"}
               </td>
-              <td className="px-4 py-3">
+              <td>
                 {printer.status.job ? (
                   <div className="flex items-center gap-2">
                     <div className="w-24">
@@ -295,16 +314,20 @@ function ListView({ printers, groups }: { printers: Printer[]; groups: PrinterGr
                         label={t("printer.progress")}
                       />
                     </div>
-                    <span className="text-xs">{formatPercent(printer.status.job.progress)}</span>
+                    <span className="text-xs tabular-nums">
+                      {formatPercent(printer.status.job.progress)}
+                    </span>
                   </div>
                 ) : (
                   "—"
                 )}
               </td>
-              <td className="px-4 py-3 text-muted">
+              <td className="text-muted tabular-nums">
                 {formatDuration(t, printer.status.job?.remainingSeconds)}
               </td>
-              <td className="px-4 py-3 text-muted">{groupName(groups, printer.groupId) ?? "—"}</td>
+              <td className="text-muted tabular-nums">
+                {groupName(groups, printer.groupId) ?? "—"}
+              </td>
             </tr>
           ))}
         </tbody>

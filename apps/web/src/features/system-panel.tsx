@@ -96,7 +96,7 @@ export function SystemPanel({ printerId, busy }: { printerId: string; busy: bool
             {(services.data?.services ?? []).map((service) => (
               <li
                 key={service.name}
-                className="flex items-center gap-3 rounded-[10px] border border-line px-3 py-2"
+                className="flex items-center gap-3 rounded-[7px] border border-line px-3 py-2"
               >
                 <span className="min-w-0 flex-1 truncate font-mono text-sm">{service.name}</span>
                 {service.state && (

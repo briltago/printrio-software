@@ -1,10 +1,12 @@
 import type { LibraryFileDto, LibraryListingDto } from "@printrio/shared";
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { type DragEvent, type FormEvent, useRef, useState } from "react";
-import { Dialog, EmptyState, FormError, PageHeader, StateBadge } from "../components.tsx";
+import { type DragEvent, useRef, useState } from "react";
+import { Dialog, EmptyState, FormError, PageHeader } from "../components.tsx";
 import { Thumbnail } from "../features/files-panel.tsx";
+import { libraryThumbnailUrl, SendForm } from "../features/library-send.tsx";
 import { useT } from "../i18n/index.tsx";
+import { Icon } from "../icons.tsx";
 import { api } from "../lib/api.ts";
 import {
   formatBytes,
@@ -12,16 +14,12 @@ import {
   formatFilamentAmount,
   formatRelativeTime,
 } from "../lib/format.ts";
-import { printersQuery } from "../lib/queries.ts";
 import { meQuery } from "../lib/session.ts";
 import { useStoredState } from "../lib/stored-state.ts";
 import { uploadFile } from "../lib/upload.ts";
 
 type Sort = "newest" | "name" | "duration";
 const GCODE = /\.(gcode|g|gco)$/i;
-
-export const libraryThumbnailUrl = (path: string) =>
-  `/api/library/thumbnail?path=${encodeURIComponent(path)}`;
 
 /**
  * Printrio's own G-code library, stored in the data volume: upload once,
@@ -119,7 +117,7 @@ export function LibraryPage() {
   const empty = listing.data && files.length === 0 && directories.length === 0;
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-5 sm:p-6 md:p-8">
+    <main className="page">
       <PageHeader
         title={t("nav.files")}
         subtitle={t("library.subtitle")}
@@ -161,19 +159,19 @@ export function LibraryPage() {
         onDrop={onDrop}
       >
         {dragging && (
-          <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-[16px] border-2 border-accent border-dashed bg-accent/10 text-sm font-semibold">
+          <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-card border-2 border-accent border-dashed bg-accent/10 text-sm font-semibold">
             {t("files.dropHere")}
           </div>
         )}
         <div className="card p-4">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
+          <div className="mb-4 flex flex-wrap items-center gap-2">
             <nav
               aria-label={t("library.location")}
               className="flex min-w-0 flex-1 flex-wrap items-center gap-1 text-sm"
             >
               <button
                 type="button"
-                className={crumbs.length ? "text-accent-2 hover:underline" : "font-semibold"}
+                className={crumbs.length ? "text-accent hover:underline" : "font-semibold"}
                 onClick={() => setDir("")}
               >
                 {t("library.root")}
@@ -187,9 +185,7 @@ export function LibraryPage() {
                   <button
                     type="button"
                     className={
-                      index === crumbs.length - 1
-                        ? "font-semibold"
-                        : "text-accent-2 hover:underline"
+                      index === crumbs.length - 1 ? "font-semibold" : "text-accent hover:underline"
                     }
                     onClick={() => setDir(crumbs.slice(0, index + 1).join("/"))}
                   >
@@ -200,14 +196,14 @@ export function LibraryPage() {
             </nav>
             <input
               type="search"
-              className="input w-full py-1.5 text-sm sm:w-52"
+              className="input w-full sm:w-52"
               placeholder={t("files.search")}
               aria-label={t("files.search")}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
             <select
-              className="input w-auto py-1.5 text-sm"
+              className="input w-auto"
               aria-label={t("files.sort")}
               value={sort}
               onChange={(event) => setSort(event.target.value as Sort)}
@@ -222,8 +218,8 @@ export function LibraryPage() {
               <p className="mb-1 text-xs text-muted">
                 {t("files.uploading", { name: upload.name })} {Math.round(upload.progress * 100)} %
               </p>
-              <div className="h-1.5 overflow-hidden rounded-full bg-line">
-                <div className="h-full bg-accent" style={{ width: `${upload.progress * 100}%` }} />
+              <div className="progress">
+                <span style={{ width: `${upload.progress * 100}%` }} />
               </div>
             </div>
           )}
@@ -237,26 +233,24 @@ export function LibraryPage() {
             <EmptyState title={t("library.emptyTitle")} text={t("library.emptyText")} />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="text-xs text-subtle">
+              <table className="table">
+                <thead>
                   <tr>
-                    <th scope="col" className="w-12 pb-2" />
-                    <th scope="col" className="pb-2 font-semibold">
-                      {t("files.name")}
-                    </th>
-                    <th scope="col" className="hidden pb-2 pr-4 font-semibold sm:table-cell">
+                    <th scope="col" className="w-12" />
+                    <th scope="col">{t("files.name")}</th>
+                    <th scope="col" className="hidden sm:table-cell">
                       {t("files.printTime")}
                     </th>
-                    <th scope="col" className="hidden pb-2 pr-4 font-semibold md:table-cell">
+                    <th scope="col" className="hidden md:table-cell">
                       {t("files.filament")}
                     </th>
-                    <th scope="col" className="hidden pb-2 pr-4 font-semibold lg:table-cell">
+                    <th scope="col" className="hidden lg:table-cell">
                       {t("files.size")}
                     </th>
-                    <th scope="col" className="hidden pb-2 pr-4 font-semibold lg:table-cell">
+                    <th scope="col" className="hidden lg:table-cell">
                       {t("files.modified")}
                     </th>
-                    <th scope="col" className="pb-2" />
+                    <th scope="col" />
                   </tr>
                 </thead>
                 <tbody>
@@ -264,15 +258,12 @@ export function LibraryPage() {
                     const path = dir ? `${dir}/${name}` : name;
                     return (
                       <tr key={`dir-${name}`} className="border-line border-t">
-                        <td className="py-2">
-                          <span
-                            aria-hidden="true"
-                            className="grid h-10 w-10 place-items-center text-accent"
-                          >
-                            ▣
+                        <td>
+                          <span className="grid h-10 w-10 place-items-center text-subtle">
+                            <Icon name="library" size={18} />
                           </span>
                         </td>
-                        <td className="py-2" colSpan={5}>
+                        <td colSpan={5}>
                           <button
                             type="button"
                             className="font-medium hover:underline"
@@ -284,7 +275,7 @@ export function LibraryPage() {
                             {name}/
                           </button>
                         </td>
-                        <td className="py-2 text-right">
+                        <td className="text-right">
                           {isAdmin && (
                             <button
                               type="button"
@@ -304,12 +295,12 @@ export function LibraryPage() {
                   })}
                   {files.map((file) => (
                     <tr key={file.path} className="border-line border-t">
-                      <td className="py-2">
+                      <td>
                         <Thumbnail
                           src={file.hasThumbnail ? libraryThumbnailUrl(file.path) : null}
                         />
                       </td>
-                      <td className="w-full max-w-0 py-2 pr-2">
+                      <td className="w-full max-w-0">
                         <p className="truncate font-medium" title={file.name}>
                           {file.name}
                         </p>
@@ -319,23 +310,23 @@ export function LibraryPage() {
                             .join(" · ")}
                         </p>
                       </td>
-                      <td className="hidden py-2 pr-4 whitespace-nowrap tabular-nums sm:table-cell">
+                      <td className="hidden whitespace-nowrap tabular-nums sm:table-cell">
                         {formatDuration(t, file.estimatedSeconds)}
                       </td>
-                      <td className="hidden py-2 pr-4 whitespace-nowrap tabular-nums md:table-cell">
+                      <td className="hidden whitespace-nowrap tabular-nums md:table-cell">
                         {formatFilamentAmount(file.filamentGrams, file.filamentMm)}
                       </td>
-                      <td className="hidden py-2 pr-4 whitespace-nowrap text-muted tabular-nums lg:table-cell">
+                      <td className="hidden whitespace-nowrap text-muted tabular-nums lg:table-cell">
                         {formatBytes(file.size)}
                       </td>
-                      <td className="hidden py-2 pr-4 whitespace-nowrap text-muted lg:table-cell">
+                      <td className="hidden whitespace-nowrap text-muted lg:table-cell">
                         {formatRelativeTime(file.modified)}
                       </td>
-                      <td className="py-2">
+                      <td>
                         <div className="flex justify-end gap-1.5">
                           <button
                             type="button"
-                            className="btn btn-primary btn-sm"
+                            className="btn btn-secondary btn-sm"
                             onClick={() => setSending(file)}
                           >
                             {t("library.send")}
@@ -380,136 +371,5 @@ export function LibraryPage() {
         {sending && <SendForm file={sending} onDone={() => setSending(null)} />}
       </Dialog>
     </main>
-  );
-}
-
-/** Choose a printer; upload the file there and optionally start printing. */
-function SendForm({ file, onDone }: { file: LibraryFileDto; onDone: () => void }) {
-  const t = useT();
-  const { data } = useQuery(printersQuery);
-  const printers = data?.printers ?? [];
-  const firstIdle = printers.find((p) => p.status.state === "idle" && p.withinLimit);
-  const [printerId, setPrinterId] = useState(firstIdle?.id ?? printers[0]?.id ?? "");
-  const [print, setPrint] = useState(true);
-  const selected = printers.find((p) => p.id === printerId);
-  const canPrint = selected?.status.state === "idle" && selected.withinLimit;
-  const [done, setDone] = useState<string | null>(null);
-  const send = useMutation({
-    mutationFn: () =>
-      api<{ printing: boolean }>("/api/library/send", {
-        method: "POST",
-        body: { path: file.path, printerId, print: print && canPrint },
-      }),
-    onSuccess: (result) =>
-      setDone(
-        t(result.printing ? "library.sentPrinting" : "library.sent", {
-          printer: selected?.name ?? "",
-        }),
-      ),
-  });
-  const queue = useMutation({
-    mutationFn: () =>
-      api(`/api/printers/${printerId}/queue`, {
-        method: "POST",
-        body: { path: file.path, source: "library" },
-      }),
-    onSuccess: () => setDone(t("library.queued", { printer: selected?.name ?? "" })),
-  });
-  const onSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    send.mutate();
-  };
-
-  if (done)
-    return (
-      <div>
-        <p role="status" className="mb-4 text-sm text-success">
-          {done}
-        </p>
-        <div className="flex justify-end">
-          <button type="button" className="btn btn-primary" onClick={onDone}>
-            {t("common.close")}
-          </button>
-        </div>
-      </div>
-    );
-
-  return (
-    <form onSubmit={onSubmit}>
-      <div className="mb-4 flex gap-4">
-        <Thumbnail src={file.hasThumbnail ? libraryThumbnailUrl(file.path) : null} size={88} />
-        <dl className="grid grid-cols-2 content-start gap-x-4 gap-y-1 text-sm">
-          <dt className="text-subtle">{t("files.printTime")}</dt>
-          <dd className="tabular-nums">{formatDuration(t, file.estimatedSeconds)}</dd>
-          <dt className="text-subtle">{t("files.filament")}</dt>
-          <dd className="tabular-nums">
-            {formatFilamentAmount(file.filamentGrams, file.filamentMm)}
-          </dd>
-          {file.material && (
-            <>
-              <dt className="text-subtle">{t("filament.material")}</dt>
-              <dd>{file.material}</dd>
-            </>
-          )}
-        </dl>
-      </div>
-      <FormError error={send.error ?? queue.error} />
-      {printers.length === 0 ? (
-        <p className="mb-4 text-sm text-muted">{t("library.noPrinters")}</p>
-      ) : (
-        <fieldset className="mb-4">
-          <legend className="mb-2 text-sm text-muted">{t("library.printer")}</legend>
-          <div className="grid max-h-64 gap-1.5 overflow-auto">
-            {printers.map((printer) => (
-              <label
-                key={printer.id}
-                className={`flex cursor-pointer items-center gap-3 rounded-[10px] border px-3 py-2 text-sm ${
-                  printer.id === printerId ? "border-accent bg-accent/10" : "border-line"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="printer"
-                  value={printer.id}
-                  checked={printer.id === printerId}
-                  onChange={() => setPrinterId(printer.id)}
-                />
-                <span className="min-w-0 flex-1 truncate font-medium">{printer.name}</span>
-                <StateBadge state={printer.status.state} />
-              </label>
-            ))}
-          </div>
-        </fieldset>
-      )}
-      <label className={`mb-4 flex items-center gap-2 text-sm ${canPrint ? "" : "text-subtle"}`}>
-        <input
-          type="checkbox"
-          checked={print && canPrint}
-          disabled={!canPrint}
-          onChange={(event) => setPrint(event.target.checked)}
-        />
-        {canPrint ? t("library.startPrinting") : t("library.cannotPrint")}
-      </label>
-      <div className="flex justify-end gap-2">
-        <button type="button" className="btn btn-secondary mr-auto" onClick={onDone}>
-          {t("common.cancel")}
-        </button>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          disabled={!selected || queue.isPending}
-          onClick={() => queue.mutate()}
-        >
-          {t("library.addToQueue")}
-        </button>
-        <button type="submit" className="btn btn-primary" disabled={!selected || send.isPending}>
-          {send.isPending
-            ? t("library.sending")
-            : print && canPrint
-              ? t("library.sendAndPrint")
-              : t("library.sendOnly")}
-        </button>
-      </div>
-    </form>
   );
 }

@@ -124,7 +124,7 @@ export function LogsViewer({ printerId }: { printerId: string }) {
         </div>
         <pre
           ref={outputRef}
-          className="m-3 h-[65vh] min-h-80 overflow-auto rounded-[10px] border border-line bg-sidebar p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all text-muted"
+          className="m-3 h-[65vh] min-h-80 overflow-auto rounded-[7px] border border-line bg-sidebar p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all text-muted"
           // biome-ignore lint/a11y/noNoninteractiveTabindex: scrollable region must be reachable by keyboard.
           tabIndex={0}
         >

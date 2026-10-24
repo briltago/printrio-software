@@ -64,10 +64,11 @@ export const cs: Translation = {
     licences: "Licence",
   },
   nav: {
+    breadcrumb: "Drobečková navigace",
     main: "Hlavní navigace",
     printers: "Tiskárny",
     jobs: "Tisky",
-    files: "Soubory",
+    files: "Knihovna",
     filament: "Filament",
     costs: "Náklady",
     orders: "Zakázky",
@@ -148,6 +149,10 @@ export const cs: Translation = {
     openWorkspace: "Otevřít pracovní prostor",
   },
   printer: {
+    removeTitle: "Odebrat tiskárnu",
+    removeText:
+      "Printrio se od tiskárny odpojí a zapomene její frontu a uložené zálohy konfigurace. Tiskové úlohy a jejich náklady zůstanou v historii. Na samotné tiskárně se nic nezmění.",
+    removeButton: "Odebrat tiskárnu…",
     states: {
       offline: "Offline",
       connecting: "Připojuji",
@@ -241,9 +246,11 @@ export const cs: Translation = {
     },
     sections: {
       workspace: "Pracovní prostor",
-      printers: "Tiskárny",
+      printers: "Tiskárny a materiál",
       team: "Tým",
-      plan: "Tarif",
+      sales: "Prodej",
+      integrations: "Upozornění a integrace",
+      plan: "Tarif a data",
     },
     descriptions: {
       general:
@@ -456,7 +463,9 @@ export const cs: Translation = {
     confirm: "Vynechat {name} po zbytek tisku? Nelze vrátit zpět.",
   },
   files: {
-    title: "Soubory",
+    fromLibrary: "Z knihovny",
+    fromLibraryTitle: "Tisk z knihovny na {printer}",
+    title: "Soubory v tiskárně",
     upload: "Nahrát",
     uploading: "Nahrávám {name}… {percent} %",
     uploaded: "Nahráno: {name}",
@@ -613,6 +622,7 @@ export const cs: Translation = {
     kinds: { system: "Systémové balíčky", git: "Git", web: "Webové rozhraní", other: "Ostatní" },
   },
   filament: {
+    lowStock: "Dochází",
     tabs: { spools: "Cívky", filaments: "Filamenty" },
     summary: "{spools} {spools|cívka|cívky|cívek} skladem · {weight} filamentu",
     importSpoolman: "Importovat ze Spoolmanu",
@@ -672,6 +682,7 @@ export const cs: Translation = {
     noFilamentsText: "Filamenty se vytvoří spolu s první cívkou.",
   },
   jobs: {
+    views: "Tiskové úlohy a náklady",
     count: "{count} {count|zaznamenaný tisk|zaznamenané tisky|zaznamenaných tisků}",
     printer: "Tiskárna",
     allPrinters: "Všechny tiskárny",

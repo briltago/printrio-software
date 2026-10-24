@@ -324,7 +324,7 @@ function BackupsDialog({
         {(backups.data?.backups ?? []).map((backup) => (
           <li
             key={backup.id}
-            className="flex items-center gap-3 rounded-[10px] border border-line px-3 py-2"
+            className="flex items-center gap-3 rounded-[7px] border border-line px-3 py-2"
           >
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium">

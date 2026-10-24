@@ -65,10 +65,11 @@ export const de: Translation = {
     licences: "Lizenzen",
   },
   nav: {
+    breadcrumb: "Brotkrümelnavigation",
     main: "Hauptnavigation",
     printers: "Drucker",
     jobs: "Druckaufträge",
-    files: "Dateien",
+    files: "Bibliothek",
     filament: "Filament",
     costs: "Kosten",
     orders: "Aufträge",
@@ -150,6 +151,10 @@ export const de: Translation = {
     openWorkspace: "Arbeitsbereich öffnen",
   },
   printer: {
+    removeTitle: "Drucker entfernen",
+    removeText:
+      "Printrio trennt die Verbindung zu diesem Drucker und vergisst seine Warteschlange und gespeicherten Konfigurationssicherungen. Druckaufträge und ihre Kosten bleiben im Verlauf. Am Drucker selbst ändert sich nichts.",
+    removeButton: "Drucker entfernen…",
     states: {
       offline: "Offline",
       connecting: "Verbinde",
@@ -244,9 +249,11 @@ export const de: Translation = {
     },
     sections: {
       workspace: "Arbeitsbereich",
-      printers: "Drucker",
+      printers: "Drucker & Material",
       team: "Team",
-      plan: "Tarif",
+      sales: "Vertrieb",
+      integrations: "Benachrichtigungen & Integrationen",
+      plan: "Tarif & Daten",
     },
     descriptions: {
       general:
@@ -462,7 +469,9 @@ export const de: Translation = {
     confirm: "{name} für den Rest des Drucks überspringen? Das lässt sich nicht rückgängig machen.",
   },
   files: {
-    title: "Dateien",
+    fromLibrary: "Aus der Bibliothek",
+    fromLibraryTitle: "Aus der Bibliothek auf {printer} drucken",
+    title: "Dateien auf dem Drucker",
     upload: "Hochladen",
     uploading: "Lade {name} hoch… {percent} %",
     uploaded: "{name} hochgeladen",
@@ -622,6 +631,7 @@ export const de: Translation = {
     kinds: { system: "Systempakete", git: "Git", web: "Weboberfläche", other: "Sonstige" },
   },
   filament: {
+    lowStock: "Wenig übrig",
     tabs: { spools: "Spulen", filaments: "Filamente" },
     summary: "{spools} {spools|Spule|Spulen} auf Lager · {weight} Filament",
     importSpoolman: "Aus Spoolman importieren",
@@ -682,6 +692,7 @@ export const de: Translation = {
     noFilamentsText: "Filamente werden zusammen mit der ersten Spule angelegt.",
   },
   jobs: {
+    views: "Druckaufträge und Kosten",
     count: "{count} {count|erfasster Druck|erfasste Drucke}",
     printer: "Drucker",
     allPrinters: "Alle Drucker",

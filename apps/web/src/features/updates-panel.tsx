@@ -117,7 +117,7 @@ export function UpdatesPanel({ printerId, busy }: { printerId: string; busy: boo
           </div>
           <pre
             ref={logRef}
-            className="max-h-80 overflow-auto rounded-[10px] border border-line bg-sidebar p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap break-words text-muted"
+            className="max-h-80 overflow-auto rounded-[7px] border border-line bg-sidebar p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap break-words text-muted"
           >
             {log.map((line, index) => (
               // biome-ignore lint/suspicious/noArrayIndexKey: log lines are append-only.
@@ -158,7 +158,7 @@ function ComponentRow({
   const details =
     component.kind === "system" ? component.packages.length : component.commitsBehind.length;
   return (
-    <li className="rounded-[10px] border border-line px-4 py-3">
+    <li className="rounded-[7px] border border-line px-4 py-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <div className="min-w-0 flex-1">
           <p className="flex flex-wrap items-center gap-2">

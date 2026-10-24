@@ -90,7 +90,7 @@ export function SlicerSettings() {
         {created && (
           <div
             role="status"
-            className="mb-4 rounded-[10px] border border-success/30 bg-success/10 p-3"
+            className="mb-4 rounded-[7px] border border-success/30 bg-success/10 p-3"
           >
             <p className="mb-2 text-sm text-success">{t("slicer.createdOnce")}</p>
             <CopyField label={created.name} value={created.key} />
@@ -115,7 +115,7 @@ export function SlicerSettings() {
           {(keys.data?.keys ?? []).map((key) => (
             <li
               key={key.id}
-              className="flex items-center gap-3 rounded-[10px] border border-line px-3 py-2 text-sm"
+              className="flex items-center gap-3 rounded-[7px] border border-line px-3 py-2 text-sm"
             >
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{key.name}</p>

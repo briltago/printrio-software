@@ -1,4 +1,4 @@
-import { type NavItemId, SIDEBAR_GROUPS } from "@printrio/shared";
+import { type NavItemId, SIDEBAR_GROUPS, type SidebarGroup } from "@printrio/shared";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
@@ -8,18 +8,22 @@ import { CommandPalette } from "./features/command-palette.tsx";
 import { PrinterForm } from "./features/printer-form.tsx";
 import { UpdateBanner } from "./features/updates.tsx";
 import { useT } from "./i18n/index.tsx";
+import { Icon, NavIcon } from "./icons.tsx";
 import { api } from "./lib/api.ts";
 import { ModulesProvider } from "./lib/modules.tsx";
 import { settingsQuery } from "./lib/queries.ts";
 import { useRealtime } from "./lib/realtime.ts";
 import { meQuery } from "./lib/session.ts";
 import { type SidebarEntry, useSidebar } from "./lib/sidebar.ts";
+import { useStoredState } from "./lib/stored-state.ts";
 import { nextTheme, setTheme, useTheme } from "./lib/theme.ts";
 import { LIVE_SECTIONS, NAV_ICONS } from "./nav.ts";
 
 const navLinkClass =
-  "flex items-center gap-3 rounded-lg border border-transparent px-3 py-2.5 text-[15px] whitespace-nowrap text-muted hover:text-text md:py-2 md:text-sm";
-const activeLinkProps = { className: "!border-accent/20 bg-accent/10 !text-text" };
+  "group flex min-h-11 items-center gap-2.5 rounded-[7px] px-2.5 text-[15px] whitespace-nowrap text-muted hover:bg-surface-2 hover:text-text md:min-h-[30px] md:text-sm";
+const activeLinkProps = {
+  className: "bg-surface-2 font-semibold !text-text shadow-[inset_0_0_0_1px_var(--color-line)]",
+};
 
 export function AppLayout() {
   return (
@@ -33,10 +37,12 @@ function NavEntry({ entry }: { entry: SidebarEntry }) {
   const t = useT();
   const content = (
     <>
-      <span aria-hidden="true">{entry.icon}</span>
-      {entry.label}
+      <span className="text-subtle group-hover:text-muted group-aria-[current=page]:text-accent">
+        <NavIcon icon={entry.icon} />
+      </span>
+      <span className="truncate">{entry.label}</span>
       {!entry.moduleId && !LIVE_SECTIONS.has(entry.id as NavItemId) && (
-        <span className="ml-auto rounded-full border border-line px-1.5 text-[9px] tracking-wide text-subtle uppercase">
+        <span className="ml-auto rounded border border-line px-1.5 text-[10px] text-subtle">
           {t("common.soon")}
         </span>
       )}
@@ -59,27 +65,58 @@ function NavEntry({ entry }: { entry: SidebarEntry }) {
   );
 }
 
-/** Core and module sections, by category (Settings → Sidebar). */
+/** Core and module sections, by category (Settings → Sidebar). Categories fold away per browser. */
 function NavEntries() {
-  const t = useT();
   const { entries, showGroups } = useSidebar();
   const visible = entries.filter((entry) => entry.visible);
-  if (!showGroups) return visible.map((entry) => <NavEntry key={entry.id} entry={entry} />);
-  return SIDEBAR_GROUPS.map((group) => {
-    const items = visible.filter((entry) => entry.group === group);
-    if (items.length === 0) return null;
+  if (!showGroups)
     return (
-      <div key={group} className="flex flex-col gap-1 [&+&]:mt-3">
-        <p className="px-3 pb-1 text-[11px] font-semibold tracking-wider text-subtle uppercase">
-          {t(`nav.groups.${group}`)}
-        </p>
-        {items.map((entry) => (
+      <div className="flex flex-col gap-0.5">
+        {visible.map((entry) => (
           <NavEntry key={entry.id} entry={entry} />
         ))}
       </div>
     );
+  return SIDEBAR_GROUPS.map((group) => {
+    const items = visible.filter((entry) => entry.group === group);
+    if (items.length === 0) return null;
+    return <NavGroup key={group} group={group} items={items} />;
   });
 }
+
+function NavGroup({ group, items }: { group: SidebarGroup; items: SidebarEntry[] }) {
+  const t = useT();
+  const [state, setState] = useStoredState<"open" | "closed">(`printrio-nav-${group}`, "open");
+  const open = state === "open";
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  // A folded category still shows the page you are on.
+  const shown = open ? items : items.filter((entry) => isCurrent(entry, pathname));
+  return (
+    <div className="flex flex-col [&+&]:mt-2.5">
+      <button
+        type="button"
+        className="flex min-h-9 items-center gap-1 rounded-[6px] px-2.5 text-left text-xs font-medium text-subtle hover:text-text md:min-h-6"
+        aria-expanded={open}
+        onClick={() => setState(open ? "closed" : "open")}
+      >
+        {t(`nav.groups.${group}`)}
+        <span className={`transition-transform ${open ? "rotate-90" : ""}`}>
+          <Icon name="chevron" size={12} />
+        </span>
+        {!open && <span className="ml-auto tabular-nums">{items.length}</span>}
+      </button>
+      {shown.map((entry) => (
+        <NavEntry key={entry.id} entry={entry} />
+      ))}
+    </div>
+  );
+}
+
+const isCurrent = (entry: SidebarEntry, pathname: string) =>
+  "to" in entry.link
+    ? pathname === entry.link.to || pathname.startsWith(`${entry.link.to}/`)
+    : pathname.replace(/\/$/, "") ===
+      `/m/${entry.link.moduleId}/${entry.link.path}`.replace(/\/$/, "");
 
 /** Half-filled circle: the universal light/dark toggle glyph. */
 function ThemeIcon() {
@@ -140,32 +177,22 @@ function AppShell() {
     .slice(0, 2)
     .toUpperCase();
 
+  const openPalette = () => window.dispatchEvent(new Event("printrio:palette"));
+
   return (
-    <div className="grid min-h-dvh content-start md:grid-cols-[232px_minmax(0,1fr)] md:content-stretch">
+    <div className="grid min-h-dvh content-start md:grid-cols-[236px_minmax(0,1fr)] md:content-stretch">
       {/* Phones: compact top bar with search and the menu button. */}
-      <header className="safe-top sticky top-0 z-30 flex items-center gap-2 border-line border-b bg-sidebar/95 px-4 pb-2 backdrop-blur md:hidden">
+      <header className="safe-top sticky top-0 z-30 flex items-center gap-1 border-line border-b bg-sidebar px-4 pb-2 md:hidden">
         <Link to="/" className="mr-auto flex min-h-11 items-center">
           <Brand size={24} />
         </Link>
         <button
           type="button"
           className="icon-btn"
-          onClick={() => window.dispatchEvent(new Event("printrio:palette"))}
+          onClick={openPalette}
           aria-label={t("nav.search")}
         >
-          <svg
-            viewBox="0 0 24 24"
-            width="19"
-            height="19"
-            aria-hidden="true"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.9"
-            strokeLinecap="round"
-          >
-            <circle cx="11" cy="11" r="7" />
-            <path d="m20 20-3.5-3.5" />
-          </svg>
+          <Icon name="search" size={19} />
         </button>
         <button
           type="button"
@@ -175,37 +202,26 @@ function AppShell() {
           aria-expanded={menuOpen}
           aria-controls="app-menu"
         >
-          <svg
-            viewBox="0 0 24 24"
-            width="20"
-            height="20"
-            aria-hidden="true"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.9"
-            strokeLinecap="round"
-          >
-            <path d="M4 7h16M4 12h16M4 17h16" />
-          </svg>
+          <Icon name="menu" size={20} />
         </button>
       </header>
       {menuOpen && (
         <button
           type="button"
-          className="fixed inset-0 z-40 bg-[#05030acc] backdrop-blur-[2px] md:hidden"
+          className="fixed inset-0 z-40 bg-[#05060acc] md:hidden"
           aria-label={t("nav.closeMenu")}
           onClick={() => setMenuOpen(false)}
         />
       )}
       <aside
         id="app-menu"
-        className={`safe-drawer flex min-w-0 flex-col bg-sidebar px-4 py-5 max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-[min(86vw,320px)] max-md:overflow-y-auto max-md:border-line max-md:border-r max-md:shadow-2xl max-md:transition-transform max-md:duration-200 md:sticky md:top-0 md:h-dvh md:overflow-y-auto md:border-line md:border-r ${
+        className={`safe-drawer flex min-w-0 flex-col bg-sidebar pr-3 max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-[min(86vw,320px)] max-md:border-line max-md:border-r max-md:shadow-2xl max-md:transition-transform max-md:duration-200 md:sticky md:top-0 md:h-dvh md:border-line md:border-r ${
           menuOpen ? "max-md:translate-x-0" : "max-md:invisible max-md:-translate-x-full"
         }`}
       >
         <div className="flex items-center justify-between">
-          <Link to="/" className="px-2">
-            <Brand size={26} />
+          <Link to="/" className="flex min-h-10 items-center px-2.5">
+            <Brand size={24} />
           </Link>
           <button
             type="button"
@@ -213,88 +229,64 @@ function AppShell() {
             onClick={() => setMenuOpen(false)}
             aria-label={t("nav.closeMenu")}
           >
-            <svg
-              viewBox="0 0 24 24"
-              width="20"
-              height="20"
-              aria-hidden="true"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.9"
-              strokeLinecap="round"
-            >
-              <path d="M6 6l12 12M18 6 6 18" />
-            </svg>
+            <Icon name="close" size={20} />
           </button>
         </div>
         <button
           type="button"
-          onClick={() => window.dispatchEvent(new Event("printrio:palette"))}
-          className="mt-5 hidden w-full items-center justify-between rounded-[10px] border border-line px-3 py-2 text-left text-sm text-subtle hover:text-text md:flex"
+          onClick={openPalette}
+          className="mt-3 hidden min-h-8 w-full items-center gap-2 rounded-[7px] border border-line bg-field px-2.5 text-left text-sm text-subtle hover:border-line-strong hover:text-text md:flex"
         >
-          {t("nav.search")}
-          <kbd className="rounded border border-line px-1.5 text-[10px]">{t("palette.hint")}</kbd>
+          <Icon name="search" size={14} />
+          <span className="flex-1">{t("nav.search")}</span>
+          <kbd className="font-sans text-[11px]">{t("palette.hint")}</kbd>
         </button>
-        <nav aria-label={t("nav.main")} className="mt-5 flex flex-1 flex-col gap-1">
+        <nav
+          aria-label={t("nav.main")}
+          className="scroll-shadows -mr-3 mt-4 flex min-h-0 flex-1 flex-col overflow-y-auto pr-3 [scrollbar-width:thin]"
+        >
           <NavEntries />
-          <Link to="/settings" className={`${navLinkClass} mt-auto`} activeProps={activeLinkProps}>
-            <span aria-hidden="true">{NAV_ICONS.settings}</span>
+        </nav>
+        <div className="mt-3 flex flex-col gap-0.5 border-line border-t pt-3">
+          <Link to="/settings" className={navLinkClass} activeProps={activeLinkProps}>
+            <span className="text-subtle group-hover:text-muted group-aria-[current=page]:text-accent">
+              <Icon name={NAV_ICONS.settings} />
+            </span>
             {t("nav.settings")}
           </Link>
-        </nav>
-        <AboutLine className="mt-3 px-3" />
-        {/* Phones: account controls live in the drawer (the desktop header is hidden). */}
-        <div className="mt-4 flex items-center gap-2 border-line border-t pt-4 md:hidden">
-          <span
-            aria-hidden="true"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-accent text-xs font-bold text-accent-ink"
-          >
-            {initials}
-          </span>
-          <span className="min-w-0 flex-1 truncate text-sm text-muted">{user?.displayName}</span>
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={() => setTheme(nextTheme(theme))}
-            aria-label={t("palette.toggleTheme")}
-          >
-            <ThemeIcon />
-          </button>
-          <button
-            type="button"
-            onClick={() => logout.mutate()}
-            className="btn btn-secondary btn-sm"
-          >
-            {t("auth.signOut")}
-          </button>
+          <div className="flex items-center gap-1 pl-2.5">
+            <span
+              aria-hidden="true"
+              className="grid h-6 w-6 shrink-0 place-items-center rounded-[6px] bg-surface-2 text-[10px] font-bold text-muted shadow-[inset_0_0_0_1px_var(--color-line)]"
+            >
+              {initials}
+            </span>
+            <span className="ml-1.5 min-w-0 flex-1 truncate text-sm text-muted" title={user?.email}>
+              {user?.displayName}
+            </span>
+            <button
+              type="button"
+              className="icon-btn md:h-8 md:w-8"
+              onClick={() => setTheme(nextTheme(theme))}
+              aria-label={t("palette.toggleTheme")}
+              title={t("palette.toggleTheme")}
+            >
+              <ThemeIcon />
+            </button>
+            <button
+              type="button"
+              className="icon-btn md:h-8 md:w-8"
+              onClick={() => logout.mutate()}
+              aria-label={t("auth.signOut")}
+              title={t("auth.signOut")}
+            >
+              <Icon name="signOut" />
+            </button>
+          </div>
         </div>
+        <AboutLine className="mt-2 px-2.5" />
       </aside>
       <div className="min-w-0">
-        <header className="hidden items-center justify-end gap-3 border-line border-b px-6 py-3 md:flex">
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={() => setTheme(nextTheme(theme))}
-            aria-label={t("palette.toggleTheme")}
-            title={t("palette.toggleTheme")}
-          >
-            <ThemeIcon />
-          </button>
-          <span className="text-sm text-muted">{user?.displayName}</span>
-          <span
-            aria-hidden="true"
-            className="grid h-7 w-7 place-items-center rounded-lg bg-accent text-[11px] font-bold text-accent-ink"
-          >
-            {initials}
-          </span>
-          <button
-            type="button"
-            onClick={() => logout.mutate()}
-            className="btn btn-secondary btn-sm"
-          >
-            {t("auth.signOut")}
-          </button>
-        </header>
         <UpdateBanner admin={user?.role === "admin"} />
         <div className="safe-bottom">
           <Outlet />

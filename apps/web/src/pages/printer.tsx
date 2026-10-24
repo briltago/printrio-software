@@ -61,7 +61,7 @@ export function PrinterPage() {
 
   if (!printer) {
     return (
-      <main className="mx-auto max-w-6xl px-4 py-5 sm:p-6 md:p-8">
+      <main className="page">
         <EmptyState
           title={t("printer.notFound")}
           text={t("printer.notFoundText")}
@@ -83,25 +83,35 @@ export function PrinterPage() {
     if (window.confirm(message)) command.mutate(body);
   };
   const group = groupData?.groups.find((g) => g.id === printer.groupId)?.name;
+  const meta = [group, ...printer.tags].filter(Boolean).join(" · ");
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-5 sm:p-6 md:p-8">
-      {data.printers.length > 1 && (
-        <Link
-          to="/printers"
-          className="mb-1 inline-flex min-h-11 items-center text-sm text-muted hover:text-text md:mb-3 md:min-h-0"
-        >
-          ← {t("printer.allPrinters")}
-        </Link>
-      )}
+    <main className="page">
       <PageHeader
-        kicker={[group, ...printer.tags].filter(Boolean).join(" · ") || t("nav.printers")}
+        crumbs={
+          data.printers.length > 1 && (
+            <>
+              <Link to="/printers" className="hover:text-text hover:underline">
+                {t("nav.printers")}
+              </Link>
+              <span aria-hidden="true" className="text-subtle">
+                /
+              </span>
+              <span className="truncate">{printer.name}</span>
+            </>
+          )
+        }
         title={printer.name}
         subtitle={
-          <span className="flex flex-wrap items-center gap-2">
+          <>
             <StateBadge state={status.state} />
-            {status.message && <span>{status.message}</span>}
-          </span>
+            {status.message && (
+              <span className={status.state === "error" ? "text-danger" : undefined}>
+                {status.message}
+              </span>
+            )}
+            {meta && <span className="text-subtle">{meta}</span>}
+          </>
         }
         actions={
           <>
@@ -113,25 +123,9 @@ export function PrinterPage() {
               {t("maintenance.open")}
             </Link>
             {isAdmin && (
-              <>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => setEditing(true)}
-                >
-                  {t("common.edit")}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-danger"
-                  onClick={() =>
-                    window.confirm(t("printer.deleteConfirm", { name: printer.name })) &&
-                    remove.mutate()
-                  }
-                >
-                  {t("common.delete")}
-                </button>
-              </>
+              <button type="button" className="btn btn-secondary" onClick={() => setEditing(true)}>
+                {t("common.edit")}
+              </button>
             )}
           </>
         }
@@ -139,10 +133,12 @@ export function PrinterPage() {
       {!printer.withinLimit && (
         <p className="mt-3 text-sm text-warning">{t("printer.outsideLimit")}</p>
       )}
-      <FormError error={command.error ?? restart.error ?? remove.error} />
+      <div className="mt-4 empty:hidden">
+        <FormError error={command.error ?? restart.error} />
+      </div>
 
       {/* Two columns on wide screens; one column below, ordered by importance (webcam, job, temperatures, …). */}
-      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:items-start">
+      <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:items-start">
         <div className="contents lg:grid lg:min-w-0 lg:grid-cols-1 lg:content-start lg:gap-4">
           <div className="order-1 min-w-0 empty:hidden lg:order-none">
             <WebcamPanel printerId={printer.id} connected={connected} />
@@ -152,15 +148,17 @@ export function PrinterPage() {
               {job ? (
                 <div>
                   <div className="flex items-end justify-between gap-3">
-                    <p className="truncate text-muted">{job.fileName}</p>
-                    <p className="text-3xl font-semibold tracking-[-0.06em]">
+                    <p className="min-w-0 truncate font-medium" title={job.fileName}>
+                      {job.fileName}
+                    </p>
+                    <p className="text-2xl font-semibold tabular-nums">
                       {formatPercent(job.progress)}
                     </p>
                   </div>
                   <div className="mt-3">
                     <ProgressBar value={job.progress} label={t("printer.progress")} />
                   </div>
-                  <dl className="mt-5 grid grid-cols-3 gap-3 text-sm">
+                  <dl className="mt-4 grid grid-cols-3 gap-3 text-sm">
                     <Stat
                       label={t("printer.elapsed")}
                       value={formatDuration(t, job.elapsedSeconds)}
@@ -181,7 +179,7 @@ export function PrinterPage() {
               {status.exclusion && (
                 <ObjectExclusion printerId={printer.id} exclusion={status.exclusion} />
               )}
-              <div className="mt-6 flex flex-wrap gap-2 border-line border-t pt-4">
+              <div className="mt-5 flex flex-wrap gap-2 border-line border-t pt-4">
                 {status.state === "error" && connected && (
                   <>
                     <button
@@ -325,6 +323,24 @@ export function PrinterPage() {
           onSaved={() => setEditing(false)}
           onCancel={() => setEditing(false)}
         />
+        {/* Removing is part of editing: rare, and one deliberate step away from daily controls. */}
+        <section className="mt-6 border-line border-t pt-5" aria-labelledby="remove-printer">
+          <h3 id="remove-printer" className="text-sm font-semibold">
+            {t("printer.removeTitle")}
+          </h3>
+          <p className="mt-1 text-sm text-muted">{t("printer.removeText")}</p>
+          <FormError error={remove.error} />
+          <button
+            type="button"
+            className="btn btn-danger mt-3"
+            disabled={remove.isPending}
+            onClick={() =>
+              window.confirm(t("printer.deleteConfirm", { name: printer.name })) && remove.mutate()
+            }
+          >
+            {t("printer.removeButton")}
+          </button>
+        </section>
       </Dialog>
     </main>
   );
@@ -334,7 +350,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <dt className="text-xs text-subtle">{label}</dt>
-      <dd className="mt-0.5 font-semibold">{value}</dd>
+      <dd className="mt-0.5 font-semibold tabular-nums">{value}</dd>
     </div>
   );
 }

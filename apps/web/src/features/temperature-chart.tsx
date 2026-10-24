@@ -170,7 +170,7 @@ export function TemperatureChart({
       </svg>
       {hoverT !== null && (
         <div
-          className="pointer-events-none absolute top-1 w-40 rounded-[10px] border border-line bg-surface-2 p-2.5 text-xs shadow-lg"
+          className="pointer-events-none absolute top-1 w-40 rounded-[7px] border border-line bg-surface-2 p-2.5 text-xs shadow-lg"
           style={{ left: tooltipLeft }}
         >
           <p className="mb-1.5 text-subtle">

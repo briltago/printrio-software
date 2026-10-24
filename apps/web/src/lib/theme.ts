@@ -23,7 +23,7 @@ export function applyTheme(preference = read()) {
   // Status bar / browser chrome colour on phones follows the theme.
   document
     .querySelector('meta[name="theme-color"]')
-    ?.setAttribute("content", effective === "light" ? "#efebf6" : "#0d0a14");
+    ?.setAttribute("content", effective === "light" ? "#eceef2" : "#111216");
 }
 
 export function setTheme(preference: ThemePreference) {

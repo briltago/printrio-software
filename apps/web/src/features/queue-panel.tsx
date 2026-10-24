@@ -77,7 +77,7 @@ export function QueuePanel({ printerId, canPrint }: { printerId: string; canPrin
         {items.map((item, index) => (
           <li
             key={item.id}
-            className="flex items-center gap-2 rounded-[10px] border border-line px-3 py-2 text-sm"
+            className="flex items-center gap-2 rounded-[7px] border border-line px-3 py-2 text-sm"
           >
             <span className="w-5 shrink-0 text-xs text-subtle tabular-nums">{index + 1}.</span>
             <span className="min-w-0 flex-1">

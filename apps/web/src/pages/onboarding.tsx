@@ -55,7 +55,7 @@ export function OnboardingPage() {
                 onChange={() => setMode(value)}
                 className="sr-only"
               />
-              <span aria-hidden="true" className="text-xl text-accent-2">
+              <span aria-hidden="true" className="text-xl text-accent">
                 {icon}
               </span>
               <span className="mt-2 block font-semibold">{title}</span>

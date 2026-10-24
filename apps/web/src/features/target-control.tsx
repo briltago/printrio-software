@@ -62,7 +62,7 @@ export function TargetControl({
   return (
     <div
       ref={rootRef}
-      className="relative inline-flex items-stretch rounded-[10px] border border-line-strong bg-sidebar"
+      className="relative inline-flex items-stretch rounded-[7px] border border-line-strong bg-sidebar"
     >
       <button
         type="button"
@@ -100,7 +100,7 @@ export function TargetControl({
           id={popoverId}
           role="dialog"
           aria-label={t("temps.setTarget", { name: heaterLabel })}
-          className="absolute top-full right-0 z-20 mt-2 w-64 rounded-[12px] border border-line bg-surface p-3 shadow-2xl"
+          className="absolute top-full right-0 z-20 mt-2 w-64 rounded-card border border-line bg-surface p-3 shadow-2xl"
           onKeyDown={(event) => event.key === "Escape" && setOpen(false)}
         >
           <form onSubmit={onSubmit} className="flex gap-2">

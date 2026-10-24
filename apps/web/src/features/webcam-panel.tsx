@@ -62,7 +62,7 @@ export function WebcamPanel({ printerId, connected }: { printerId: string; conne
     body = (
       <figure
         ref={figureRef}
-        className="grid aspect-video place-items-center overflow-hidden rounded-[10px] bg-black"
+        className="grid aspect-video place-items-center overflow-hidden rounded-[7px] bg-black"
       >
         <CameraImage printerId={printerId} cam={cam} />
       </figure>

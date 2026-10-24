@@ -62,10 +62,11 @@ export const en = {
     licences: "Licences",
   },
   nav: {
+    breadcrumb: "Breadcrumb",
     main: "Main navigation",
     printers: "Printers",
     jobs: "Print jobs",
-    files: "Files",
+    files: "Library",
     filament: "Filament",
     costs: "Costs",
     orders: "Orders",
@@ -146,6 +147,10 @@ export const en = {
     openWorkspace: "Open workspace",
   },
   printer: {
+    removeTitle: "Remove printer",
+    removeText:
+      "Printrio disconnects from this printer and forgets its queue and saved configuration backups. Print jobs and their costs stay in the history. Nothing on the printer itself is changed.",
+    removeButton: "Remove printer…",
     states: {
       offline: "Offline",
       connecting: "Connecting",
@@ -239,9 +244,11 @@ export const en = {
     },
     sections: {
       workspace: "Workspace",
-      printers: "Printers",
+      printers: "Printers & material",
       team: "Team",
-      plan: "Plan",
+      sales: "Sales",
+      integrations: "Alerts & integrations",
+      plan: "Plan & data",
     },
     descriptions: {
       general: "How this workspace is used, what opens first and how print costs are calculated.",
@@ -451,7 +458,9 @@ export const en = {
     confirm: "Skip {name} for the rest of this print? This cannot be undone.",
   },
   files: {
-    title: "Files",
+    fromLibrary: "From library",
+    fromLibraryTitle: "Print from the library on {printer}",
+    title: "Files on this printer",
     upload: "Upload",
     uploading: "Uploading {name}… {percent}%",
     uploaded: "Uploaded {name}",
@@ -605,6 +614,7 @@ export const en = {
     kinds: { system: "System packages", git: "Git", web: "Web interface", other: "Other" },
   },
   filament: {
+    lowStock: "Low stock",
     tabs: { spools: "Spools", filaments: "Filaments" },
     summary: "{spools} {spools|spool|spools} in stock · {weight} of filament",
     importSpoolman: "Import from Spoolman",
@@ -664,6 +674,7 @@ export const en = {
     noFilamentsText: "Filaments are created together with your first spool.",
   },
   jobs: {
+    views: "Print jobs and costs",
     count: "{count} recorded {count|print|prints}",
     printer: "Printer",
     allPrinters: "All printers",

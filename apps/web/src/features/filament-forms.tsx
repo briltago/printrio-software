@@ -286,7 +286,7 @@ export function SpoolForm({
         </label>
       )}
       {filamentId === NEW && !spool && (
-        <fieldset className="mb-4 rounded-[12px] border border-line p-4 pb-0">
+        <fieldset className="mb-4 rounded-card border border-line p-4 pb-0">
           <legend className="px-1 text-xs text-subtle">{t("filament.newFilament")}</legend>
           <FilamentFields inline />
         </fieldset>

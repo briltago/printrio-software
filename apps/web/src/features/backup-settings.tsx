@@ -75,7 +75,7 @@ export function BackupSettings() {
   return (
     <>
       {!data.available && (
-        <p className="mb-5 rounded-[10px] border border-warning/40 bg-warning/10 p-3 text-sm">
+        <p className="mb-5 rounded-[7px] border border-warning/40 bg-warning/10 p-3 text-sm">
           {t("backups.unavailable")}
         </p>
       )}

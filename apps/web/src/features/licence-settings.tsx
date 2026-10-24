@@ -63,7 +63,7 @@ export function LicenceSettings() {
         }
       >
         <div className="flex flex-wrap items-center gap-3">
-          <span className="grid h-11 w-11 place-items-center rounded-[12px] bg-accent/15 text-lg text-accent">
+          <span className="grid h-11 w-11 place-items-center rounded-card bg-accent/15 text-lg text-accent">
             ✦
           </span>
           <div>
@@ -87,7 +87,7 @@ export function LicenceSettings() {
               [t("licence.users"), licence.limits.users],
             ] as const
           ).map(([label, value]) => (
-            <div key={label} className="rounded-[12px] border border-line bg-surface-2 px-4 py-3">
+            <div key={label} className="rounded-card border border-line bg-surface-2 px-4 py-3">
               <dt className="text-xs text-muted">{label}</dt>
               <dd className="mt-0.5 text-xl font-semibold tabular-nums">{limit(value)}</dd>
             </div>
@@ -105,7 +105,7 @@ export function LicenceSettings() {
         )
       ) : (
         <Section title={t("licence.key")}>
-          <p className="mb-4 inline-block rounded-[10px] border border-line bg-surface-2 px-3 py-1.5 font-mono text-sm tracking-wide">
+          <p className="mb-4 inline-block rounded-[7px] border border-line bg-surface-2 px-3 py-1.5 font-mono text-sm tracking-wide">
             {licence.licenceKey}
           </p>
           {licence.lastError && (
@@ -179,7 +179,7 @@ export function LicenceSettings() {
             {modules.modules.map((module) => (
               <li
                 key={module.id}
-                className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[10px] border border-line bg-surface-2 px-3 py-2"
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[7px] border border-line bg-surface-2 px-3 py-2"
               >
                 <span
                   aria-hidden="true"

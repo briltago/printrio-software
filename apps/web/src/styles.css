@@ -9,25 +9,29 @@
     sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  --color-bg: #09070f;
-  --color-surface: #12101b;
-  --color-surface-2: #191524;
-  --color-sidebar: #0d0a14;
-  --color-line: #292337;
-  --color-line-strong: #39304a;
-  --color-text: #f5f3fa;
-  --color-muted: #b0a9bc;
-  --color-subtle: #7c7686;
-  --color-accent: #a78bfa;
-  --color-accent-2: #c4b5fd;
-  --color-accent-ink: #100b1b;
-  --color-success: #75e0b1;
-  --color-warning: #f5c26b;
-  --color-danger: #ff8a9b;
+  /* Graphite neutrals; the violet accent (from the logo) marks actions, selection and focus. */
+  --color-bg: #0e0f13;
+  --color-surface: #15171c;
+  --color-surface-2: #1c1f26;
+  --color-sidebar: #111216;
+  --color-field: #101116;
+  --color-line: #262932;
+  --color-line-strong: #363a46;
+  --color-text: #eceef2;
+  --color-muted: #a5aab6;
+  --color-subtle: #868c99;
+  --color-accent: #a18cfa;
+  --color-accent-2: #c3b6fc;
+  --color-accent-ink: #120f1c;
+  /* Status palette, shared by printers, jobs, orders and spools (never the accent). */
+  --color-info: #62a8ff;
+  --color-success: #5fd39a;
+  --color-warning: #f0b952;
+  --color-danger: #ff7d8c;
 
-  --radius-control: 11px;
-  --radius-card: 14px;
-  --radius-panel: 16px;
+  --radius-control: 7px;
+  --radius-card: 9px;
+  --radius-panel: 12px;
 }
 
 /*
@@ -48,21 +52,23 @@
 
 /* Light theme: same token names, applied via <html data-theme="light"> (see lib/theme.ts). */
 :root[data-theme="light"] {
-  --color-bg: #f6f4fa;
+  --color-bg: #f5f6f8;
   --color-surface: #ffffff;
-  --color-surface-2: #f1edf8;
-  --color-sidebar: #efebf6;
-  --color-line: #e2dcec;
-  --color-line-strong: #cfc6df;
-  --color-text: #1b1626;
-  --color-muted: #5c556a;
-  --color-subtle: #7d7590;
-  --color-accent: #7c5ce6;
-  --color-accent-2: #6a4dd6;
+  --color-surface-2: #eff1f4;
+  --color-sidebar: #eceef2;
+  --color-field: #ffffff;
+  --color-line: #dfe2e8;
+  --color-line-strong: #c6cad3;
+  --color-text: #16181d;
+  --color-muted: #505662;
+  --color-subtle: #636977;
+  --color-accent: #6a4bd8;
+  --color-accent-2: #5638c4;
   --color-accent-ink: #ffffff;
-  --color-success: #13865a;
-  --color-warning: #a96a00;
-  --color-danger: #c9324a;
+  --color-info: #1a66c7;
+  --color-success: #12774c;
+  --color-warning: #935600;
+  --color-danger: #c0283f;
   --color-series-1: #2a78d6;
   --color-series-2: #eb6834;
   --color-series-3: #1baf7a;
@@ -77,6 +83,10 @@
     color-scheme: dark;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
+    scrollbar-color: var(--color-line-strong) transparent;
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
   }
   /* Touch: no grey flash on tap, no double-tap zoom delay on controls. */
   a,
@@ -98,8 +108,19 @@
     background: var(--color-bg);
     color: var(--color-text);
     font-family: var(--font-sans);
-    line-height: 1.6;
+    font-size: 14px;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--color-accent) 32%, transparent);
+  }
+  input,
+  textarea {
+    caret-color: var(--color-accent);
+  }
+  a {
+    text-underline-offset: 3px;
   }
   /* Drawer open on a phone: the page behind it does not scroll. */
   html.menu-open,
@@ -107,8 +128,13 @@
     overflow: hidden;
   }
   :focus-visible {
-    outline: 2px solid var(--color-accent-2);
-    outline-offset: 3px;
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+  input[type="checkbox"],
+  input[type="radio"],
+  input[type="range"] {
+    accent-color: var(--color-accent);
   }
   /* Number inputs: no browser spinners; dedicated −/+ controls are used where stepping helps. */
   input[type="number"] {
@@ -123,92 +149,116 @@
 }
 
 @layer components {
+  /* Buttons: one shape; primary (accent), secondary (outlined), danger (outlined red). */
   .btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 9px;
+    gap: 8px;
+    min-height: 36px;
     border: 1px solid transparent;
     border-radius: var(--radius-control);
-    padding: 11px 17px;
+    padding: 7px 14px;
     font-size: 13px;
-    font-weight: 700;
+    font-weight: 600;
+    line-height: 1.25;
+    white-space: nowrap;
     transition:
-      transform 0.2s,
-      border-color 0.2s,
-      background 0.2s;
+      background-color 0.15s,
+      border-color 0.15s,
+      color 0.15s;
   }
-  @media (hover: hover) {
-    .btn:hover:not(:disabled) {
-      transform: translateY(-1px);
-    }
-  }
-  .btn:disabled {
-    opacity: 0.6;
+  .btn:disabled,
+  .btn[aria-disabled="true"] {
+    opacity: 0.5;
     cursor: not-allowed;
   }
   .btn-primary {
     background: var(--color-accent);
     border-color: var(--color-accent);
     color: var(--color-accent-ink);
-    box-shadow: 0 8px 30px #a78bfa20;
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-accent) 88%, var(--color-text));
   }
   .btn-secondary {
-    background: #ffffff04;
-    border-color: var(--color-line);
+    background: var(--color-surface);
+    border-color: var(--color-line-strong);
     color: var(--color-text);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background: var(--color-surface-2);
   }
   .btn-danger {
     background: transparent;
-    border-color: color-mix(in srgb, var(--color-danger) 45%, transparent);
+    border-color: color-mix(in srgb, var(--color-danger) 50%, transparent);
     color: var(--color-danger);
   }
+  .btn-danger:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  }
   .btn-sm {
-    padding: 7px 12px;
+    min-height: 30px;
+    padding: 4px 10px;
     font-size: 12px;
-    border-radius: 9px;
+    border-radius: 6px;
   }
   .input {
     width: 100%;
+    min-height: 36px;
     border: 1px solid var(--color-line-strong);
-    border-radius: 10px;
-    background: var(--color-sidebar);
+    border-radius: var(--radius-control);
+    background: var(--color-field);
     color: var(--color-text);
-    padding: 11px 13px;
+    padding: 7px 11px;
     font-size: 14px;
+    transition:
+      border-color 0.15s,
+      box-shadow 0.15s;
+  }
+  .input::placeholder {
+    color: var(--color-subtle);
   }
   .input:focus {
     outline: none;
     border-color: var(--color-accent);
-    box-shadow: 0 0 0 4px #a78bfa18;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 22%, transparent);
+  }
+  .input:disabled {
+    opacity: 0.6;
+  }
+  .input[aria-invalid="true"] {
+    border-color: var(--color-danger);
   }
   .card {
     border: 1px solid var(--color-line);
     border-radius: var(--radius-card);
     background: var(--color-surface);
   }
+  /* Context label (document type, owner). Sentence case, never an accent eyebrow. */
   .kicker {
-    color: var(--color-accent-2);
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
+    color: var(--color-muted);
+    font-size: 13px;
+    font-weight: 500;
   }
+  /* Status label: a dot and the word, tinted from the status colour (state-* sets it). */
   .badge {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    border: 1px solid var(--color-line);
-    border-radius: 999px;
-    padding: 3px 9px;
-    font-size: 11px;
+    border-radius: 5px;
+    padding: 2px 7px;
+    background: color-mix(in srgb, currentColor 12%, transparent);
+    font-size: 12px;
     font-weight: 600;
+    line-height: 1.4;
     white-space: nowrap;
   }
   .badge::before {
     content: "";
     width: 6px;
     height: 6px;
+    flex-shrink: 0;
     border-radius: 50%;
     background: currentColor;
   }
@@ -222,7 +272,7 @@
     color: var(--color-success);
   }
   .state-printing {
-    color: var(--color-accent-2);
+    color: var(--color-info);
   }
   .state-paused {
     color: var(--color-warning);
@@ -232,7 +282,7 @@
   }
   .progress {
     height: 6px;
-    border-radius: 999px;
+    border-radius: 3px;
     background: var(--color-line);
     overflow: hidden;
   }
@@ -240,8 +290,84 @@
     display: block;
     height: 100%;
     border-radius: inherit;
-    background: var(--color-accent);
+    background: var(--color-info);
     transition: width 0.6s ease;
+  }
+  /* Underlined tabs: a row of links or buttons; the current one has aria-current or aria-selected. */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--color-line);
+    scrollbar-width: none;
+  }
+  .tab {
+    margin-bottom: -1px;
+    border-bottom: 2px solid transparent;
+    padding: 8px 10px;
+    color: var(--color-muted);
+    font-size: 14px;
+    white-space: nowrap;
+  }
+  .tab:hover {
+    color: var(--color-text);
+  }
+  .tab[aria-current="page"],
+  .tab[aria-selected="true"] {
+    border-color: var(--color-accent);
+    color: var(--color-text);
+    font-weight: 600;
+  }
+  /* Segmented control: mutually exclusive buttons with aria-pressed. */
+  .seg {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-control);
+    background: var(--color-field);
+    padding: 2px;
+  }
+  .seg > button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 5px;
+    padding: 4px 10px;
+    color: var(--color-muted);
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .seg > button:hover {
+    color: var(--color-text);
+  }
+  .seg > button[aria-pressed="true"] {
+    background: var(--color-surface-2);
+    color: var(--color-text);
+    font-weight: 600;
+    box-shadow: inset 0 0 0 1px var(--color-line-strong);
+  }
+  /* Data tables: muted header, row rules, numbers right-aligned by the caller. */
+  .table {
+    width: 100%;
+    text-align: left;
+    font-size: 14px;
+  }
+  .table th {
+    padding: 0 12px 8px 0;
+    color: var(--color-subtle);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .table td {
+    border-top: 1px solid var(--color-line);
+    padding: 8px 12px 8px 0;
+    vertical-align: middle;
+  }
+  .table th:last-child,
+  .table td:last-child {
+    padding-right: 0;
   }
   .dialog {
     width: min(520px, calc(100vw - 24px));
@@ -254,24 +380,23 @@
     overscroll-behavior: contain;
     margin: auto;
     padding: 0;
-    border: 1px solid var(--color-line);
+    border: 1px solid var(--color-line-strong);
     border-radius: var(--radius-panel);
     background: var(--color-surface);
     color: var(--color-text);
-    box-shadow: 0 30px 80px #0008;
+    box-shadow: 0 24px 64px -12px #0009;
   }
   .dialog::backdrop {
-    background: #05030acc;
-    backdrop-filter: blur(4px);
+    background: #05060acc;
   }
-  /* Square icon button with a finger-sized hit area (top bar, drawer). */
+  /* Square icon button with a finger-sized hit area (drawer, sidebar footer). */
   .icon-btn {
     display: inline-grid;
     place-items: center;
-    width: 44px;
-    height: 44px;
+    width: 40px;
+    height: 40px;
     flex-shrink: 0;
-    border-radius: 12px;
+    border-radius: var(--radius-control);
     color: var(--color-muted);
   }
   .icon-btn:hover,
@@ -286,9 +411,9 @@
     padding-right: max(1rem, env(safe-area-inset-right));
   }
   .safe-drawer {
-    padding-top: max(1.25rem, env(safe-area-inset-top));
-    padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
-    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-top: max(1rem, env(safe-area-inset-top));
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+    padding-left: max(0.75rem, env(safe-area-inset-left));
   }
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom);
@@ -298,9 +423,35 @@
   .brand {
     display: inline-flex;
     align-items: center;
-    gap: 10px;
+    gap: 9px;
     font-weight: 700;
-    letter-spacing: -0.8px;
+    letter-spacing: -0.02em;
+  }
+  /* Scroll area that shows a shadow at an edge only while there is more to scroll (sidebar). */
+  .scroll-shadows {
+    background:
+      linear-gradient(var(--color-sidebar) 30%, transparent) top / 100% 24px no-repeat local,
+      linear-gradient(transparent, var(--color-sidebar) 70%) bottom / 100% 24px no-repeat local,
+      linear-gradient(color-mix(in srgb, var(--color-text) 14%, transparent), transparent) top /
+      100% 8px no-repeat scroll,
+      linear-gradient(transparent, color-mix(in srgb, var(--color-text) 14%, transparent)) bottom /
+      100% 8px no-repeat scroll;
+  }
+  /* Page container shared by core pages. */
+  .page {
+    margin-inline: auto;
+    max-width: 80rem;
+    padding: 20px 16px 40px;
+  }
+  @media (min-width: 640px) {
+    .page {
+      padding: 24px 24px 48px;
+    }
+  }
+  @media (min-width: 768px) {
+    .page {
+      padding: 28px 32px 56px;
+    }
   }
 }
 
@@ -315,30 +466,37 @@
   textarea {
     font-size: 16px;
   }
-  .btn {
+  .btn,
+  .input {
     min-height: 44px;
   }
   .btn-sm {
     min-height: 40px;
     min-width: 40px;
   }
+  .icon-btn {
+    width: 44px;
+    height: 44px;
+  }
   input[type="checkbox"],
   input[type="radio"] {
     width: 20px;
     height: 20px;
   }
-  /* Buttons inside segmented controls and chip rows. */
-  .tap {
-    min-height: 36px;
+  /* Buttons inside segmented controls, tabs and chip rows. */
+  .tap,
+  .seg > button,
+  .tab {
+    min-height: 40px;
   }
 }
 
+/* Unlayered, so it wins over the component and utility layers without !important. */
 @media (prefers-reduced-motion: reduce) {
-  .btn,
-  .progress > span {
-    transition: none;
-  }
-  .btn:hover:not(:disabled) {
-    transform: none;
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms;
+    animation-duration: 0.01ms;
   }
 }

@@ -43,6 +43,11 @@ export interface WebSettingsTab {
   id: string;
   label: string;
   adminOnly?: boolean;
+  /**
+   * Settings group the tab belongs to (what it configures). Optional; tabs
+   * without one are placed by the core, or under the module's name.
+   */
+  group?: "workspace" | "printers" | "team" | "sales" | "integrations" | "plan";
   component: Component;
 }
 

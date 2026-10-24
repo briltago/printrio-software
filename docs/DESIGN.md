@@ -61,7 +61,7 @@ plan it comes from.
 | --- | --- | --- | --- |
 | Workshop | Printers, Print jobs, Library, Filament | | Stock |
 | Production | Orders | Fleet queue, Production | |
-| Sales | | Customers | Pipeline, CRM, Quotes, Invoices |
+| Sales | | Customers | Pipeline, Follow-ups, Quotes, Invoices |
 | Insights | Costs | Statistics | Sites |
 
 Settings follow the same rule: grouped by what they configure.
@@ -69,7 +69,7 @@ Settings follow the same rule: grouped by what they configure.
 | Group | Tabs |
 | --- | --- |
 | Workspace | General, Appearance, Sidebar |
-| Printers & material | Printer groups, Slicer upload, Fleet queue (Pro), Spool tracking (Pro) |
+| Printers & material | Printer groups, Slicer upload, Filament, Fleet queue (Pro), Spool tracking (Pro) |
 | Team | Users, Single sign-on, Roles & audit (Business) |
 | Sales | Invoicing, Price lists, E-shops (Business) |
 | Alerts & integrations | Notifications (Pro), Escalation (Business), API & webhooks (Business) |
@@ -87,6 +87,36 @@ any printer. *Files on this printer* (printer page) is the printer's own
 storage through Moonraker. They are different places with different
 lifetimes, so both stay. The printer page can print straight from the
 library, so nobody has to leave a printer to find a file.
+
+### Customers and CRM
+
+A customer has one page: Customers (Pro). Pro owns the customer records;
+Business keeps its CRM data (activities, follow-ups, billing details, price
+terms) against the same customer id and shows it as a section of that page
+(“Sales and contact history”, a `customerPanels` extension). Business's
+sidebar entry is **Follow-ups**: the one thing that spans customers, a list
+of who to get back to, each linking to the customer. Cores older than 1.1 or
+Pro before 1.6 cannot show the section, so Business keeps its full CRM page
+there.
+
+### Low stock
+
+One rule everywhere: a spool is low when less than a threshold in grams is
+left on it (Settings → Filament, default 150 g, 0 = off). The spool list
+marks it with the word “Low stock” and the warning colour, the filter and its
+count use the same rule, the printer page shows it on the loaded spool, and
+Pro's alerts fire at the same threshold.
+
+### Confirmations
+
+Consequential actions (deleting, cancelling a print, emergency stop,
+switching a device off, skipping an object, restarting or updating printer
+software) open `ConfirmDialog`: a title that names the thing, one or two
+sentences on what is removed and what stays, Cancel first and focused, the
+action in red when it destroys something, disabled while it runs, and an
+error inside the dialog if it fails. The dialog closes only on success. The
+configuration editor keeps the browser's own prompt for unsaved changes,
+because it has to answer synchronously while navigating.
 
 ### Jobs and costs
 
@@ -113,6 +143,10 @@ Where each capability lives after the redesign. Nothing was removed.
 | Bed mesh, config editor, logs, updates, system | Printer → Maintenance | same | — |
 | Library: folders, upload, send/print, queue, download, delete | Files | Library | Renamed so it is not confused with files on a printer |
 | Spools: weigh, edit, archive, delete, load into printer | Filament (cards) | Filament (list) | Denser list, low-stock filter |
+| Low-stock threshold | Pro → Spool tracking (alerts only); core used 15 % | Settings → Filament | One gram threshold for list, printer page and Pro alerts |
+| Customer details, orders, costs (Pro) | Customers | Customers | — |
+| CRM activity, follow-ups, revenue, merge, new quote (Business) | CRM (own customer list) | Customers → customer → Sales and contact history | One page per customer |
+| Follow-ups across customers (Business) | CRM, “due” box | Follow-ups | Due and later, each linking to the customer |
 | Filament products | Filament → Filaments tab | same | — |
 | Spoolman import | Filament | same | — |
 | Print jobs with cost, link to order | Print jobs | Print jobs | Tabs to Costs |
@@ -126,10 +160,6 @@ Where each capability lives after the redesign. Nothing was removed.
 
 ## Not done yet
 
-- *Customers* (Pro) and *CRM* (Business) show the same people in two
-  places. Merging them needs an extension point in Pro's customer detail
-  (a “customer panel” like `orderPanels`) so Business can add the timeline
-  there; until then both stay.
-- Confirmation of destructive actions still uses the browser's `confirm()`
-  dialog. It is accessible and cannot be clicked through by accident, but it
-  cannot explain consequences in detail.
+- Pro and Business still confirm some of their own actions with the
+  browser's `confirm()`; `host.components.ConfirmDialog` is available to
+  them.

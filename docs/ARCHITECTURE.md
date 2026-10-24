@@ -153,6 +153,17 @@ spools by an external id (`spoolman:<url>#spool-<id>`), so running it again
 updates instead of duplicating. Automatic consumption and stock alerts are
 Pro features and stay out of the core.
 
+**Low stock** has one definition, owned by the core (Settings → Filament,
+`inventory.lowStockGrams` in the workspace settings): an active spool with
+less filament left than the threshold in grams (default 150 g; 0 = off;
+archived spools never count; `isLowStock` in `@printrio/shared`). Grams, not
+a share of the original weight, because what matters is whether the next
+print fits, and it works for spools without a usable original weight. The
+spool list, its filter and count, the printer page and Pro's alerts all use
+it; Pro reads it through `ctx.inventory` and hands a value it stored itself
+over once (`adoptLowStockGrams`, which never overrides an administrator).
+Business's "below minimum" is a different, per-filament reorder level.
+
 ### G-code library (Files)
 
 The Files section is Printrio's own library, not a merge of the printers'
@@ -261,7 +272,13 @@ stay in `localStorage`.
   React, JSX runtime, TanStack Query, `api()`, UI components and formatters
   (also as `window.PrintrioHost`, so bundles never ship a second React).
   A module can add sidebar entries, pages (`/m/<id>/<path>`), settings tabs,
-  printer-page panels and order-detail sections (`orderPanels`).
+  printer-page panels, order-detail sections (`orderPanels`) and
+  customer-detail sections (`customerPanels`). Customers are Pro's directory;
+  Pro renders other modules' customer panels with
+  `host.components.CustomerPanels`, so Business adds its CRM (activity,
+  follow-ups, quotes and invoices) to the customer's page instead of listing
+  customers a second time. Modules can also confirm consequential actions
+  with `host.components.ConfirmDialog`.
 - **API keys for module routes**: integrations call `/api/modules/<id>/…`
   with `Authorization: Bearer prk_…` (personal API keys, Settings → Slicer
   upload) and act as that user. The core's own API stays session-only.
@@ -272,6 +289,9 @@ stay in `localStorage`.
   with `ctx.registerAuthorizer` may refuse it (403; fail-closed on errors).
   After each change request the core emits `request.completed` (user, method,
   path, route, status, permission, IP — never bodies) for audit logs.
+- **Inventory rules for modules**: `ctx.inventory` gives the low-stock
+  threshold in effect (see Filament inventory). Optional, like `ctx.orders`:
+  modules check for it and keep their old behaviour on older cores.
 - **Orders for modules**: `ctx.orders` (get, create, update) runs the same
   order logic as the HTTP API — folder from the workspace template, order
   events — so Business can turn an accepted quote into a normal order.

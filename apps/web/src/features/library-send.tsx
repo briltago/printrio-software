@@ -278,7 +278,9 @@ export function LibraryPicker({ printerId, onDone }: { printerId: string; onDone
         ))}
       </ul>
       {listing.data && files.length === 0 && directories.length === 0 && (
-        <p className="py-8 text-center text-sm text-muted">{t("library.emptyTitle")}</p>
+        <p className="py-8 text-center text-sm text-muted">
+          {query ? t("files.noMatch") : t("library.emptyTitle")}
+        </p>
       )}
       <div className="mt-4 flex justify-end">
         <button type="button" className="btn btn-secondary" onClick={onDone}>

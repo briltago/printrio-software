@@ -64,7 +64,10 @@ export function FilamentPage() {
   const query = search.trim().toLowerCase();
   const visibleSpools = spools
     .filter((spool) => showArchived || !spool.archived)
-    .filter((spool) => !lowOnly || (!spool.archived && remainingShare(spool) < LOW_STOCK_SHARE))
+    .filter(
+      (spool) =>
+        !lowOnly || lowCount === 0 || (!spool.archived && remainingShare(spool) < LOW_STOCK_SHARE),
+    )
     .filter((spool) => {
       const filament = byId.get(spool.filamentId);
       if (!filament) return false;
@@ -164,7 +167,7 @@ export function FilamentPage() {
                   </option>
                 ))}
               </select>
-              {lowCount > 0 && (
+              {(lowCount > 0 || lowOnly) && (
                 <button
                   type="button"
                   className="btn btn-secondary aria-pressed:border-warning aria-pressed:text-warning"
@@ -385,18 +388,14 @@ function FilamentTable({
           <tr>
             <th scope="col" className="w-8" />
             <th scope="col">{t("filament.filament")}</th>
-            <th scope="col" className="pb-2 pr-4 font-semibold">
-              {t("filament.material")}
-            </th>
+            <th scope="col">{t("filament.material")}</th>
             <th scope="col" className="hidden sm:table-cell">
               {t("filament.diameter")}
             </th>
             <th scope="col" className="hidden md:table-cell">
               {t("filament.price")}
             </th>
-            <th scope="col" className="pb-2 pr-4 font-semibold">
-              {t("filament.tabs.spools")}
-            </th>
+            <th scope="col">{t("filament.tabs.spools")}</th>
             <th scope="col" />
           </tr>
         </thead>

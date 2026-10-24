@@ -19,6 +19,11 @@ describe("module placement", () => {
     });
   });
 
+  it("ignores a group this core does not know", () => {
+    expect(placeModuleSettingsTab("acme:thing", "billing" as never).group).toBeUndefined();
+    expect(placeModuleSettingsTab("business:roles", "billing" as never).group).toBe("team");
+  });
+
   it("leaves unknown tabs without a group, so they get the module's own", () => {
     expect(placeModuleSettingsTab("acme:thing")).toEqual({ group: undefined, icon: "module" });
   });

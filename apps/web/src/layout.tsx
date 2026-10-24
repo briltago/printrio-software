@@ -91,10 +91,12 @@ function NavGroup({ group, items }: { group: SidebarGroup; items: SidebarEntry[]
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   // A folded category still shows the page you are on.
   const shown = open ? items : items.filter((entry) => isCurrent(entry, pathname));
+  const listId = `nav-group-${group}`;
   return (
     <div className="flex flex-col [&+&]:mt-2.5">
       <button
         type="button"
+        aria-controls={listId}
         className="flex min-h-9 items-center gap-1 rounded-[6px] px-2.5 text-left text-xs font-medium text-subtle hover:text-text md:min-h-6"
         aria-expanded={open}
         onClick={() => setState(open ? "closed" : "open")}
@@ -105,9 +107,11 @@ function NavGroup({ group, items }: { group: SidebarGroup; items: SidebarEntry[]
         </span>
         {!open && <span className="ml-auto tabular-nums">{items.length}</span>}
       </button>
-      {shown.map((entry) => (
-        <NavEntry key={entry.id} entry={entry} />
-      ))}
+      <div id={listId} className="flex flex-col">
+        {shown.map((entry) => (
+          <NavEntry key={entry.id} entry={entry} />
+        ))}
+      </div>
     </div>
   );
 }

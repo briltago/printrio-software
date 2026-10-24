@@ -469,6 +469,7 @@ export const de: Translation = {
     confirm: "{name} für den Rest des Drucks überspringen? Das lässt sich nicht rückgängig machen.",
   },
   files: {
+    noMatch: "Keine Datei passt zur Suche.",
     fromLibrary: "Aus der Bibliothek",
     fromLibraryTitle: "Aus der Bibliothek auf {printer} drucken",
     title: "Dateien auf dem Drucker",

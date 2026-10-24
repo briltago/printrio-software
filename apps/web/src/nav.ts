@@ -86,5 +86,7 @@ export const MODULE_SETTINGS_TABS: Record<string, { group: SettingsGroup; icon: 
 /** Where a module's settings tab goes: its own `group`, else the core's placement, else none (own group). */
 export function placeModuleSettingsTab(id: string, group?: SettingsGroup) {
   const known = MODULE_SETTINGS_TABS[id];
-  return { group: group ?? known?.group, icon: known?.icon ?? ("module" as IconName) };
+  // A group this core does not know (newer SDK, typo) must not hide the tab.
+  const valid = group && (SETTINGS_GROUPS as readonly string[]).includes(group) ? group : undefined;
+  return { group: valid ?? known?.group, icon: known?.icon ?? ("module" as IconName) };
 }

@@ -83,7 +83,7 @@ const PATHS = {
 
 export type IconName = keyof typeof PATHS;
 
-export const isIconName = (value: string): value is IconName => value in PATHS;
+export const isIconName = (value: string): value is IconName => Object.hasOwn(PATHS, value);
 
 export function Icon({ name, size = 16 }: { name: IconName; size?: number }) {
   return (

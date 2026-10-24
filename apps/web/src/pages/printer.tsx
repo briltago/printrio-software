@@ -97,7 +97,9 @@ export function PrinterPage() {
               <span aria-hidden="true" className="text-subtle">
                 /
               </span>
-              <span className="truncate">{printer.name}</span>
+              <span className="truncate" aria-current="page">
+                {printer.name}
+              </span>
             </>
           )
         }

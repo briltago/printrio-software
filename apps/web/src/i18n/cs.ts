@@ -463,6 +463,7 @@ export const cs: Translation = {
     confirm: "Vynechat {name} po zbytek tisku? Nelze vrátit zpět.",
   },
   files: {
+    noMatch: "Hledání neodpovídá žádný soubor.",
     fromLibrary: "Z knihovny",
     fromLibraryTitle: "Tisk z knihovny na {printer}",
     title: "Soubory v tiskárně",

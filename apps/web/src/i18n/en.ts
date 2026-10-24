@@ -458,6 +458,7 @@ export const en = {
     confirm: "Skip {name} for the rest of this print? This cannot be undone.",
   },
   files: {
+    noMatch: "No file matches the search.",
     fromLibrary: "From library",
     fromLibraryTitle: "Print from the library on {printer}",
     title: "Files on this printer",

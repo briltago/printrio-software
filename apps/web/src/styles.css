@@ -61,14 +61,14 @@
   --color-line-strong: #c6cad3;
   --color-text: #16181d;
   --color-muted: #505662;
-  --color-subtle: #636977;
+  --color-subtle: #5b6170;
   --color-accent: #6a4bd8;
   --color-accent-2: #5638c4;
   --color-accent-ink: #ffffff;
-  --color-info: #1a66c7;
-  --color-success: #12774c;
-  --color-warning: #935600;
-  --color-danger: #c0283f;
+  --color-info: #175bb3;
+  --color-success: #106a44;
+  --color-warning: #864e00;
+  --color-danger: #b02239;
   --color-series-1: #2a78d6;
   --color-series-2: #eb6834;
   --color-series-3: #1baf7a;
@@ -162,7 +162,6 @@
     font-size: 13px;
     font-weight: 600;
     line-height: 1.25;
-    white-space: nowrap;
     transition:
       background-color 0.15s,
       border-color 0.15s,

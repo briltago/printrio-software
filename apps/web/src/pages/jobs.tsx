@@ -98,9 +98,7 @@ export function JobsPage() {
                 <th scope="col" className="hidden md:table-cell">
                   {t("jobs.printer")}
                 </th>
-                <th scope="col" className="pb-2 pr-4 font-semibold">
-                  {t("jobs.status")}
-                </th>
+                <th scope="col">{t("jobs.status")}</th>
                 <th scope="col" className="hidden sm:table-cell">
                   {t("jobs.duration")}
                 </th>

@@ -57,7 +57,7 @@ export function TemperaturePanel({
       id="temperatures"
       title={t("temps.title")}
       actions={
-        <fieldset className="flex rounded-[9px] border border-line p-0.5">
+        <fieldset className="seg">
           <legend className="sr-only">{t("temps.range")}</legend>
           {RANGES.map((option) => (
             <button
@@ -65,7 +65,7 @@ export function TemperaturePanel({
               type="button"
               aria-pressed={option.id === range.id}
               onClick={() => setRangeId(option.id)}
-              className={`tap rounded-[7px] px-2 py-0.5 text-[11px] font-semibold ${option.id === range.id ? "bg-accent/15 text-text" : "text-muted hover:text-text"}`}
+              className="py-0.5 text-xs"
             >
               {option.label}
             </button>

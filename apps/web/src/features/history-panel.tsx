@@ -67,7 +67,7 @@ export function HistoryPanel({
             [t("history.totalTime"), formatDuration(t, totals.printSeconds)],
             [t("history.totalFilament"), formatFilament(totals.filamentMm)],
           ].map(([label, value]) => (
-            <div key={label} className="rounded-[10px] border border-line bg-sidebar px-3 py-2">
+            <div key={label} className="rounded-[7px] border border-line bg-sidebar px-3 py-2">
               <dt className="text-xs text-subtle">{label}</dt>
               <dd className="font-semibold tabular-nums">{value}</dd>
             </div>

@@ -106,7 +106,7 @@ pnpm --filter @printrio/server dev:printers   # six simulated Klipper printers o
 | ------------------ | ------------ |
 | `pnpm lint`        | Biome lint + format check (`pnpm format` to fix) |
 | `pnpm typecheck`   | TypeScript across all packages |
-| `pnpm test`        | Unit tests + server integration tests (needs `TEST_DATABASE_URL` or a local `printrio_test` database) |
+| `pnpm test`        | Unit tests + server integration tests (needs `TEST_DATABASE_URL` or a local `printrio_test` database). With `MOONRAKER_TEST_URL` (and `MOONRAKER_TEST_API_KEY` if needed) pointing at a **test** Moonraker + Klipper without hardware, `apps/server/test/moonraker-live.test.ts` also runs the driver against it: upload, print, pause, cancel and emergency stop |
 | `pnpm build`       | Production build (server bundle + web UI) |
 | `pnpm db:generate` | Generate a SQL migration after changing `apps/server/src/db/schema.ts` |
 

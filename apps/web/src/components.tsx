@@ -1,6 +1,15 @@
 import type { PrinterState } from "@printrio/shared";
-import { type InputHTMLAttributes, type ReactNode, useEffect, useId, useRef } from "react";
+import {
+  type InputHTMLAttributes,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import { useT } from "./i18n/index.tsx";
+import { isKnownState } from "./lib/fleet.ts";
 
 export function Brand({ size = 30 }: { size?: number }) {
   return (
@@ -23,10 +32,10 @@ export function AuthCard({
   wide?: boolean;
 }) {
   return (
-    <main className="grid min-h-screen place-items-center bg-[radial-gradient(ellipse_at_50%_0%,#7c52ca2e,transparent_55%)] p-4">
-      <div className={`card w-full rounded-panel p-8 ${wide ? "max-w-xl" : "max-w-sm"}`}>
+    <main className="grid min-h-screen place-items-center p-4">
+      <div className={`card w-full rounded-panel p-6 sm:p-8 ${wide ? "max-w-xl" : "max-w-sm"}`}>
         <Brand />
-        <h1 className="mt-7 text-2xl font-semibold tracking-tight">{title}</h1>
+        <h1 className="mt-6 text-xl font-semibold">{title}</h1>
         <p className="mt-1 mb-6 text-sm text-muted">{subtitle}</p>
         {children}
       </div>
@@ -75,7 +84,7 @@ export function FormError({ error }: { error: Error | null | undefined }) {
   return (
     <p
       role="alert"
-      className="mb-4 rounded-[9px] border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
+      className="mb-4 rounded-[7px] border border-danger/35 bg-danger/10 px-3 py-2 text-sm text-danger"
     >
       {error.message}
     </p>
@@ -84,7 +93,9 @@ export function FormError({ error }: { error: Error | null | undefined }) {
 
 export function StateBadge({ state }: { state: PrinterState }) {
   const t = useT();
-  return <span className={`badge state-${state}`}>{t(`printer.states.${state}`)}</span>;
+  // A state a newer server reports is shown as it is rather than as a missing translation key.
+  const label = isKnownState(state) ? t(`printer.states.${state}`) : String(state);
+  return <span className={`badge state-${state}`}>{label}</span>;
 }
 
 export function ProgressBar({ value, label }: { value: number; label: string }) {
@@ -109,11 +120,17 @@ export function Dialog({
   onClose,
   title,
   children,
+  dismissible = true,
+  describedBy,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: ReactNode;
+  /** False keeps Escape and the backdrop from closing it (e.g. while an action runs). */
+  dismissible?: boolean;
+  /** Id of the element that explains the dialog, for screen readers. */
+  describedBy?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -129,14 +146,18 @@ export function Dialog({
       ref={ref}
       className="dialog"
       aria-labelledby={titleId}
+      aria-describedby={describedBy}
+      onCancel={(event) => {
+        if (!dismissible) event.preventDefault();
+      }}
       onClose={onClose}
       onClick={(event) => {
-        if (event.target === ref.current) onClose();
+        if (event.target === ref.current && dismissible) onClose();
       }}
     >
       {open && (
         <div className="p-6">
-          <h2 id={titleId} className="mb-5 text-lg font-semibold tracking-tight">
+          <h2 id={titleId} className="mb-5 text-lg font-semibold">
             {title}
           </h2>
           {children}
@@ -146,25 +167,55 @@ export function Dialog({
   );
 }
 
+/**
+ * Page title row. `crumbs` is the way back up (e.g. Printers / Voron); `kicker` is a short
+ * context label such as the document type, shown before the subtitle (never as an eyebrow).
+ */
 export function PageHeader({
   kicker,
+  crumbs,
   title,
   subtitle,
   actions,
 }: {
   kicker?: string;
+  crumbs?: ReactNode;
   title: string;
   subtitle?: ReactNode;
   actions?: ReactNode;
 }) {
+  const t = useT();
+  // Tier names were used as labels by older modules; they say nothing about the page.
+  const context = kicker && !/^Printrio (Pro|Business)$/.test(kicker) ? kicker : undefined;
   return (
-    <div className="flex flex-wrap items-end justify-between gap-4">
-      <div className="min-w-0">
-        {kicker && <p className="kicker">{kicker}</p>}
-        <h1 className="mt-1 truncate text-3xl font-semibold tracking-tight">{title}</h1>
-        {subtitle && <p className="mt-1 text-sm text-muted">{subtitle}</p>}
+    <div>
+      {crumbs && (
+        <nav
+          aria-label={t("nav.breadcrumb")}
+          className="mb-2 flex items-center gap-1.5 text-sm text-muted"
+        >
+          {crumbs}
+        </nav>
+      )}
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+        <div className="min-w-0">
+          <h1 className="truncate text-2xl leading-tight font-semibold tracking-[-0.01em]">
+            {title}
+          </h1>
+          {(context || subtitle) && (
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
+              {context && <span className="kicker">{context}</span>}
+              {context && subtitle && (
+                <span aria-hidden="true" className="text-subtle">
+                  ·
+                </span>
+              )}
+              {subtitle}
+            </div>
+          )}
+        </div>
+        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
       </div>
-      {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
     </div>
   );
 }
@@ -179,8 +230,8 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="card mt-6 px-6 py-14 text-center">
-      <p className="font-medium">{title}</p>
+    <div className="mt-6 rounded-card border border-line border-dashed px-6 py-12 text-center">
+      <p className="font-semibold">{title}</p>
       <p className="mx-auto mt-1 max-w-md text-sm text-muted">{text}</p>
       {action && <div className="mt-5">{action}</div>}
     </div>
@@ -201,9 +252,9 @@ export function Section({
 }) {
   return (
     <section className="card mb-4 min-w-0 overflow-hidden">
-      <header className="flex flex-wrap items-start justify-between gap-3 border-line border-b px-5 py-4">
+      <header className="flex flex-wrap items-start justify-between gap-3 border-line border-b px-5 py-3.5">
         <div className="min-w-0">
-          <h2 className="font-semibold">{title}</h2>
+          <h2 className="text-[15px] font-semibold">{title}</h2>
           {hint && <p className="mt-0.5 text-sm text-muted">{hint}</p>}
         </div>
         {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
@@ -236,7 +287,7 @@ export function OptionCards<T extends string>({
         return (
           <label
             key={option.value}
-            className={`flex cursor-pointer flex-col gap-3 rounded-[12px] border p-4 transition-colors ${
+            className={`flex cursor-pointer flex-col gap-3 rounded-card border p-4 transition-colors ${
               checked
                 ? "border-accent bg-accent/10"
                 : "border-line hover:border-line-strong hover:bg-surface-2"
@@ -264,4 +315,100 @@ export function OptionCards<T extends string>({
       })}
     </div>
   );
+}
+
+export interface ConfirmOptions {
+  title: string;
+  /** What happens, in one or two sentences: what is removed and what stays. */
+  message?: ReactNode;
+  confirmLabel: string;
+  /** Label of the button that backs out (default "Cancel"); e.g. "Keep" when the action itself is a cancel. */
+  cancelLabel?: string;
+  /** Red confirm button (default) for deleting, cancelling, stopping. */
+  destructive?: boolean;
+  /** The real operation; the dialog stays open with its error if it fails. */
+  action: () => Promise<unknown> | unknown;
+}
+
+/**
+ * Confirmation before a consequential action. Cancel is focused first, the
+ * confirm button is disabled while the action runs (no double submission) and
+ * the dialog only closes once the action succeeded.
+ */
+export function ConfirmDialog({
+  open,
+  onClose,
+  title,
+  message,
+  confirmLabel,
+  cancelLabel,
+  destructive = true,
+  action,
+}: ConfirmOptions & { open: boolean; onClose: () => void }) {
+  const t = useT();
+  const messageId = useId();
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const run = async () => {
+    setPending(true);
+    setError(null);
+    try {
+      await action();
+      onClose();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure : new Error(String(failure)));
+    } finally {
+      setPending(false);
+    }
+  };
+  return (
+    <Dialog
+      open={open}
+      onClose={() => !pending && onClose()}
+      title={title}
+      dismissible={!pending}
+      describedBy={message ? messageId : undefined}
+    >
+      {message && (
+        <div id={messageId} className="text-sm text-muted">
+          {message}
+        </div>
+      )}
+      <div className="mt-4">
+        <FormError error={error} />
+      </div>
+      {/* Cancel comes first, so the native modal focuses the safe choice. */}
+      <div className="flex flex-wrap justify-end gap-2">
+        <button type="button" className="btn btn-secondary" onClick={onClose} disabled={pending}>
+          {cancelLabel ?? t("common.cancel")}
+        </button>
+        <button
+          type="button"
+          className={`btn ${destructive ? "btn-danger-solid" : "btn-primary"}`}
+          disabled={pending}
+          aria-busy={pending}
+          onClick={() => void run()}
+        >
+          {pending ? t("common.working") : confirmLabel}
+        </button>
+      </div>
+    </Dialog>
+  );
+}
+
+/** `confirm({...})` opens a ConfirmDialog; render `dialog` once in the component. */
+export function useConfirm() {
+  const [options, setOptions] = useState<ConfirmOptions | null>(null);
+  const [open, setOpen] = useState(false);
+  // Each request mounts a fresh dialog: no error or pending state carried over.
+  const [request, setRequest] = useState(0);
+  const confirm = useCallback((next: ConfirmOptions) => {
+    setOptions(next);
+    setRequest((count) => count + 1);
+    setOpen(true);
+  }, []);
+  const dialog = options ? (
+    <ConfirmDialog key={request} {...options} open={open} onClose={() => setOpen(false)} />
+  ) : null;
+  return { confirm, dialog };
 }

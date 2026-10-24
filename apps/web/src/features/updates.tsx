@@ -40,14 +40,14 @@ export function UpdateBanner({ admin }: { admin: boolean }) {
       </span>
       <span className="text-muted">{t("release.running", { version: data.current })}</span>
       <a
-        className="text-accent-2 hover:underline"
+        className="text-accent hover:underline"
         href={data.latest.url}
         target="_blank"
         rel="noreferrer"
       >
         {t("release.notes")}
       </a>
-      <Link to="/settings" search={{ tab: "licence" }} className="text-accent-2 hover:underline">
+      <Link to="/settings" search={{ tab: "licence" }} className="text-accent hover:underline">
         {t("release.how")}
       </Link>
       <button
@@ -78,7 +78,7 @@ export function UpdateSection() {
           ) : data?.latest ? (
             <>
               <a
-                className="font-mono text-accent-2 hover:underline"
+                className="font-mono text-accent hover:underline"
                 href={data.latest.url}
                 target="_blank"
                 rel="noreferrer"
@@ -97,7 +97,7 @@ export function UpdateSection() {
         </dd>
       </dl>
       <p className="mt-5 mb-2 text-sm text-muted">{t("release.howTo")}</p>
-      <pre className="overflow-x-auto rounded-[10px] border border-line bg-sidebar p-3 font-mono text-xs">
+      <pre className="overflow-x-auto rounded-[7px] border border-line bg-sidebar p-3 font-mono text-xs">
         docker compose pull{"\n"}docker compose up -d
       </pre>
       <p className="mt-2 text-xs text-subtle">{t("release.backupNote")}</p>

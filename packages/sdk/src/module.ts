@@ -118,6 +118,17 @@ export interface ModuleOrders {
   ): Promise<OrderDto | null>;
 }
 
+/** Filament inventory rules owned by the core (Settings → Filament). */
+export interface ModuleInventory {
+  /** Low-stock threshold in effect, in grams (0 = off), and whether an administrator set it. */
+  lowStockGrams(): Promise<{ grams: number; configured: boolean }>;
+  /**
+   * Sets the threshold only while no administrator has set one: lets a module
+   * hand over a threshold it used to keep itself, without overriding the core.
+   */
+  adoptLowStockGrams(grams: number): Promise<void>;
+}
+
 export interface ModuleContext {
   logger: ModuleLogger;
   /** Current lease; modules must re-check it themselves before privileged work. */
@@ -137,6 +148,8 @@ export interface ModuleContext {
   notifyChange(change: ModuleChange): void;
   /** Optional: cores before Nov 2026 do not provide it. */
   orders?: ModuleOrders;
+  /** Optional: cores before 1.1 do not provide it. Use it instead of a module's own low-stock setting. */
+  inventory?: ModuleInventory;
   /**
    * Custom roles: called for change requests of non-admin users; returning
    * false refuses the request (403). Optional: cores before Nov 2026 lack it.

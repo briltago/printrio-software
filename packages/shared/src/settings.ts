@@ -101,6 +101,16 @@ export const orderFolderSettingsSchema = z.object({
 });
 export type OrderFolderSettings = z.infer<typeof orderFolderSettingsSchema>;
 
+/** A spool counts as low below this many grams unless an administrator sets another value. */
+export const DEFAULT_LOW_STOCK_GRAMS = 150;
+
+/** Filament inventory: one low-stock rule for the spool list, printer pages and module alerts. */
+export const inventorySettingsSchema = z.object({
+  /** Remaining grams below which a spool is low; 0 turns the warning off; null = default. */
+  lowStockGrams: z.number().int().min(0).max(5000).nullable(),
+});
+export type InventorySettings = z.infer<typeof inventorySettingsSchema>;
+
 export const workspaceSettingsSchema = z.object({
   onboardingCompleted: z.boolean(),
   usageMode: usageModeSchema,
@@ -110,6 +120,7 @@ export const workspaceSettingsSchema = z.object({
   sidebarGroups: z.boolean(),
   costs: costSettingsSchema,
   orderFolders: orderFolderSettingsSchema,
+  inventory: inventorySettingsSchema,
 });
 export type WorkspaceSettings = z.infer<typeof workspaceSettingsSchema>;
 
@@ -163,4 +174,9 @@ export const DEFAULT_SETTINGS: WorkspaceSettings = {
   sidebarGroups: true,
   costs: { currency: "EUR", electricityPrice: 0.25, defaultPowerWatts: 120 },
   orderFolders: { enabled: true, template: DEFAULT_ORDER_FOLDER_TEMPLATE },
+  inventory: { lowStockGrams: null },
 };
+
+/** The threshold in effect: the configured value, else the default. */
+export const lowStockThreshold = (inventory: InventorySettings) =>
+  inventory.lowStockGrams ?? DEFAULT_LOW_STOCK_GRAMS;

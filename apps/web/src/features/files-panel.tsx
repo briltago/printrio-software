@@ -1,8 +1,9 @@
 import type { FileListingDto, PrintFileDto } from "@printrio/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type DragEvent, useRef, useState } from "react";
-import { Dialog, FormError } from "../components.tsx";
+import { Dialog, FormError, useConfirm } from "../components.tsx";
 import { useT } from "../i18n/index.tsx";
+import { Icon } from "../icons.tsx";
 import { api } from "../lib/api.ts";
 import {
   formatBytes,
@@ -12,6 +13,7 @@ import {
 } from "../lib/format.ts";
 import { useStoredState } from "../lib/stored-state.ts";
 import { uploadFile } from "../lib/upload.ts";
+import { LibraryPicker } from "./library-send.tsx";
 import { Panel } from "./panel.tsx";
 import { QueueForm } from "./queue-panel.tsx";
 
@@ -24,7 +26,7 @@ export function Thumbnail({ src, size = 40 }: { src: string | null; size?: numbe
   const [failed, setFailed] = useState(false);
   return (
     <span
-      className="grid shrink-0 place-items-center overflow-hidden rounded-[8px] border border-line bg-sidebar"
+      className="grid shrink-0 place-items-center overflow-hidden rounded-[6px] border border-line bg-field"
       style={{ width: size, height: size }}
     >
       {src && !failed ? (
@@ -38,8 +40,8 @@ export function Thumbnail({ src, size = 40 }: { src: string | null; size?: numbe
           onError={() => setFailed(true)}
         />
       ) : (
-        <span aria-hidden="true" className="text-xs text-subtle">
-          ▤
+        <span className="text-subtle">
+          <Icon name="file" size={Math.max(14, Math.round(size * 0.4))} />
         </span>
       )}
     </span>
@@ -59,6 +61,7 @@ export function FilesPanel({
   connected: boolean;
 }) {
   const t = useT();
+  const { confirm, dialog } = useConfirm();
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dir, setDir] = useState("");
@@ -69,6 +72,7 @@ export function FilesPanel({
   const [confirmFile, setConfirmFile] = useState<PrintFileDto | null>(null);
   const [queueFile, setQueueFile] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
   const queryKey = ["files", printerId, dir];
   const { data, error } = useQuery({
     queryKey,
@@ -148,7 +152,15 @@ export function FilesPanel({
           />
           <button
             type="button"
-            className="btn btn-primary btn-sm"
+            className="btn btn-secondary btn-sm"
+            disabled={!connected}
+            onClick={() => setPicking(true)}
+          >
+            {t("files.fromLibrary")}
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
             disabled={!connected || uploadMutation.isPending}
             onClick={() => inputRef.current?.click()}
           >
@@ -168,7 +180,7 @@ export function FilesPanel({
         onDrop={onDrop}
       >
         {dragging && (
-          <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-[12px] border-2 border-accent border-dashed bg-accent/10 text-sm font-semibold">
+          <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-card border-2 border-accent border-dashed bg-accent/10 text-sm font-semibold">
             {t("files.dropHere")}
           </div>
         )}
@@ -204,7 +216,7 @@ export function FilesPanel({
           >
             <button
               type="button"
-              className={crumbs.length ? "text-accent-2 hover:underline" : "font-semibold"}
+              className={crumbs.length ? "text-accent hover:underline" : "font-semibold"}
               onClick={() => setDir("")}
             >
               {t("files.root")}
@@ -215,7 +227,7 @@ export function FilesPanel({
                 <button
                   type="button"
                   className={
-                    index === crumbs.length - 1 ? "font-semibold" : "text-accent-2 hover:underline"
+                    index === crumbs.length - 1 ? "font-semibold" : "text-accent hover:underline"
                   }
                   onClick={() => setDir(crumbs.slice(0, index + 1).join("/"))}
                 >
@@ -226,14 +238,14 @@ export function FilesPanel({
           </nav>
           <input
             type="search"
-            className="input w-44 py-1.5 text-sm"
+            className="input w-full sm:w-44"
             placeholder={t("files.search")}
             aria-label={t("files.search")}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
           <select
-            className="input w-auto py-1.5 text-sm"
+            className="input w-auto"
             aria-label={t("files.sort")}
             value={sort}
             onChange={(event) => setSort(event.target.value as Sort)}
@@ -245,43 +257,38 @@ export function FilesPanel({
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="text-xs text-subtle">
+          <table className="table">
+            <thead>
               <tr>
-                <th scope="col" className="w-12 pb-2" />
-                <th scope="col" className="pb-2 font-semibold">
-                  {t("files.name")}
-                </th>
-                <th scope="col" className="pb-2 pr-4 font-semibold">
+                <th scope="col" className="w-12" />
+                <th scope="col">{t("files.name")}</th>
+                <th scope="col" className="hidden sm:table-cell">
                   {t("files.printTime")}
                 </th>
-                <th scope="col" className="hidden pb-2 pr-4 font-semibold sm:table-cell">
+                <th scope="col" className="hidden sm:table-cell">
                   {t("files.filament")}
                 </th>
-                <th scope="col" className="hidden pb-2 pr-4 font-semibold md:table-cell">
+                <th scope="col" className="hidden md:table-cell">
                   {t("files.size")}
                 </th>
-                <th scope="col" className="hidden pb-2 pr-4 font-semibold lg:table-cell">
+                <th scope="col" className="hidden lg:table-cell">
                   {t("files.modified")}
                 </th>
-                <th scope="col" className="pb-2" />
+                <th scope="col" />
               </tr>
             </thead>
             <tbody>
               {(data?.directories ?? []).map((name) => (
-                <tr key={`dir-${name}`} className="border-line border-t">
-                  <td className="py-2">
-                    <span
-                      aria-hidden="true"
-                      className="grid h-10 w-10 place-items-center text-lg text-accent-2"
-                    >
-                      ▣
+                <tr key={`dir-${name}`}>
+                  <td>
+                    <span className="grid h-10 w-10 place-items-center text-subtle">
+                      <Icon name="library" size={18} />
                     </span>
                   </td>
-                  <td className="py-2" colSpan={6}>
+                  <td colSpan={6}>
                     <button
                       type="button"
-                      className="font-semibold hover:text-accent-2"
+                      className="font-semibold hover:underline"
                       onClick={() => setDir(dir ? `${dir}/${name}` : name)}
                     >
                       {name}/
@@ -290,35 +297,41 @@ export function FilesPanel({
                 </tr>
               ))}
               {files.map((file) => (
-                <tr key={file.path} className="border-line border-t">
-                  <td className="py-2">
+                <tr key={file.path}>
+                  <td>
                     <Thumbnail
                       src={file.hasThumbnail ? thumbnailUrl(printerId, file.path) : null}
                     />
                   </td>
-                  <td className="w-full max-w-0 py-2 pr-2">
+                  <td className="w-full max-w-0">
                     <p className="truncate font-medium" title={file.name}>
                       {file.name}
                     </p>
-                    {file.slicer && <p className="text-xs text-subtle">{file.slicer}</p>}
+                    <p className="truncate text-xs text-subtle tabular-nums">
+                      <span className="sm:hidden">
+                        {formatDuration(t, file.estimatedSeconds)}
+                        {file.slicer && " · "}
+                      </span>
+                      {file.slicer}
+                    </p>
                   </td>
-                  <td className="py-2 pr-4 whitespace-nowrap tabular-nums">
+                  <td className="hidden whitespace-nowrap tabular-nums sm:table-cell">
                     {formatDuration(t, file.estimatedSeconds)}
                   </td>
-                  <td className="hidden py-2 pr-4 whitespace-nowrap tabular-nums sm:table-cell">
+                  <td className="hidden whitespace-nowrap tabular-nums sm:table-cell">
                     {formatFilamentAmount(file.filamentGrams, file.filamentMm)}
                   </td>
-                  <td className="hidden py-2 pr-4 whitespace-nowrap text-muted tabular-nums md:table-cell">
+                  <td className="hidden whitespace-nowrap text-muted tabular-nums md:table-cell">
                     {formatBytes(file.size)}
                   </td>
-                  <td className="hidden py-2 pr-4 whitespace-nowrap text-muted lg:table-cell">
+                  <td className="hidden whitespace-nowrap text-muted lg:table-cell">
                     {formatRelativeTime(file.modified)}
                   </td>
-                  <td className="py-2">
+                  <td>
                     <div className="flex justify-end gap-1.5">
                       <button
                         type="button"
-                        className="btn btn-primary btn-sm"
+                        className="btn btn-secondary btn-sm"
                         disabled={!canPrint}
                         title={canPrint ? undefined : t("files.printUnavailable")}
                         onClick={() => setConfirmFile(file)}
@@ -338,12 +351,17 @@ export function FilesPanel({
                         type="button"
                         className="btn btn-secondary btn-sm px-2"
                         aria-label={`${t("common.delete")} ${file.name}`}
+                        title={t("common.delete")}
                         onClick={() =>
-                          window.confirm(t("files.deleteConfirm", { name: file.name })) &&
-                          deleteMutation.mutate(file.path)
+                          confirm({
+                            title: t("confirm.deleteTitle", { name: file.name }),
+                            message: t("confirm.printerFile"),
+                            confirmLabel: t("common.delete"),
+                            action: () => deleteMutation.mutateAsync(file.path),
+                          })
                         }
                       >
-                        ✕
+                        <Icon name="close" size={14} />
                       </button>
                     </div>
                   </td>
@@ -357,6 +375,14 @@ export function FilesPanel({
         </div>
       </div>
 
+      {dialog}
+      <Dialog
+        open={picking}
+        onClose={() => setPicking(false)}
+        title={t("files.fromLibraryTitle", { printer: printerName })}
+      >
+        {picking && <LibraryPicker printerId={printerId} onDone={() => setPicking(false)} />}
+      </Dialog>
       <Dialog
         open={queueFile !== null}
         onClose={() => setQueueFile(null)}

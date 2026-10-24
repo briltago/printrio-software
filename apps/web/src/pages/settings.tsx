@@ -1,5 +1,6 @@
 import {
   type CreateUser,
+  DEFAULT_LOW_STOCK_GRAMS,
   type DefaultView,
   ORDER_FOLDER_VARIABLES,
   orderFolderTemplateSchema,
@@ -12,7 +13,15 @@ import {
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { createElement, type FC, type FormEvent, useRef, useState } from "react";
-import { Dialog, Field, FormError, OptionCards, PageHeader, Section } from "../components.tsx";
+import {
+  Dialog,
+  Field,
+  FormError,
+  OptionCards,
+  PageHeader,
+  Section,
+  useConfirm,
+} from "../components.tsx";
 import { BackupSettings } from "../features/backup-settings.tsx";
 import { LicenceSettings } from "../features/licence-settings.tsx";
 import { SlicerSettings } from "../features/slicer-settings.tsx";
@@ -25,15 +34,18 @@ import {
   storedLocale,
   useT,
 } from "../i18n/index.tsx";
+import { Icon, type IconName, NavIcon } from "../icons.tsx";
 import { api } from "../lib/api.ts";
-import { useModules } from "../lib/modules.tsx";
+import { modulesQuery, useModules } from "../lib/modules.tsx";
 import { groupsQuery, settingsQuery, usersQuery, useUpdateSettings } from "../lib/queries.ts";
 import { meQuery } from "../lib/session.ts";
 import { type SidebarEntry, toSaved, useSidebar } from "../lib/sidebar.ts";
 import { setTheme, type ThemePreference, useTheme } from "../lib/theme.ts";
+import { placeModuleSettingsTab, SETTINGS_GROUPS, type SettingsGroup } from "../nav.ts";
 
 export const SETTINGS_TABS = [
   "general",
+  "filament",
   "sidebar",
   "appearance",
   "slicer",
@@ -46,6 +58,7 @@ export const SETTINGS_TABS = [
 export type SettingsTab = (typeof SETTINGS_TABS)[number];
 const ADMIN_TABS = new Set<string>([
   "general",
+  "filament",
   "sidebar",
   "groups",
   "users",
@@ -54,71 +67,15 @@ const ADMIN_TABS = new Set<string>([
   "backups",
 ]);
 
-/** Built-in tabs grouped as in the settings navigation. */
-const GROUPS: { id: "workspace" | "printers" | "team" | "plan"; tabs: SettingsTab[] }[] = [
-  { id: "workspace", tabs: ["general", "appearance", "sidebar"] },
-  { id: "printers", tabs: ["groups", "slicer"] },
-  { id: "team", tabs: ["users", "sso"] },
-  { id: "plan", tabs: ["licence", "backups"] },
-];
-
-/** 24×24 stroke icons (lucide-style) for the settings navigation. */
-const ICON_PATHS: Record<SettingsTab | "module", string[]> = {
-  general: [
-    "M4 21v-7",
-    "M4 10V3",
-    "M12 21v-9",
-    "M12 8V3",
-    "M20 21v-5",
-    "M20 12V3",
-    "M1 14h6",
-    "M9 8h6",
-    "M17 16h6",
-  ],
-  appearance: ["M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18z", "M12 3v18", "M12 3a9 9 0 0 1 0 18"],
-  sidebar: ["M3 4h18v16H3z", "M9 4v16"],
-  groups: ["M12 2 2 7l10 5 10-5-10-5z", "m2 17 10 5 10-5", "m2 12 10 5 10-5"],
-  slicer: ["M12 15V3", "m7 8 5-5 5 5", "M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"],
-  users: [
-    "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2",
-    "M9 11a4 4 0 1 0 0-8a4 4 0 0 0 0 8z",
-    "M22 21v-2a4 4 0 0 0-3-3.87",
-    "M16 3.13a4 4 0 0 1 0 7.75",
-  ],
-  sso: ["M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z", "m9 12 2 2 4-4"],
-  backups: ["M3 5h18v4H3z", "M5 9v10h14V9", "M10 13h4"],
-  licence: [
-    "M7.5 15.5a4.5 4.5 0 1 0 0-9a4.5 4.5 0 0 0 0 9z",
-    "M10.7 9.3 21 2",
-    "m18 5 3 3",
-    "m15 8 2.5 2.5",
-  ],
-  module: [
-    "M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z",
-    "M19 17l.8 2.2L22 20l-2.2.8L19 23l-.8-2.2L16 20l2.2-.8z",
-  ],
+/** Built-in tabs by settings group (see SETTINGS_GROUPS); module tabs join these groups. */
+const CORE_TABS: Record<SettingsGroup, SettingsTab[]> = {
+  workspace: ["general", "appearance", "sidebar"],
+  printers: ["groups", "slicer", "filament"],
+  team: ["users", "sso"],
+  sales: [],
+  integrations: [],
+  plan: ["licence", "backups"],
 };
-
-function SettingsIcon({ name }: { name: SettingsTab | "module" }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="16"
-      height="16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className="shrink-0"
-    >
-      {ICON_PATHS[name].map((d) => (
-        <path key={d} d={d} />
-      ))}
-    </svg>
-  );
-}
 
 const moduleName = (id: string) => id.charAt(0).toUpperCase() + id.slice(1);
 
@@ -130,27 +87,35 @@ export function SettingsPage() {
   const { settingsTabs } = useModules();
   const allowed = (id: string) => isAdmin || !ADMIN_TABS.has(id);
 
-  // Built-in groups, then one group per module (tab ids "<module>:<tab>").
-  const groups: {
-    label: string;
-    items: { id: string; label: string; icon: SettingsTab | "module" }[];
-  }[] = [
-    ...GROUPS.map((group) => ({
-      label: t(`settings.sections.${group.id}`),
-      items: group.tabs
-        .filter(allowed)
-        .map((id) => ({ id, label: t(`settings.tabs.${id}`), icon: id })),
+  // Built-in groups with the module tabs that configure the same things, then a group per
+  // module for tabs the core cannot place (tab ids "<module>:<tab>").
+  const visibleModuleTabs = settingsTabs
+    .filter((entry) => isAdmin || !entry.adminOnly)
+    .map((entry) => {
+      const id = `${entry.moduleId}:${entry.id}`;
+      return {
+        id,
+        label: entry.label,
+        moduleId: entry.moduleId,
+        ...placeModuleSettingsTab(id, entry.group),
+      };
+    });
+  const groups: { label: string; items: { id: string; label: string; icon: IconName }[] }[] = [
+    ...SETTINGS_GROUPS.map((group) => ({
+      label: t(`settings.sections.${group}`),
+      items: [
+        ...CORE_TABS[group]
+          .filter(allowed)
+          .map((id) => ({ id, label: t(`settings.tabs.${id}`), icon: id as IconName })),
+        ...visibleModuleTabs.filter((entry) => entry.group === group),
+      ],
     })),
-    ...[...new Set(settingsTabs.map((entry) => entry.moduleId))].map((moduleId) => ({
-      label: moduleName(moduleId),
-      items: settingsTabs
-        .filter((entry) => entry.moduleId === moduleId && (isAdmin || !entry.adminOnly))
-        .map((entry) => ({
-          id: `${moduleId}:${entry.id}`,
-          label: entry.label,
-          icon: "module" as const,
-        })),
-    })),
+    ...[...new Set(visibleModuleTabs.filter((entry) => !entry.group).map((e) => e.moduleId))].map(
+      (moduleId) => ({
+        label: moduleName(moduleId),
+        items: visibleModuleTabs.filter((entry) => !entry.group && entry.moduleId === moduleId),
+      }),
+    ),
   ].filter((group) => group.items.length > 0);
   const items = groups.flatMap((group) => group.items);
   const active = items.some((entry) => entry.id === tab) ? tab : "appearance";
@@ -162,10 +127,10 @@ export function SettingsPage() {
     : t(`settings.descriptions.${active as SettingsTab}`);
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-5 sm:p-6 md:p-8">
+    <main className="page">
       <PageHeader title={t("settings.title")} />
       {!isAdmin && <p className="mt-2 text-sm text-muted">{t("settings.adminOnly")}</p>}
-      <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-[210px_minmax(0,1fr)] md:gap-8">
+      <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-[220px_minmax(0,1fr)] md:gap-10">
         <nav aria-label={t("settings.sectionsLabel")} className="min-w-0">
           {/* Phones: every section in one native picker. Desktop: grouped list that stays in view. */}
           <select
@@ -186,26 +151,24 @@ export function SettingsPage() {
               </optgroup>
             ))}
           </select>
-          <div className="hidden md:sticky md:top-6 md:grid md:gap-5">
+          <div className="hidden md:sticky md:top-6 md:grid md:gap-4">
             {groups.map((group) => (
               <div key={group.label} className="grid gap-0.5">
-                <p className="px-3 pb-1 text-[11px] font-semibold tracking-wider text-subtle uppercase">
-                  {group.label}
-                </p>
+                <p className="px-2.5 pb-1 text-xs font-medium text-subtle">{group.label}</p>
                 {group.items.map((item) => (
                   <Link
                     key={item.id}
                     to="/settings"
                     search={{ tab: item.id }}
                     aria-current={active === item.id ? "page" : undefined}
-                    className={`flex shrink-0 items-center gap-2.5 rounded-[10px] border px-3 py-2 text-sm whitespace-nowrap ${
+                    className={`flex shrink-0 items-center gap-2.5 rounded-[7px] px-2.5 py-1.5 text-sm whitespace-nowrap ${
                       active === item.id
-                        ? "border-accent/25 bg-accent/10 font-semibold text-text"
-                        : "border-transparent text-muted hover:bg-surface-2 hover:text-text"
+                        ? "bg-surface-2 font-semibold text-text shadow-[inset_0_0_0_1px_var(--color-line)]"
+                        : "text-muted hover:bg-surface-2 hover:text-text"
                     }`}
                   >
                     <span className={active === item.id ? "text-accent" : "text-subtle"}>
-                      <SettingsIcon name={item.icon} />
+                      <Icon name={item.icon} />
                     </span>
                     {item.label}
                   </Link>
@@ -216,10 +179,11 @@ export function SettingsPage() {
         </nav>
         <div className="min-w-0">
           <div className="mb-5">
-            <h2 className="text-xl font-semibold tracking-tight">{current?.label}</h2>
+            <h2 className="text-lg font-semibold">{current?.label}</h2>
             <p className="mt-1 text-sm text-muted">{description}</p>
           </div>
           {active === "general" && <GeneralSettings />}
+          {active === "filament" && <FilamentSettings />}
           {active === "sidebar" && <SidebarSettings />}
           {active === "appearance" && <AppearanceSettings />}
           {active === "groups" && <GroupSettings />}
@@ -315,6 +279,7 @@ function CostSettingsSection() {
   return (
     <Section title={t("settings.costs")} hint={t("settings.costsHint")}>
       <form onSubmit={onSubmit} onChange={() => setSaved(false)}>
+        <FormError error={update.error} />
         <div className="grid gap-x-4 sm:grid-cols-3">
           <Field
             label={t("settings.currency")}
@@ -339,6 +304,65 @@ function CostSettingsSection() {
             hint={t("settings.defaultPowerHint")}
           />
         </div>
+        <div className="flex items-center gap-3">
+          <button type="submit" className="btn btn-primary btn-sm" disabled={update.isPending}>
+            {t("common.save")}
+          </button>
+          {saved && (
+            <span role="status" className="text-sm text-success">
+              {t("settings.saved")}
+            </span>
+          )}
+        </div>
+      </form>
+    </Section>
+  );
+}
+
+/** True when a "major.minor.patch" version is at least major.minor. */
+const atLeast = (version: string, major: number, minor: number) => {
+  const [a = 0, b = 0] = version.split(".").map(Number);
+  return a > major || (a === major && b >= minor);
+};
+
+/** One low-stock rule for the spool list, printer pages and module alerts (e.g. Pro's notifications). */
+function FilamentSettings() {
+  const t = useT();
+  const { data: settings } = useSuspenseQuery(settingsQuery);
+  const { data: loaded } = useQuery(modulesQuery);
+  const update = useUpdateSettings();
+  const [saved, setSaved] = useState(false);
+  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const raw = String(new FormData(event.currentTarget).get("lowStockGrams") ?? "").trim();
+    update.mutate(
+      { inventory: { lowStockGrams: raw === "" ? null : Number(raw) } },
+      { onSuccess: () => setSaved(true) },
+    );
+  };
+  return (
+    <Section title={t("settings.lowStock")} hint={t("settings.lowStockHint")}>
+      <form onSubmit={onSubmit} onChange={() => setSaved(false)}>
+        <FormError error={update.error} />
+        <div className="max-w-xs">
+          <Field
+            label={t("settings.lowStockGrams")}
+            name="lowStockGrams"
+            type="number"
+            min={0}
+            max={5000}
+            step={1}
+            required={false}
+            placeholder={String(DEFAULT_LOW_STOCK_GRAMS)}
+            defaultValue={settings.inventory.lowStockGrams ?? ""}
+            hint={t("settings.lowStockGramsHint", { grams: DEFAULT_LOW_STOCK_GRAMS })}
+          />
+        </div>
+        {/* Pro 1.6+ reads this threshold for its alerts; older Pro keeps its own. */}
+        {loaded?.modules.some(
+          (module) =>
+            module.id === "pro" && module.status === "active" && atLeast(module.version, 1, 6),
+        ) && <p className="mb-4 text-sm text-muted">{t("settings.lowStockAlerts")}</p>}
         <div className="flex items-center gap-3">
           <button type="submit" className="btn btn-primary btn-sm" disabled={update.isPending}>
             {t("common.save")}
@@ -420,7 +444,7 @@ function OrderFolderSection() {
         <label className="block text-sm" htmlFor="order-folder-template">
           <span className="mb-1.5 block text-muted">{t("settings.orderFolderTemplate")}</span>
         </label>
-        <div className="flex items-center rounded-[11px] border border-line bg-surface-2 pl-3 focus-within:border-accent">
+        <div className="flex items-center rounded-[7px] border border-line bg-surface-2 pl-3 focus-within:border-accent">
           <span aria-hidden="true" className="font-mono text-sm text-subtle">
             Files /
           </span>
@@ -454,7 +478,7 @@ function OrderFolderSection() {
           ))}
         </div>
         <p
-          className={`mt-3 rounded-[10px] px-3 py-2 font-mono text-xs ${
+          className={`mt-3 rounded-[7px] px-3 py-2 font-mono text-xs ${
             parsed.success ? "bg-surface-2 text-muted" : "bg-danger/10 text-danger"
           }`}
           role="status"
@@ -547,11 +571,9 @@ function SidebarSettings() {
               onDragOver={(event) => event.preventDefault()}
               onDrop={() => dragging && items.length === 0 && place(dragging, { group })}
             >
-              <h3 className="mb-2 text-[11px] font-semibold tracking-wider text-subtle uppercase">
-                {t(`nav.groups.${group}`)}
-              </h3>
+              <h3 className="mb-2 text-xs font-medium text-subtle">{t(`nav.groups.${group}`)}</h3>
               {items.length === 0 && (
-                <p className="rounded-[10px] border border-dashed border-line px-3 py-2 text-xs text-subtle">
+                <p className="rounded-[7px] border border-dashed border-line px-3 py-2 text-xs text-subtle">
                   {t("settings.groupEmpty")}
                 </p>
               )}
@@ -567,7 +589,7 @@ function SidebarSettings() {
                       event.stopPropagation();
                       if (dragging) place(dragging, { before: entry.id });
                     }}
-                    className={`flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[10px] border px-3 py-2 transition-colors ${
+                    className={`flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[7px] border px-3 py-2 transition-colors ${
                       entry.visible ? "border-line bg-surface-2" : "border-dashed border-line"
                     } ${dragging === entry.id ? "opacity-50" : ""}`}
                   >
@@ -585,8 +607,8 @@ function SidebarSettings() {
                         aria-label={t("settings.show", { name: entry.label })}
                         className="accent-accent"
                       />
-                      <span aria-hidden="true" className="w-4 text-center text-subtle">
-                        {entry.icon}
+                      <span className="text-subtle">
+                        <NavIcon icon={entry.icon} />
                       </span>
                       <span
                         className={`truncate ${entry.visible ? "" : "text-subtle line-through"}`}
@@ -653,24 +675,24 @@ function ThemePreview({ mode }: { mode: ThemePreference }) {
   const pane = (dark: boolean) => (
     <div
       className="flex h-full flex-1 gap-1.5 p-2"
-      style={{ background: dark ? "#09070f" : "#f6f4fa" }}
+      style={{ background: dark ? "#0e0f13" : "#f5f6f8" }}
     >
-      <div className="w-1/4 rounded" style={{ background: dark ? "#0d0a14" : "#efebf6" }} />
+      <div className="w-1/4 rounded" style={{ background: dark ? "#111216" : "#eceef2" }} />
       <div className="grid flex-1 content-start gap-1.5">
         <div
           className="h-2 w-2/3 rounded-full"
-          style={{ background: dark ? "#39304a" : "#cfc6df" }}
+          style={{ background: dark ? "#363a46" : "#c6cad3" }}
         />
         <div
           className="h-7 rounded"
           style={{
-            background: dark ? "#12101b" : "#ffffff",
-            border: `1px solid ${dark ? "#292337" : "#e2dcec"}`,
+            background: dark ? "#15171c" : "#ffffff",
+            border: `1px solid ${dark ? "#262932" : "#dfe2e8"}`,
           }}
         />
         <div
           className="h-2 w-1/3 rounded-full"
-          style={{ background: dark ? "#a78bfa" : "#7c5ce6" }}
+          style={{ background: dark ? "#a18cfa" : "#6a4bd8" }}
         />
       </div>
     </div>
@@ -786,7 +808,7 @@ function GroupSettings() {
           {data.groups.map((group) => (
             <li
               key={group.id}
-              className="flex items-center gap-3 rounded-[10px] border border-line bg-surface-2 p-2 pl-3"
+              className="flex items-center gap-3 rounded-[7px] border border-line bg-surface-2 p-2 pl-3"
             >
               <span aria-hidden="true" className="text-subtle">
                 ▦
@@ -811,7 +833,7 @@ function GroupSettings() {
           ))}
         </ul>
       ) : (
-        <p className="rounded-[10px] border border-dashed border-line px-4 py-6 text-center text-sm text-subtle">
+        <p className="rounded-[7px] border border-dashed border-line px-4 py-6 text-center text-sm text-subtle">
           {t("settings.noGroups")}
         </p>
       )}
@@ -829,6 +851,7 @@ const initials = (name: string) =>
 
 function UserSettings() {
   const t = useT();
+  const { confirm, dialog } = useConfirm();
   const queryClient = useQueryClient();
   const { data: me } = useSuspenseQuery(meQuery);
   const { data } = useQuery(usersQuery);
@@ -889,7 +912,7 @@ function UserSettings() {
           <li key={user.id} className="flex flex-wrap items-center gap-3 py-3">
             <span
               aria-hidden="true"
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-accent/15 text-xs font-bold text-accent"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-[7px] bg-accent/15 text-xs font-bold text-accent"
             >
               {initials(user.displayName)}
             </span>
@@ -925,8 +948,12 @@ function UserSettings() {
                 type="button"
                 className="btn btn-danger btn-sm"
                 onClick={() =>
-                  window.confirm(t("users.deleteConfirm", { name: user.displayName })) &&
-                  remove.mutate(user.id)
+                  confirm({
+                    title: t("confirm.deleteTitle", { name: user.displayName }),
+                    message: t("confirm.user", { name: user.displayName }),
+                    confirmLabel: t("common.delete"),
+                    action: () => remove.mutateAsync(user.id),
+                  })
                 }
               >
                 {t("common.delete")}
@@ -1013,6 +1040,7 @@ function UserSettings() {
           </div>
         </form>
       </Dialog>
+      {dialog}
     </Section>
   );
 }

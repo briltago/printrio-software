@@ -1,6 +1,6 @@
 import type { PrinterCommand, PrinterStatusDto } from "@printrio/shared";
 import { useMutation } from "@tanstack/react-query";
-import { FormError } from "../components.tsx";
+import { FormError, useConfirm } from "../components.tsx";
 import { useT } from "../i18n/index.tsx";
 import { api } from "../lib/api.ts";
 
@@ -13,6 +13,7 @@ export function ObjectExclusion({
   exclusion: NonNullable<PrinterStatusDto["exclusion"]>;
 }) {
   const t = useT();
+  const { confirm, dialog } = useConfirm();
   const command = useMutation({
     mutationFn: (body: PrinterCommand) =>
       api(`/api/printers/${printerId}/commands`, { method: "POST", body }),
@@ -47,8 +48,12 @@ export function ObjectExclusion({
                     className="btn btn-secondary btn-sm py-1"
                     disabled={command.isPending}
                     onClick={() =>
-                      window.confirm(t("exclusion.confirm", { name })) &&
-                      command.mutate({ action: "exclude_object", name })
+                      confirm({
+                        title: t("confirm.skipTitle", { name }),
+                        message: t("confirm.skip"),
+                        confirmLabel: t("exclusion.exclude"),
+                        action: () => command.mutateAsync({ action: "exclude_object", name }),
+                      })
                     }
                   >
                     {t("exclusion.exclude")}
@@ -59,6 +64,7 @@ export function ObjectExclusion({
           );
         })}
       </ul>
+      {dialog}
     </div>
   );
 }

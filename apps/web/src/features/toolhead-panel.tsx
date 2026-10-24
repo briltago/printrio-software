@@ -52,7 +52,7 @@ export function ToolheadPanel({
       <FormError error={command.error} />
       <dl className="grid grid-cols-3 gap-2" aria-label={t("motion.position")}>
         {(["x", "y", "z"] as const).map((axis) => (
-          <div key={axis} className="rounded-[10px] border border-line bg-sidebar px-3 py-2">
+          <div key={axis} className="rounded-[7px] border border-line bg-sidebar px-3 py-2">
             <dt className="flex items-center justify-between text-xs text-subtle">
               {axis.toUpperCase()}
               {!homed.has(axis) && (
@@ -161,14 +161,14 @@ function StepPicker<T extends string>({
   return (
     <fieldset>
       <legend className="mb-1 text-xs text-subtle">{label}</legend>
-      <div className="flex rounded-[9px] border border-line p-0.5">
+      <div className="seg flex">
         {steps.map((step) => (
           <button
             key={step}
             type="button"
             aria-pressed={step === value}
             onClick={() => onChange(step)}
-            className={`tap flex-1 rounded-[7px] px-2 py-1 font-mono text-xs ${step === value ? "bg-accent/15 font-semibold text-text" : "text-muted hover:text-text"}`}
+            className="flex-1 justify-center font-mono text-xs"
           >
             {step}
           </button>

@@ -1,6 +1,40 @@
 /** English UI strings. Other locales mirror this shape (see i18n/index.tsx). */
 export const en = {
+  confirm: {
+    deleteTitle: "Delete {name}?",
+    printerFile:
+      "The file is removed from the printer's storage. Its print history stays, and the copy in the Library (if any) is not affected.",
+    libraryFile:
+      "The file is removed from the Library for everyone. Copies already sent to printers and past print records stay.",
+    folder: "Only empty folders can be deleted. Move or delete the files in it first.",
+    spoolTitle: "Delete this spool?",
+    spool:
+      "The spool is removed from the inventory. Prints that used it keep their filament and cost but no longer link to it. To keep it for reference, archive it instead.",
+    filament:
+      "The filament type is removed. This only works while no spools of it exist; prints that used it stay in the history.",
+    order:
+      "The order is removed. Its prints stay in the history without the order, and its folder stays in the Library.",
+    user: "{name} can no longer sign in. Their past prints and changes stay in the history.",
+    backup:
+      "The backup archive is deleted from the data volume. Other backups and the current data are not affected.",
+    revokeTitle: "Revoke {name}?",
+    revoke: "Slicers using this key can no longer upload. Files already uploaded stay.",
+    deactivateTitle: "Deactivate the licence?",
+    removePrinterTitle: "Remove {name}?",
+    cancelTitle: "Cancel the print on {name}?",
+    cancel: "The print stops and cannot be resumed. It is recorded as cancelled in the history.",
+    cancelButton: "Cancel print",
+    emergencyTitle: "Emergency stop {name}?",
+    emergency:
+      "Motors and heaters stop at once and Klipper shuts down. The print is lost and the printer needs a firmware restart before it can be used again.",
+    skipTitle: "Skip {name}?",
+    skip: "The rest of this object is not printed. This cannot be undone for the current print.",
+    powerTitle: "Switch off {name}?",
+    power: "Anything this device powers loses power right away.",
+    keep: "Keep",
+  },
   common: {
+    working: "Working…",
     save: "Save",
     saved: "Saved",
     saving: "Saving…",
@@ -62,10 +96,11 @@ export const en = {
     licences: "Licences",
   },
   nav: {
+    breadcrumb: "Breadcrumb",
     main: "Main navigation",
     printers: "Printers",
     jobs: "Print jobs",
-    files: "Files",
+    files: "Library",
     filament: "Filament",
     costs: "Costs",
     orders: "Orders",
@@ -146,6 +181,10 @@ export const en = {
     openWorkspace: "Open workspace",
   },
   printer: {
+    removeTitle: "Remove printer",
+    removeText:
+      "Printrio disconnects from this printer and forgets its queue and saved configuration backups. Print jobs and their costs stay in the history. Nothing on the printer itself is changed.",
+    removeButton: "Remove printer…",
     states: {
       offline: "Offline",
       connecting: "Connecting",
@@ -201,6 +240,7 @@ export const en = {
     notFoundText: "It may have been removed.",
   },
   fleet: {
+    clearFilters: "Clear filters",
     title: "Printers",
     subtitle: "{count} {count|printer|printers} · {printing} printing",
     empty: "No printers yet",
@@ -225,8 +265,15 @@ export const en = {
     limit: "{used} of {limit} printers on your plan",
   },
   settings: {
+    lowStock: "Low stock",
+    lowStockHint:
+      "A spool is low when less filament is left on it than this, whatever it weighed when new. Archived spools never count.",
+    lowStockGrams: "Low stock below (g)",
+    lowStockGramsHint: "Empty = default ({grams} g). 0 turns low-stock warnings off.",
+    lowStockAlerts: "Printrio Pro sends its low-stock alerts at the same threshold.",
     title: "Settings",
     tabs: {
+      filament: "Filament",
       general: "General",
       sidebar: "Sidebar",
       appearance: "Appearance",
@@ -239,11 +286,14 @@ export const en = {
     },
     sections: {
       workspace: "Workspace",
-      printers: "Printers",
+      printers: "Printers & material",
       team: "Team",
-      plan: "Plan",
+      sales: "Sales",
+      integrations: "Alerts & integrations",
+      plan: "Plan & data",
     },
     descriptions: {
+      filament: "Spool rules shared by the inventory, printer pages and alerts.",
       general: "How this workspace is used, what opens first and how print costs are calculated.",
       sidebar: "Which sections appear in the sidebar, and in which order.",
       appearance: "How Printrio looks in this browser.",
@@ -451,7 +501,10 @@ export const en = {
     confirm: "Skip {name} for the rest of this print? This cannot be undone.",
   },
   files: {
-    title: "Files",
+    noMatch: "No file matches the search.",
+    fromLibrary: "From library",
+    fromLibraryTitle: "Print from the library on {printer}",
+    title: "Files on this printer",
     upload: "Upload",
     uploading: "Uploading {name}… {percent}%",
     uploaded: "Uploaded {name}",
@@ -605,6 +658,8 @@ export const en = {
     kinds: { system: "System packages", git: "Git", web: "Web interface", other: "Other" },
   },
   filament: {
+    lowStockTitle: "Spools with less than {grams} g left",
+    lowStock: "Low stock",
     tabs: { spools: "Spools", filaments: "Filaments" },
     summary: "{spools} {spools|spool|spools} in stock · {weight} of filament",
     importSpoolman: "Import from Spoolman",
@@ -664,6 +719,7 @@ export const en = {
     noFilamentsText: "Filaments are created together with your first spool.",
   },
   jobs: {
+    views: "Print jobs and costs",
     count: "{count} recorded {count|print|prints}",
     printer: "Printer",
     allPrinters: "All printers",
@@ -768,6 +824,7 @@ export const en = {
     revokeConfirm: "Revoke {name}? Slicers using it can no longer upload.",
   },
   library: {
+    openPrinter: "Open {printer}",
     subtitle: "G-code library stored in Printrio — upload once, print on any printer",
     newFolder: "New folder",
     folderPrompt: "Folder name",
@@ -846,6 +903,7 @@ export const en = {
     uptime: "Uptime",
   },
   power: {
+    switchOff: "Switch off",
     title: "Power",
     on: "On",
     off: "Off",
@@ -894,6 +952,7 @@ export const en = {
     dh: "{d} d {h} h",
     hm: "{h} h {m} min",
     m: "{m} min",
+    underMinute: "< 1 min",
   },
 };
 

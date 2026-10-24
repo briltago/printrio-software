@@ -9,7 +9,7 @@ import {
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useSearch } from "@tanstack/react-router";
 import { createElement, type FC, type FormEvent, useRef, useState } from "react";
-import { Dialog, EmptyState, Field, FormError, PageHeader } from "../components.tsx";
+import { Dialog, EmptyState, Field, FormError, PageHeader, useConfirm } from "../components.tsx";
 import { Swatch } from "../features/filament-forms.tsx";
 import { useT } from "../i18n/index.tsx";
 import { api } from "../lib/api.ts";
@@ -69,7 +69,7 @@ export function OrdersPage() {
   const list = (orders.data?.orders ?? []).filter((order) => matches(filter, order.status));
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-5 sm:p-6 md:p-8">
+    <main className="page">
       <PageHeader
         title={t("nav.orders")}
         subtitle={t("orders.subtitle")}
@@ -79,16 +79,12 @@ export function OrdersPage() {
           </button>
         }
       />
-      <nav className="mt-6 flex gap-1 border-line border-b" aria-label={t("orders.filter")}>
+      <nav className="tabs mt-5" aria-label={t("orders.filter")}>
         {FILTERS.map((id) => (
           <button
             key={id}
             type="button"
-            className={`-mb-px border-b-2 px-3 py-2 text-sm ${
-              filter === id
-                ? "border-accent font-semibold text-text"
-                : "border-transparent text-muted hover:text-text"
-            }`}
+            className="tab"
             aria-current={filter === id ? "page" : undefined}
             onClick={() => setFilter(id)}
           >
@@ -96,7 +92,7 @@ export function OrdersPage() {
           </button>
         ))}
       </nav>
-      <div className="mt-6">
+      <div className="mt-5">
         <FormError error={orders.error ?? setStatus.error} />
         {orders.data && list.length === 0 ? (
           <EmptyState
@@ -302,6 +298,7 @@ function OrderForm({ order, onDone }: { order?: OrderDto; onDone: () => void }) 
 
 function OrderDetail({ orderId, onDone }: { orderId: string; onDone: () => void }) {
   const t = useT();
+  const { confirm, dialog } = useConfirm();
   const { data: me } = useSuspenseQuery(meQuery);
   const invalidate = useInvalidateOrders();
   const [adding, setAdding] = useState(false);
@@ -355,7 +352,7 @@ function OrderDetail({ orderId, onDone }: { orderId: string; onDone: () => void 
         </div>
         <FormError error={link.error ?? remove.error} />
         {adding && (
-          <ul className="mb-4 grid max-h-56 gap-1 overflow-auto rounded-[10px] border border-line p-2">
+          <ul className="mb-4 grid max-h-56 gap-1 overflow-auto rounded-[7px] border border-line p-2">
             {unlinked.data?.jobs.length === 0 && (
               <li className="p-2 text-sm text-subtle">{t("orders.noUnlinked")}</li>
             )}
@@ -418,13 +415,19 @@ function OrderDetail({ orderId, onDone }: { orderId: string; onDone: () => void 
             type="button"
             className="btn btn-danger btn-sm"
             onClick={() =>
-              window.confirm(t("orders.deleteConfirm", { name: order.name })) && remove.mutate()
+              confirm({
+                title: t("confirm.deleteTitle", { name: order.name }),
+                message: t("confirm.order"),
+                confirmLabel: t("orders.delete"),
+                action: () => remove.mutateAsync(),
+              })
             }
           >
             {t("orders.delete")}
           </button>
         </div>
       )}
+      {dialog}
     </div>
   );
 }

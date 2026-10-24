@@ -6,13 +6,14 @@ import {
 } from "@printrio/shared";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useT } from "../i18n/index.tsx";
-import { MODULE_NAV_GROUPS, NAV_ICONS, NAV_ROUTES } from "../nav.ts";
+import { MODULE_NAV_GROUPS, MODULE_NAV_ICONS, NAV_ICONS, NAV_ROUTES } from "../nav.ts";
 import { useModules } from "./modules.tsx";
 import { settingsQuery } from "./queries.ts";
 
 export interface SidebarEntry extends SidebarItem {
   group: SidebarGroup;
   label: string;
+  /** An icon name from icons.tsx, or a module's own text glyph. */
   icon: string;
   /** Core sections link to a route, module entries to /m/<module>/<path>. */
   link: { to: string } | { moduleId: string; path: string };
@@ -35,7 +36,7 @@ export function useSidebar() {
       return {
         ...saved,
         label: module.item.label,
-        icon: module.item.icon,
+        icon: MODULE_NAV_ICONS[saved.id] ?? module.item.icon,
         link: { moduleId: module.item.moduleId, path: module.item.path },
         moduleId: module.item.moduleId,
       };

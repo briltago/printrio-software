@@ -1,7 +1,7 @@
 import type { OrderDto, QueueItemDto } from "@printrio/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
-import { Field, FormError } from "../components.tsx";
+import { Field, FormError, useConfirm } from "../components.tsx";
 import { useT } from "../i18n/index.tsx";
 import { api } from "../lib/api.ts";
 import { Panel } from "./panel.tsx";
@@ -20,6 +20,7 @@ const fileName = (path: string) => path.slice(path.lastIndexOf("/") + 1);
 /** Prints waiting on this printer; the next one is started by hand once the bed is clear. */
 export function QueuePanel({ printerId, canPrint }: { printerId: string; canPrint: boolean }) {
   const t = useT();
+  const { confirm, dialog } = useConfirm();
   const queryClient = useQueryClient();
   const queue = useQueue(printerId);
   const setItems = (data: { items: QueueItemDto[] }) =>
@@ -64,8 +65,12 @@ export function QueuePanel({ printerId, canPrint }: { printerId: string; canPrin
           title={canPrint ? undefined : t("queue.notReady")}
           onClick={() =>
             next &&
-            window.confirm(t("queue.startConfirm", { name: fileName(next.path) })) &&
-            start.mutate()
+            confirm({
+              title: t("queue.startConfirm", { name: fileName(next.path) }),
+              confirmLabel: t("queue.startNext"),
+              destructive: false,
+              action: () => start.mutateAsync(),
+            })
           }
         >
           {t("queue.startNext")}
@@ -77,7 +82,7 @@ export function QueuePanel({ printerId, canPrint }: { printerId: string; canPrin
         {items.map((item, index) => (
           <li
             key={item.id}
-            className="flex items-center gap-2 rounded-[10px] border border-line px-3 py-2 text-sm"
+            className="flex items-center gap-2 rounded-[7px] border border-line px-3 py-2 text-sm"
           >
             <span className="w-5 shrink-0 text-xs text-subtle tabular-nums">{index + 1}.</span>
             <span className="min-w-0 flex-1">
@@ -122,6 +127,7 @@ export function QueuePanel({ printerId, canPrint }: { printerId: string; canPrin
           </li>
         ))}
       </ol>
+      {dialog}
     </Panel>
   );
 }

@@ -48,7 +48,7 @@ export function SsoSettings() {
   return (
     <Section title={t("sso.title")} hint={t("sso.hint")}>
       {!data.available && (
-        <p className="mb-4 rounded-[10px] border border-line p-3 text-sm text-muted">
+        <p className="mb-4 rounded-[7px] border border-line p-3 text-sm text-muted">
           {t("sso.business")}
         </p>
       )}

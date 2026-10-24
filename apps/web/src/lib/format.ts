@@ -10,6 +10,8 @@ const fixed = (value: number, digits: number) =>
 export function formatDuration(t: Translate, seconds: number | null | undefined) {
   if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) return "—";
   const total = Math.round(seconds / 60);
+  // A short print or test is "< 1 min", not "0 min".
+  if (total === 0 && seconds > 0) return t("time.underMinute");
   const h = Math.floor(total / 60);
   const m = total % 60;
   if (h >= 48) return t("time.dh", { d: Math.floor(h / 24), h: h % 24 });

@@ -2,7 +2,41 @@ import type { Translation } from "./en.ts";
 
 /** Czech UI strings (same keys as en.ts). */
 export const cs: Translation = {
+  confirm: {
+    deleteTitle: "Smazat {name}?",
+    printerFile:
+      "Soubor se odstraní z úložiště tiskárny. Historie tisků zůstane a kopie v Knihovně (pokud existuje) se nezmění.",
+    libraryFile:
+      "Soubor se odstraní z Knihovny pro všechny. Kopie už nahrané do tiskáren a záznamy o tiscích zůstanou.",
+    folder: "Smazat lze jen prázdnou složku. Nejdřív soubory přesuňte nebo smažte.",
+    spoolTitle: "Smazat tuto cívku?",
+    spool:
+      "Cívka se odstraní ze skladu. Tisky, které ji použily, si ponechají spotřebu i náklady, ale už na ni nebudou odkazovat. Chcete-li ji zachovat, archivujte ji.",
+    filament:
+      "Typ filamentu se odstraní. Jde to jen, pokud z něj nezbývají žádné cívky; tisky z něj zůstanou v historii.",
+    order:
+      "Zakázka se odstraní. Její tisky zůstanou v historii bez zakázky a její složka zůstane v Knihovně.",
+    user: "{name} se už nebude moci přihlásit. Jeho dřívější tisky a změny zůstanou v historii.",
+    backup:
+      "Archiv zálohy se smaže z datového svazku. Ostatní zálohy ani aktuální data se nezmění.",
+    revokeTitle: "Zrušit {name}?",
+    revoke: "Sliceři s tímto klíčem už nebudou moci nahrávat. Již nahrané soubory zůstanou.",
+    deactivateTitle: "Deaktivovat licenci?",
+    removePrinterTitle: "Odebrat {name}?",
+    cancelTitle: "Zrušit tisk na {name}?",
+    cancel: "Tisk se zastaví a nepůjde obnovit. V historii bude zaznamenán jako zrušený.",
+    cancelButton: "Zrušit tisk",
+    emergencyTitle: "Nouzově zastavit {name}?",
+    emergency:
+      "Motory a topení se okamžitě zastaví a Klipper se vypne. Tisk je ztracen a tiskárna před dalším použitím potřebuje restart firmwaru.",
+    skipTitle: "Přeskočit {name}?",
+    skip: "Zbytek tohoto objektu se nevytiskne. U aktuálního tisku to nejde vrátit.",
+    powerTitle: "Vypnout {name}?",
+    power: "Vše, co toto zařízení napájí, okamžitě ztratí napájení.",
+    keep: "Ponechat",
+  },
   common: {
+    working: "Probíhá…",
     save: "Uložit",
     saved: "Uloženo",
     saving: "Ukládám…",
@@ -64,10 +98,11 @@ export const cs: Translation = {
     licences: "Licence",
   },
   nav: {
+    breadcrumb: "Drobečková navigace",
     main: "Hlavní navigace",
     printers: "Tiskárny",
     jobs: "Tisky",
-    files: "Soubory",
+    files: "Knihovna",
     filament: "Filament",
     costs: "Náklady",
     orders: "Zakázky",
@@ -148,6 +183,10 @@ export const cs: Translation = {
     openWorkspace: "Otevřít pracovní prostor",
   },
   printer: {
+    removeTitle: "Odebrat tiskárnu",
+    removeText:
+      "Printrio se od tiskárny odpojí a zapomene její frontu a uložené zálohy konfigurace. Tiskové úlohy a jejich náklady zůstanou v historii. Na samotné tiskárně se nic nezmění.",
+    removeButton: "Odebrat tiskárnu…",
     states: {
       offline: "Offline",
       connecting: "Připojuji",
@@ -203,6 +242,7 @@ export const cs: Translation = {
     notFoundText: "Možná byla odebrána.",
   },
   fleet: {
+    clearFilters: "Zrušit filtry",
     title: "Tiskárny",
     subtitle: "{count} {count|tiskárna|tiskárny|tiskáren} · {printing} tiskne",
     empty: "Zatím žádné tiskárny",
@@ -227,8 +267,15 @@ export const cs: Translation = {
     limit: "{used} z {limit} {limit|tiskárny|tiskáren|tiskáren} vašeho tarifu",
   },
   settings: {
+    lowStock: "Docházející filament",
+    lowStockHint:
+      "Cívka dochází, když na ní zbývá méně filamentu, než je tato hodnota, bez ohledu na původní hmotnost. Archivované cívky se nepočítají.",
+    lowStockGrams: "Dochází pod (g)",
+    lowStockGramsHint: "Prázdné = výchozí ({grams} g). 0 varování vypne.",
+    lowStockAlerts: "Printrio Pro posílá upozornění na docházející filament při stejné hranici.",
     title: "Nastavení",
     tabs: {
+      filament: "Filament",
       general: "Obecné",
       sidebar: "Postranní panel",
       appearance: "Vzhled",
@@ -241,11 +288,14 @@ export const cs: Translation = {
     },
     sections: {
       workspace: "Pracovní prostor",
-      printers: "Tiskárny",
+      printers: "Tiskárny a materiál",
       team: "Tým",
-      plan: "Tarif",
+      sales: "Prodej",
+      integrations: "Upozornění a integrace",
+      plan: "Tarif a data",
     },
     descriptions: {
+      filament: "Pravidla cívek společná pro sklad, stránky tiskáren a upozornění.",
       general:
         "Jak se pracovní prostor používá, co se otevře jako první a jak se počítají náklady na tisk.",
       sidebar: "Které sekce jsou v postranním panelu a v jakém pořadí.",
@@ -456,7 +506,10 @@ export const cs: Translation = {
     confirm: "Vynechat {name} po zbytek tisku? Nelze vrátit zpět.",
   },
   files: {
-    title: "Soubory",
+    noMatch: "Hledání neodpovídá žádný soubor.",
+    fromLibrary: "Z knihovny",
+    fromLibraryTitle: "Tisk z knihovny na {printer}",
+    title: "Soubory v tiskárně",
     upload: "Nahrát",
     uploading: "Nahrávám {name}… {percent} %",
     uploaded: "Nahráno: {name}",
@@ -613,6 +666,8 @@ export const cs: Translation = {
     kinds: { system: "Systémové balíčky", git: "Git", web: "Webové rozhraní", other: "Ostatní" },
   },
   filament: {
+    lowStockTitle: "Cívky, na kterých zbývá méně než {grams} g",
+    lowStock: "Dochází",
     tabs: { spools: "Cívky", filaments: "Filamenty" },
     summary: "{spools} {spools|cívka|cívky|cívek} skladem · {weight} filamentu",
     importSpoolman: "Importovat ze Spoolmanu",
@@ -672,6 +727,7 @@ export const cs: Translation = {
     noFilamentsText: "Filamenty se vytvoří spolu s první cívkou.",
   },
   jobs: {
+    views: "Tiskové úlohy a náklady",
     count: "{count} {count|zaznamenaný tisk|zaznamenané tisky|zaznamenaných tisků}",
     printer: "Tiskárna",
     allPrinters: "Všechny tiskárny",
@@ -777,6 +833,7 @@ export const cs: Translation = {
     revokeConfirm: "Zrušit {name}? Slicery, které ho používají, už nebudou moct nahrávat.",
   },
   library: {
+    openPrinter: "Otevřít {printer}",
     subtitle: "Knihovna G-code uložená v Printriu — nahrajte jednou, tiskněte na jakékoli tiskárně",
     newFolder: "Nová složka",
     folderPrompt: "Název složky",
@@ -855,6 +912,7 @@ export const cs: Translation = {
     uptime: "Doba běhu",
   },
   power: {
+    switchOff: "Vypnout",
     title: "Napájení",
     on: "Zapnuto",
     off: "Vypnuto",
@@ -903,5 +961,6 @@ export const cs: Translation = {
     dh: "{d} d {h} h",
     hm: "{h} h {m} min",
     m: "{m} min",
+    underMinute: "< 1 min",
   },
 };

@@ -14,6 +14,7 @@ import {
 import {
   type Lease,
   type LoadedModule,
+  lowStockThreshold,
   type ModuleBundle,
   moduleBundleSchema,
   moduleSigningMessage,
@@ -21,6 +22,7 @@ import {
 } from "@printrio/shared";
 import type { Database } from "../db/client.ts";
 import type { OrderService } from "../orders/service.ts";
+import { getWorkspaceSettings, updateWorkspaceSettings } from "../settings.ts";
 import { verifyEd25519 } from "./identity.ts";
 import type { Licence } from "./licence.ts";
 
@@ -352,6 +354,22 @@ export class ModuleHost {
       registerAuthorizer: (authorize) => {
         this.authorizers.add(authorize);
         entry.cleanup.push(() => this.authorizers.delete(authorize));
+      },
+      inventory: {
+        lowStockGrams: async () => {
+          const { inventory } = await getWorkspaceSettings(this.options.db);
+          return {
+            grams: lowStockThreshold(inventory),
+            configured: inventory.lowStockGrams !== null,
+          };
+        },
+        adoptLowStockGrams: async (grams) => {
+          if (!Number.isInteger(grams) || grams < 0 || grams > 5000) return;
+          const { inventory } = await getWorkspaceSettings(this.options.db);
+          if (inventory.lowStockGrams !== null) return;
+          await updateWorkspaceSettings(this.options.db, { inventory: { lowStockGrams: grams } });
+          this.options.notifyChange("filament");
+        },
       },
       orders: this.options.orders && {
         get: (orderId) => (this.options.orders as OrderService).get(orderId),

@@ -166,7 +166,7 @@ export function ConsolePanel({
     >
       <div
         ref={outputRef}
-        className="h-64 overflow-auto rounded-[10px] border border-line bg-sidebar p-3 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap"
+        className="h-64 overflow-auto rounded-[7px] border border-line bg-sidebar p-3 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap"
         role="log"
         aria-live="polite"
         aria-label={t("printer.console")}
@@ -204,7 +204,7 @@ export function ConsolePanel({
             id={listId}
             role="listbox"
             aria-label={t("console.suggestions")}
-            className="absolute bottom-full left-0 z-20 mb-2 max-h-72 w-full max-w-md overflow-auto rounded-[12px] border border-line bg-surface p-1 shadow-2xl"
+            className="absolute bottom-full left-0 z-20 mb-2 max-h-72 w-full max-w-md overflow-auto rounded-card border border-line bg-surface p-1 shadow-2xl"
           >
             {suggestions.map((command) => (
               <div

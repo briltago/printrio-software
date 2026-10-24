@@ -2,7 +2,44 @@ import type { Translation } from "./en.ts";
 
 /** German UI strings (same keys as en.ts). */
 export const de: Translation = {
+  confirm: {
+    deleteTitle: "{name} löschen?",
+    printerFile:
+      "Die Datei wird vom Speicher des Druckers entfernt. Der Druckverlauf bleibt, eine Kopie in der Bibliothek ist nicht betroffen.",
+    libraryFile:
+      "Die Datei wird für alle aus der Bibliothek entfernt. Bereits an Drucker gesendete Kopien und Druckeinträge bleiben.",
+    folder:
+      "Nur leere Ordner können gelöscht werden. Verschieben oder löschen Sie zuerst die Dateien darin.",
+    spoolTitle: "Diese Spule löschen?",
+    spool:
+      "Die Spule wird aus dem Lager entfernt. Drucke damit behalten Verbrauch und Kosten, verweisen aber nicht mehr auf sie. Zum Aufbewahren lieber archivieren.",
+    filament:
+      "Der Filamenttyp wird entfernt. Das geht nur, solange keine Spulen davon existieren; Drucke damit bleiben im Verlauf.",
+    order:
+      "Der Auftrag wird entfernt. Seine Drucke bleiben ohne Auftrag im Verlauf, sein Ordner bleibt in der Bibliothek.",
+    user: "{name} kann sich nicht mehr anmelden. Frühere Drucke und Änderungen bleiben im Verlauf.",
+    backup:
+      "Das Sicherungsarchiv wird vom Datenvolume gelöscht. Andere Sicherungen und die aktuellen Daten sind nicht betroffen.",
+    revokeTitle: "{name} widerrufen?",
+    revoke:
+      "Slicer mit diesem Schlüssel können nicht mehr hochladen. Bereits hochgeladene Dateien bleiben.",
+    deactivateTitle: "Lizenz deaktivieren?",
+    removePrinterTitle: "{name} entfernen?",
+    cancelTitle: "Druck auf {name} abbrechen?",
+    cancel:
+      "Der Druck stoppt und kann nicht fortgesetzt werden. Er wird im Verlauf als abgebrochen erfasst.",
+    cancelButton: "Druck abbrechen",
+    emergencyTitle: "{name} notstoppen?",
+    emergency:
+      "Motoren und Heizungen stoppen sofort und Klipper fährt herunter. Der Druck ist verloren und der Drucker braucht vor der weiteren Nutzung einen Firmware-Neustart.",
+    skipTitle: "{name} überspringen?",
+    skip: "Der Rest dieses Objekts wird nicht gedruckt. Das lässt sich für den laufenden Druck nicht rückgängig machen.",
+    powerTitle: "{name} ausschalten?",
+    power: "Alles, was dieses Gerät versorgt, verliert sofort den Strom.",
+    keep: "Behalten",
+  },
   common: {
+    working: "Wird ausgeführt…",
     save: "Speichern",
     saved: "Gespeichert",
     saving: "Speichere…",
@@ -65,10 +102,11 @@ export const de: Translation = {
     licences: "Lizenzen",
   },
   nav: {
+    breadcrumb: "Brotkrümelnavigation",
     main: "Hauptnavigation",
     printers: "Drucker",
     jobs: "Druckaufträge",
-    files: "Dateien",
+    files: "Bibliothek",
     filament: "Filament",
     costs: "Kosten",
     orders: "Aufträge",
@@ -150,6 +188,10 @@ export const de: Translation = {
     openWorkspace: "Arbeitsbereich öffnen",
   },
   printer: {
+    removeTitle: "Drucker entfernen",
+    removeText:
+      "Printrio trennt die Verbindung zu diesem Drucker und vergisst seine Warteschlange und gespeicherten Konfigurationssicherungen. Druckaufträge und ihre Kosten bleiben im Verlauf. Am Drucker selbst ändert sich nichts.",
+    removeButton: "Drucker entfernen…",
     states: {
       offline: "Offline",
       connecting: "Verbinde",
@@ -206,6 +248,7 @@ export const de: Translation = {
     notFoundText: "Er wurde möglicherweise entfernt.",
   },
   fleet: {
+    clearFilters: "Filter zurücksetzen",
     title: "Drucker",
     subtitle: "{count} {count|Drucker|Drucker} · {printing} drucken",
     empty: "Noch keine Drucker",
@@ -230,8 +273,15 @@ export const de: Translation = {
     limit: "{used} von {limit} Druckern Ihres Tarifs",
   },
   settings: {
+    lowStock: "Wenig Filament",
+    lowStockHint:
+      "Eine Spule gilt als knapp, wenn weniger Filament übrig ist als dieser Wert, unabhängig vom ursprünglichen Gewicht. Archivierte Spulen zählen nie.",
+    lowStockGrams: "Knapp unter (g)",
+    lowStockGramsHint: "Leer = Standard ({grams} g). 0 schaltet die Warnung aus.",
+    lowStockAlerts: "Printrio Pro sendet seine Benachrichtigungen bei derselben Grenze.",
     title: "Einstellungen",
     tabs: {
+      filament: "Filament",
       general: "Allgemein",
       sidebar: "Seitenleiste",
       appearance: "Darstellung",
@@ -244,11 +294,14 @@ export const de: Translation = {
     },
     sections: {
       workspace: "Arbeitsbereich",
-      printers: "Drucker",
+      printers: "Drucker & Material",
       team: "Team",
-      plan: "Tarif",
+      sales: "Vertrieb",
+      integrations: "Benachrichtigungen & Integrationen",
+      plan: "Tarif & Daten",
     },
     descriptions: {
+      filament: "Spulenregeln für Lager, Druckerseiten und Benachrichtigungen.",
       general:
         "Wie der Arbeitsbereich genutzt wird, was zuerst öffnet und wie Druckkosten berechnet werden.",
       sidebar: "Welche Bereiche in der Seitenleiste erscheinen und in welcher Reihenfolge.",
@@ -462,7 +515,10 @@ export const de: Translation = {
     confirm: "{name} für den Rest des Drucks überspringen? Das lässt sich nicht rückgängig machen.",
   },
   files: {
-    title: "Dateien",
+    noMatch: "Keine Datei passt zur Suche.",
+    fromLibrary: "Aus der Bibliothek",
+    fromLibraryTitle: "Aus der Bibliothek auf {printer} drucken",
+    title: "Dateien auf dem Drucker",
     upload: "Hochladen",
     uploading: "Lade {name} hoch… {percent} %",
     uploaded: "{name} hochgeladen",
@@ -622,6 +678,8 @@ export const de: Translation = {
     kinds: { system: "Systempakete", git: "Git", web: "Weboberfläche", other: "Sonstige" },
   },
   filament: {
+    lowStockTitle: "Spulen mit weniger als {grams} g Rest",
+    lowStock: "Wenig übrig",
     tabs: { spools: "Spulen", filaments: "Filamente" },
     summary: "{spools} {spools|Spule|Spulen} auf Lager · {weight} Filament",
     importSpoolman: "Aus Spoolman importieren",
@@ -682,6 +740,7 @@ export const de: Translation = {
     noFilamentsText: "Filamente werden zusammen mit der ersten Spule angelegt.",
   },
   jobs: {
+    views: "Druckaufträge und Kosten",
     count: "{count} {count|erfasster Druck|erfasste Drucke}",
     printer: "Drucker",
     allPrinters: "Alle Drucker",
@@ -789,6 +848,7 @@ export const de: Translation = {
     revokeConfirm: "{name} widerrufen? Slicer, die ihn nutzen, können dann nicht mehr hochladen.",
   },
   library: {
+    openPrinter: "{printer} öffnen",
     subtitle: "G-Code-Bibliothek in Printrio — einmal hochladen, auf jedem Drucker drucken",
     newFolder: "Neuer Ordner",
     folderPrompt: "Ordnername",
@@ -868,6 +928,7 @@ export const de: Translation = {
     uptime: "Laufzeit",
   },
   power: {
+    switchOff: "Ausschalten",
     title: "Stromversorgung",
     on: "Ein",
     off: "Aus",
@@ -916,5 +977,6 @@ export const de: Translation = {
     dh: "{d} T {h} h",
     hm: "{h} h {m} min",
     m: "{m} min",
+    underMinute: "< 1 min",
   },
 };

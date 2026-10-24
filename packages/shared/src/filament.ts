@@ -115,3 +115,16 @@ export const spoolmanImportResultSchema = z.object({
   spoolsUpdated: z.number(),
 });
 export type SpoolmanImportResult = z.infer<typeof spoolmanImportResultSchema>;
+
+/**
+ * Low stock: an active (not archived) spool with less filament left than the
+ * threshold in grams. Absolute grams because what matters is whether the next
+ * print fits, whatever the spool held when new. A threshold of 0 turns it off;
+ * an empty spool (0 g) is low.
+ */
+export function isLowStock(
+  spool: Pick<SpoolDto, "remainingWeight" | "archived">,
+  thresholdGrams: number,
+) {
+  return !spool.archived && thresholdGrams > 0 && spool.remainingWeight < thresholdGrams;
+}

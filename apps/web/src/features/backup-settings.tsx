@@ -1,7 +1,7 @@
 import type { BackupDto, BackupKind, BackupsDto } from "@printrio/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ChangeEvent, type FormEvent, useRef, useState } from "react";
-import { FormError, Section } from "../components.tsx";
+import { FormError, Section, useConfirm } from "../components.tsx";
 import { currentLocale, useT } from "../i18n/index.tsx";
 import { ApiError, api } from "../lib/api.ts";
 import { formatBytes } from "../lib/format.ts";
@@ -25,6 +25,7 @@ async function waitForRestart() {
 /** Settings → Backups: download, restore and schedule backups of the whole instance. */
 export function BackupSettings() {
   const t = useT();
+  const { confirm, dialog } = useConfirm();
   const queryClient = useQueryClient();
   const { data, error } = useQuery({
     queryKey: KEY,
@@ -75,7 +76,7 @@ export function BackupSettings() {
   return (
     <>
       {!data.available && (
-        <p className="mb-5 rounded-[10px] border border-warning/40 bg-warning/10 p-3 text-sm">
+        <p className="mb-5 rounded-[7px] border border-warning/40 bg-warning/10 p-3 text-sm">
           {t("backups.unavailable")}
         </p>
       )}
@@ -148,7 +149,12 @@ export function BackupSettings() {
                   type="button"
                   className="btn btn-danger btn-sm"
                   onClick={() =>
-                    window.confirm(t("backups.deleteConfirm")) && remove.mutate(backup.name)
+                    confirm({
+                      title: t("confirm.deleteTitle", { name: backup.name }),
+                      message: t("confirm.backup"),
+                      confirmLabel: t("common.delete"),
+                      action: () => remove.mutateAsync(backup.name),
+                    })
                   }
                 >
                   {t("common.delete")}
@@ -193,6 +199,7 @@ export function BackupSettings() {
         </Section>
       )}
       <ScheduleSection settings={data.settings} />
+      {dialog}
     </>
   );
 }

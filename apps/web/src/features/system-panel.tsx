@@ -1,7 +1,7 @@
 import type { HostServiceDto, RestartRequest, SystemInfoDto } from "@printrio/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { FormError } from "../components.tsx";
+import { FormError, useConfirm } from "../components.tsx";
 import { useT } from "../i18n/index.tsx";
 import { api } from "../lib/api.ts";
 import { formatBytes, formatDuration } from "../lib/format.ts";
@@ -15,6 +15,7 @@ const SERVICE_STATE_CLASS: Record<string, string> = {
 /** Restarts (Klipper, firmware, host services) and host power. */
 export function SystemPanel({ printerId, busy }: { printerId: string; busy: boolean }) {
   const t = useT();
+  const { confirm, dialog } = useConfirm();
   const queryClient = useQueryClient();
   const [done, setDone] = useState<string | null>(null);
   const services = useQuery({
@@ -34,9 +35,12 @@ export function SystemPanel({ printerId, busy }: { printerId: string; busy: bool
         );
     },
   });
-  const confirmThen = (message: string, body: RestartRequest) => {
-    if (window.confirm(message)) restart.mutate(body);
-  };
+  const confirmThen = (message: string, body: RestartRequest) =>
+    confirm({
+      title: message,
+      confirmLabel: t("common.continue"),
+      action: () => restart.mutateAsync(body),
+    });
   const disabled = busy || restart.isPending;
 
   return (
@@ -96,7 +100,7 @@ export function SystemPanel({ printerId, busy }: { printerId: string; busy: bool
             {(services.data?.services ?? []).map((service) => (
               <li
                 key={service.name}
-                className="flex items-center gap-3 rounded-[10px] border border-line px-3 py-2"
+                className="flex items-center gap-3 rounded-[7px] border border-line px-3 py-2"
               >
                 <span className="min-w-0 flex-1 truncate font-mono text-sm">{service.name}</span>
                 {service.state && (
@@ -124,6 +128,7 @@ export function SystemPanel({ printerId, busy }: { printerId: string; busy: bool
           </ul>
         </Panel>
       </div>
+      {dialog}
     </div>
   );
 }

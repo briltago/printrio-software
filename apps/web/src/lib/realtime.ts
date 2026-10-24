@@ -1,7 +1,7 @@
 import { type Printer, type RealtimeMessage, realtimeMessageSchema } from "@printrio/shared";
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useSyncExternalStore } from "react";
-import { groupsQuery, printersQuery } from "./queries.ts";
+import { groupsQuery, printersQuery, settingsQuery } from "./queries.ts";
 
 export interface ConsoleLine {
   kind: "command" | "response";
@@ -81,6 +81,8 @@ function handle(queryClient: QueryClient, message: RealtimeMessage) {
     void queryClient.invalidateQueries({ queryKey: ["licence"] });
     void queryClient.invalidateQueries({ queryKey: ["modules"] });
     void queryClient.invalidateQueries({ queryKey: ["users"] });
+    // Modules may adopt workspace settings (the low-stock threshold) and report it as a change.
+    void queryClient.invalidateQueries({ queryKey: settingsQuery.queryKey });
   } else if (message.type === "printer.status") {
     queryClient.setQueryData(printersQuery.queryKey, (data) =>
       data

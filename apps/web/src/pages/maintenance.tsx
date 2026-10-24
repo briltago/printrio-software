@@ -28,10 +28,10 @@ export function MaintenancePage() {
 
   if (!printer || !active) {
     return (
-      <main className="mx-auto max-w-6xl px-4 py-5 sm:p-6 md:p-8">
+      <main className="page">
         <EmptyState
-          title={printer ? t("maintenance.adminOnly") : "Printer not found"}
-          text={printer ? t("maintenance.adminOnlyText") : "It may have been removed."}
+          title={printer ? t("maintenance.adminOnly") : t("printer.notFound")}
+          text={printer ? t("maintenance.adminOnlyText") : t("printer.notFoundText")}
           action={
             <Link to="/printers" className="btn btn-secondary">
               {t("printer.allPrinters")}
@@ -46,34 +46,41 @@ export function MaintenancePage() {
   const busy = printer.status.state === "printing" || printer.status.state === "paused";
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-5 sm:p-6 md:p-8">
-      <Link
-        to="/printers/$printerId"
-        params={{ printerId }}
-        className="mb-1 inline-flex min-h-11 items-center text-sm text-muted hover:text-text md:mb-3 md:min-h-0"
-      >
-        ← {printer.name}
-      </Link>
+    <main className="page">
       <PageHeader
-        kicker={t("maintenance.kicker")}
-        title={printer.name}
-        subtitle={<StateBadge state={printer.status.state} />}
+        crumbs={
+          <>
+            <Link to="/printers" className="hover:text-text hover:underline">
+              {t("nav.printers")}
+            </Link>
+            <span aria-hidden="true" className="text-subtle">
+              /
+            </span>
+            <Link
+              to="/printers/$printerId"
+              params={{ printerId }}
+              className="truncate hover:text-text hover:underline"
+            >
+              {printer.name}
+            </Link>
+          </>
+        }
+        title={t("maintenance.kicker")}
+        subtitle={
+          <>
+            <span className="font-medium text-text">{printer.name}</span>
+            <StateBadge state={printer.status.state} />
+          </>
+        }
       />
-      <nav
-        className="mt-6 flex gap-1 overflow-x-auto border-line border-b"
-        aria-label={t("maintenance.kicker")}
-      >
+      <nav className="tabs mt-5" aria-label={t("maintenance.kicker")}>
         {tabs.map((id) => (
           <Link
             key={id}
             to="/printers/$printerId/maintenance"
             params={{ printerId }}
             search={{ tab: id }}
-            className={`-mb-px border-b-2 px-3 py-2 text-sm whitespace-nowrap ${
-              active === id
-                ? "border-accent font-semibold text-text"
-                : "border-transparent text-muted hover:text-text"
-            }`}
+            className="tab"
             aria-current={active === id ? "page" : undefined}
           >
             {t(`maintenance.tabs.${id}`)}

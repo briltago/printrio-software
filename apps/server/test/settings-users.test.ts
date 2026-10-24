@@ -44,6 +44,7 @@ describe("workspace settings", () => {
       sidebarGroups: true,
       costs: DEFAULT_SETTINGS.costs,
       orderFolders: DEFAULT_SETTINGS.orderFolders,
+      inventory: { lowStockGrams: null },
     });
   });
 
@@ -64,6 +65,7 @@ describe("workspace settings", () => {
       sidebarGroups: true,
       costs: DEFAULT_SETTINGS.costs,
       orderFolders: DEFAULT_SETTINGS.orderFolders,
+      inventory: { lowStockGrams: null },
     });
   });
 
@@ -80,6 +82,17 @@ describe("workspace settings", () => {
       costs: { currency: "euro", electricityPrice: 6.5, defaultPowerWatts: 150 },
     });
     expect(bad.statusCode).toBe(400);
+  });
+
+  it("saves the low-stock threshold and validates it", async () => {
+    const res = await api("PATCH", "/api/settings", { inventory: { lowStockGrams: 250 } });
+    expect(res.json().inventory).toEqual({ lowStockGrams: 250 });
+    for (const lowStockGrams of [-1, 5001, 12.5, "100"])
+      expect(
+        (await api("PATCH", "/api/settings", { inventory: { lowStockGrams } })).statusCode,
+      ).toBe(400);
+    expect((await api("GET", "/api/settings")).json().inventory).toEqual({ lowStockGrams: 250 });
+    await api("PATCH", "/api/settings", { inventory: { lowStockGrams: null } });
   });
 
   it("rejects an invalid sidebar", async () => {

@@ -319,6 +319,12 @@ function CostSettingsSection() {
   );
 }
 
+/** True when a "major.minor.patch" version is at least major.minor. */
+const atLeast = (version: string, major: number, minor: number) => {
+  const [a = 0, b = 0] = version.split(".").map(Number);
+  return a > major || (a === major && b >= minor);
+};
+
 /** One low-stock rule for the spool list, printer pages and module alerts (e.g. Pro's notifications). */
 function FilamentSettings() {
   const t = useT();
@@ -352,9 +358,11 @@ function FilamentSettings() {
             hint={t("settings.lowStockGramsHint", { grams: DEFAULT_LOW_STOCK_GRAMS })}
           />
         </div>
-        {loaded?.modules.some((module) => module.id === "pro" && module.status === "active") && (
-          <p className="mb-4 text-sm text-muted">{t("settings.lowStockAlerts")}</p>
-        )}
+        {/* Pro 1.6+ reads this threshold for its alerts; older Pro keeps its own. */}
+        {loaded?.modules.some(
+          (module) =>
+            module.id === "pro" && module.status === "active" && atLeast(module.version, 1, 6),
+        ) && <p className="mb-4 text-sm text-muted">{t("settings.lowStockAlerts")}</p>}
         <div className="flex items-center gap-3">
           <button type="submit" className="btn btn-primary btn-sm" disabled={update.isPending}>
             {t("common.save")}

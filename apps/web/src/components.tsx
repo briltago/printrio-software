@@ -120,11 +120,17 @@ export function Dialog({
   onClose,
   title,
   children,
+  dismissible = true,
+  describedBy,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: ReactNode;
+  /** False keeps Escape and the backdrop from closing it (e.g. while an action runs). */
+  dismissible?: boolean;
+  /** Id of the element that explains the dialog, for screen readers. */
+  describedBy?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -140,9 +146,13 @@ export function Dialog({
       ref={ref}
       className="dialog"
       aria-labelledby={titleId}
+      aria-describedby={describedBy}
+      onCancel={(event) => {
+        if (!dismissible) event.preventDefault();
+      }}
       onClose={onClose}
       onClick={(event) => {
-        if (event.target === ref.current) onClose();
+        if (event.target === ref.current && dismissible) onClose();
       }}
     >
       {open && (
@@ -336,11 +346,9 @@ export function ConfirmDialog({
   action,
 }: ConfirmOptions & { open: boolean; onClose: () => void }) {
   const t = useT();
+  const messageId = useId();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  useEffect(() => {
-    if (open) setError(null);
-  }, [open]);
   const run = async () => {
     setPending(true);
     setError(null);
@@ -354,8 +362,18 @@ export function ConfirmDialog({
     }
   };
   return (
-    <Dialog open={open} onClose={() => !pending && onClose()} title={title}>
-      {message && <div className="text-sm text-muted">{message}</div>}
+    <Dialog
+      open={open}
+      onClose={() => !pending && onClose()}
+      title={title}
+      dismissible={!pending}
+      describedBy={message ? messageId : undefined}
+    >
+      {message && (
+        <div id={messageId} className="text-sm text-muted">
+          {message}
+        </div>
+      )}
       <div className="mt-4">
         <FormError error={error} />
       </div>
@@ -382,12 +400,15 @@ export function ConfirmDialog({
 export function useConfirm() {
   const [options, setOptions] = useState<ConfirmOptions | null>(null);
   const [open, setOpen] = useState(false);
+  // Each request mounts a fresh dialog: no error or pending state carried over.
+  const [request, setRequest] = useState(0);
   const confirm = useCallback((next: ConfirmOptions) => {
     setOptions(next);
+    setRequest((count) => count + 1);
     setOpen(true);
   }, []);
   const dialog = options ? (
-    <ConfirmDialog {...options} open={open} onClose={() => setOpen(false)} />
+    <ConfirmDialog key={request} {...options} open={open} onClose={() => setOpen(false)} />
   ) : null;
   return { confirm, dialog };
 }

@@ -1,10 +1,11 @@
+import { isLowStock, lowStockThreshold } from "@printrio/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { FormError } from "../components.tsx";
 import { useT } from "../i18n/index.tsx";
 import { api } from "../lib/api.ts";
 import { filamentLabel, formatGrams, inventoryQuery, remainingShare } from "../lib/filament.ts";
-import { printersQuery } from "../lib/queries.ts";
+import { printersQuery, settingsQuery } from "../lib/queries.ts";
 import { Swatch } from "./filament-forms.tsx";
 import { Panel } from "./panel.tsx";
 
@@ -19,6 +20,7 @@ export function SpoolPanel({
   const t = useT();
   const queryClient = useQueryClient();
   const inventory = useQuery(inventoryQuery);
+  const { data: settings } = useQuery(settingsQuery);
   const assign = useMutation({
     mutationFn: (spoolId: string | null) =>
       api(`/api/printers/${printerId}/spool`, { method: "PUT", body: { spoolId } }),
@@ -33,6 +35,8 @@ export function SpoolPanel({
   const spools = (inventory.data?.spools ?? []).filter((s) => !s.archived);
   const active = spools.find((s) => s.id === activeSpoolId);
   const activeFilament = active && filaments.get(active.filamentId);
+  const low =
+    active && settings ? isLowStock(active, lowStockThreshold(settings.inventory)) : false;
   const label = (spoolId: string) => {
     const spool = spools.find((s) => s.id === spoolId);
     const filament = spool && filaments.get(spool.filamentId);
@@ -49,7 +53,10 @@ export function SpoolPanel({
         <div className="flex items-center gap-3">
           <Swatch color={activeFilament.colorHex} size={32} />
           <div className="min-w-0 flex-1">
-            <p className="truncate font-semibold">{filamentLabel(activeFilament)}</p>
+            <p className="flex items-center gap-2 font-semibold">
+              <span className="truncate">{filamentLabel(activeFilament)}</span>
+              {low && <span className="badge state-paused shrink-0">{t("filament.lowStock")}</span>}
+            </p>
             <p className="text-xs text-subtle tabular-nums">
               {[
                 activeFilament.colorName,

@@ -1,7 +1,7 @@
 import type { FileListingDto, PrintFileDto } from "@printrio/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type DragEvent, useRef, useState } from "react";
-import { Dialog, FormError } from "../components.tsx";
+import { Dialog, FormError, useConfirm } from "../components.tsx";
 import { useT } from "../i18n/index.tsx";
 import { Icon } from "../icons.tsx";
 import { api } from "../lib/api.ts";
@@ -61,6 +61,7 @@ export function FilesPanel({
   connected: boolean;
 }) {
   const t = useT();
+  const { confirm, dialog } = useConfirm();
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dir, setDir] = useState("");
@@ -352,8 +353,12 @@ export function FilesPanel({
                         aria-label={`${t("common.delete")} ${file.name}`}
                         title={t("common.delete")}
                         onClick={() =>
-                          window.confirm(t("files.deleteConfirm", { name: file.name })) &&
-                          deleteMutation.mutate(file.path)
+                          confirm({
+                            title: t("confirm.deleteTitle", { name: file.name }),
+                            message: t("confirm.printerFile"),
+                            confirmLabel: t("common.delete"),
+                            action: () => deleteMutation.mutateAsync(file.path),
+                          })
                         }
                       >
                         <Icon name="close" size={14} />
@@ -370,6 +375,7 @@ export function FilesPanel({
         </div>
       </div>
 
+      {dialog}
       <Dialog
         open={picking}
         onClose={() => setPicking(false)}

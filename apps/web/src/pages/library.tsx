@@ -2,7 +2,7 @@ import type { LibraryFileDto, LibraryListingDto } from "@printrio/shared";
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { type DragEvent, useRef, useState } from "react";
-import { Dialog, EmptyState, FormError, PageHeader } from "../components.tsx";
+import { Dialog, EmptyState, FormError, PageHeader, useConfirm } from "../components.tsx";
 import { Thumbnail } from "../features/files-panel.tsx";
 import { libraryThumbnailUrl, SendForm } from "../features/library-send.tsx";
 import { useT } from "../i18n/index.tsx";
@@ -27,6 +27,7 @@ const GCODE = /\.(gcode|g|gco)$/i;
  */
 export function LibraryPage() {
   const t = useT();
+  const { confirm, dialog } = useConfirm();
   const queryClient = useQueryClient();
   const { data: me } = useSuspenseQuery(meQuery);
   const isAdmin = me?.role === "admin";
@@ -281,12 +282,17 @@ export function LibraryPage() {
                               type="button"
                               className="btn btn-secondary btn-sm px-2"
                               aria-label={`${t("common.delete")} ${name}`}
+                              title={t("common.delete")}
                               onClick={() =>
-                                window.confirm(t("library.deleteFolderConfirm", { name })) &&
-                                remove.mutate(path)
+                                confirm({
+                                  title: t("confirm.deleteTitle", { name }),
+                                  message: t("confirm.folder"),
+                                  confirmLabel: t("common.delete"),
+                                  action: () => remove.mutateAsync(path),
+                                })
                               }
                             >
-                              ✕
+                              <Icon name="close" size={14} />
                             </button>
                           )}
                         </td>
@@ -345,12 +351,17 @@ export function LibraryPage() {
                               type="button"
                               className="btn btn-secondary btn-sm px-2"
                               aria-label={`${t("common.delete")} ${file.name}`}
+                              title={t("common.delete")}
                               onClick={() =>
-                                window.confirm(t("files.deleteConfirm", { name: file.name })) &&
-                                remove.mutate(file.path)
+                                confirm({
+                                  title: t("confirm.deleteTitle", { name: file.name }),
+                                  message: t("confirm.libraryFile"),
+                                  confirmLabel: t("common.delete"),
+                                  action: () => remove.mutateAsync(file.path),
+                                })
                               }
                             >
-                              ✕
+                              <Icon name="close" size={14} />
                             </button>
                           )}
                         </div>
@@ -363,6 +374,7 @@ export function LibraryPage() {
           )}
         </div>
       </div>
+      {dialog}
       <Dialog
         open={sending !== null}
         onClose={() => setSending(null)}

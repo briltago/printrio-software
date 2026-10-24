@@ -65,6 +65,17 @@ export interface WebOrderPanel {
   component: Component;
 }
 
+/**
+ * A section of the customer detail (Pro's Customers page) added by another
+ * module, e.g. Business's CRM timeline. Receives `{ customerId }` (Pro's
+ * customer id). Pro renders them with `host.components.CustomerPanels`.
+ */
+export interface WebCustomerPanel {
+  id: string;
+  title: string;
+  component: Component;
+}
+
 export interface WebModuleExtensions {
   navItems?: WebNavItem[];
   pages?: WebPage[];
@@ -72,6 +83,8 @@ export interface WebModuleExtensions {
   printerPanels?: WebPrinterPanel[];
   /** Optional; cores before Nov 2026 ignore it. */
   orderPanels?: WebOrderPanel[];
+  /** Optional; cores before 1.1 ignore it (check for `host.components.CustomerPanels`). */
+  customerPanels?: WebCustomerPanel[];
 }
 
 export interface PrintrioWebModule {

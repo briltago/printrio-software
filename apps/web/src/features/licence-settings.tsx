@@ -1,7 +1,7 @@
 import type { LicenceStatus } from "@printrio/shared";
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
-import { FormError, Section } from "../components.tsx";
+import { FormError, Section, useConfirm } from "../components.tsx";
 import { currentLocale, useT } from "../i18n/index.tsx";
 import { api } from "../lib/api.ts";
 import { formatRelativeTime } from "../lib/format.ts";
@@ -18,6 +18,7 @@ const PRICING_URL = "https://printrio.app/pricing";
 /** Settings → Licence: plan, activation, subscription management. */
 export function LicenceSettings() {
   const t = useT();
+  const { confirm, dialog } = useConfirm();
   const queryClient = useQueryClient();
   const { data: licence } = useQuery(licenceQuery);
   const { data: modules } = useQuery(modulesQuery);
@@ -163,9 +164,14 @@ export function LicenceSettings() {
               type="button"
               className="btn btn-danger btn-sm"
               disabled={deactivate.isPending}
-              onClick={() => {
-                if (window.confirm(t("licence.deactivateConfirm"))) deactivate.mutate();
-              }}
+              onClick={() =>
+                confirm({
+                  title: t("confirm.deactivateTitle"),
+                  message: t("licence.deactivateConfirm"),
+                  confirmLabel: t("licence.deactivate"),
+                  action: () => deactivate.mutateAsync(),
+                })
+              }
             >
               {t("licence.deactivate")}
             </button>
@@ -202,6 +208,7 @@ export function LicenceSettings() {
       <p className="mt-2 text-xs text-subtle">
         {t("licence.instance")}: <code>{licence.instanceId}</code>
       </p>
+      {dialog}
     </>
   );
 }

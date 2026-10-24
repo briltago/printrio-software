@@ -196,6 +196,15 @@
   .btn-danger:hover:not(:disabled) {
     background: color-mix(in srgb, var(--color-danger) 12%, transparent);
   }
+  /* Confirm button of a destructive confirmation: the one filled red button on screen. */
+  .btn-danger-solid {
+    background: var(--color-danger);
+    border-color: var(--color-danger);
+    color: var(--color-accent-ink);
+  }
+  .btn-danger-solid:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-danger) 88%, var(--color-text));
+  }
   .btn-sm {
     min-height: 30px;
     padding: 4px 10px;

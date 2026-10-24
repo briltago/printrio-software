@@ -1,5 +1,6 @@
 import type { LibraryFileDto, LibraryListingDto } from "@printrio/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { type FormEvent, useState } from "react";
 import { FormError, StateBadge } from "../components.tsx";
 import { useT } from "../i18n/index.tsx";
@@ -77,7 +78,18 @@ export function SendForm({
         <p role="status" className="mb-4 text-sm text-success">
           {done}
         </p>
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-2">
+          {/* From the Library: one step to watch the print instead of finding the printer again. */}
+          {!fixedPrinterId && selected && (
+            <Link
+              to="/printers/$printerId"
+              params={{ printerId: selected.id }}
+              className="btn btn-secondary"
+              onClick={onDone}
+            >
+              {t("library.openPrinter", { printer: selected.name })}
+            </Link>
+          )}
           <button type="button" className="btn btn-primary" onClick={onDone}>
             {t("common.close")}
           </button>

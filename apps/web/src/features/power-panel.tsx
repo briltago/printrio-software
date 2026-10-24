@@ -1,6 +1,6 @@
 import type { PowerDeviceDto } from "@printrio/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FormError } from "../components.tsx";
+import { FormError, useConfirm } from "../components.tsx";
 import { useT } from "../i18n/index.tsx";
 import { api } from "../lib/api.ts";
 import { Panel } from "./panel.tsx";
@@ -16,6 +16,7 @@ export function PowerPanel({
   busy: boolean;
 }) {
   const t = useT();
+  const { confirm, dialog } = useConfirm();
   const queryClient = useQueryClient();
   const queryKey = ["power", printerId];
   const devices = useQuery({
@@ -62,10 +63,16 @@ export function PowerPanel({
                 className={`relative h-6 w-11 shrink-0 rounded-full border transition-colors disabled:opacity-50 ${
                   on ? "border-accent bg-accent" : "border-line-strong bg-sidebar"
                 }`}
-                onClick={() => {
-                  if (on && !window.confirm(t("power.offConfirm", { name: device.name }))) return;
-                  toggle.mutate({ device: device.name, on: !on });
-                }}
+                onClick={() =>
+                  on
+                    ? confirm({
+                        title: t("confirm.powerTitle", { name: device.name }),
+                        message: t("confirm.power"),
+                        confirmLabel: t("power.switchOff"),
+                        action: () => toggle.mutateAsync({ device: device.name, on: false }),
+                      })
+                    : toggle.mutate({ device: device.name, on: true })
+                }
               >
                 <span
                   aria-hidden="true"
@@ -78,6 +85,7 @@ export function PowerPanel({
           );
         })}
       </ul>
+      {dialog}
     </Panel>
   );
 }

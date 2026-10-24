@@ -8,6 +8,7 @@ export default defineConfig({
   build: { license: { fileName: "third-party-licenses.md" } },
   server: {
     port: 5173,
-    proxy: { "/api": "http://localhost:3000" },
+    // ws: live printer status (/api/ws) goes through the proxy too.
+    proxy: { "/api": { target: "http://localhost:3000", ws: true } },
   },
 });

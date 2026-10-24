@@ -1,7 +1,7 @@
-import type { FilamentDto, SpoolDto } from "@printrio/shared";
+import { type FilamentDto, isLowStock, lowStockThreshold, type SpoolDto } from "@printrio/shared";
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Dialog, EmptyState, FormError, PageHeader } from "../components.tsx";
+import { Dialog, EmptyState, FormError, PageHeader, useConfirm } from "../components.tsx";
 import {
   FilamentForm,
   SpoolForm,
@@ -17,10 +17,9 @@ import {
   formatGrams,
   gramsToMetres,
   inventoryQuery,
-  LOW_STOCK_SHARE,
   remainingShare,
 } from "../lib/filament.ts";
-import { printersQuery } from "../lib/queries.ts";
+import { printersQuery, settingsQuery } from "../lib/queries.ts";
 import { meQuery } from "../lib/session.ts";
 import { useStoredState } from "../lib/stored-state.ts";
 
@@ -34,11 +33,13 @@ type DialogState =
 /** Filament inventory: spools (physical rolls) and the filament products they belong to. */
 export function FilamentPage() {
   const t = useT();
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const queryClient = useQueryClient();
   const { data: me } = useSuspenseQuery(meQuery);
   const isAdmin = me?.role === "admin";
   const inventory = useQuery(inventoryQuery);
   const { data: printerData } = useQuery(printersQuery);
+  const { data: settings } = useSuspenseQuery(settingsQuery);
   const [tab, setTab] = useStoredState<"spools" | "filaments">("printrio-filament-tab", "spools");
   const [search, setSearch] = useState("");
   const [material, setMaterial] = useState("");
@@ -61,13 +62,14 @@ export function FilamentPage() {
   const byId = new Map(filaments.map((f) => [f.id, f]));
   const printerName = new Map((printerData?.printers ?? []).map((p) => [p.id, p.name]));
   const materials = [...new Set(filaments.map((f) => f.material))].sort();
+  const threshold = lowStockThreshold(settings.inventory);
+  const isLow = (spool: SpoolDto) => isLowStock(spool, threshold);
+  // Counted before filtering: the toggle and the list use the same rule.
+  const lowCount = spools.filter(isLow).length;
   const query = search.trim().toLowerCase();
   const visibleSpools = spools
     .filter((spool) => showArchived || !spool.archived)
-    .filter(
-      (spool) =>
-        !lowOnly || lowCount === 0 || (!spool.archived && remainingShare(spool) < LOW_STOCK_SHARE),
-    )
+    .filter((spool) => !lowOnly || lowCount === 0 || isLow(spool))
     .filter((spool) => {
       const filament = byId.get(spool.filamentId);
       if (!filament) return false;
@@ -78,11 +80,8 @@ export function FilamentPage() {
         .some((value) => String(value).toLowerCase().includes(query));
     })
     .sort(
-      (a, b) => Number(a.archived) - Number(b.archived) || remainingShare(a) - remainingShare(b),
+      (a, b) => Number(a.archived) - Number(b.archived) || a.remainingWeight - b.remainingWeight,
     );
-  const lowCount = spools.filter(
-    (spool) => !spool.archived && remainingShare(spool) < LOW_STOCK_SHARE,
-  ).length;
   const totalGrams = spools
     .filter((spool) => !spool.archived)
     .reduce((sum, spool) => sum + spool.remainingWeight, 0);
@@ -172,6 +171,7 @@ export function FilamentPage() {
                   type="button"
                   className="btn btn-secondary aria-pressed:border-warning aria-pressed:text-warning"
                   aria-pressed={lowOnly}
+                  title={t("filament.lowStockTitle", { grams: threshold })}
                   onClick={() => setLowOnly(!lowOnly)}
                 >
                   <span aria-hidden="true" className="h-2 w-2 rounded-full bg-warning" />
@@ -209,7 +209,7 @@ export function FilamentPage() {
                     const filament = byId.get(spool.filamentId);
                     if (!filament) return null;
                     const share = remainingShare(spool);
-                    const low = !spool.archived && share < LOW_STOCK_SHARE;
+                    const low = isLow(spool);
                     return (
                       <li
                         key={spool.id}
@@ -234,7 +234,11 @@ export function FilamentPage() {
                               className={`font-semibold tabular-nums ${low ? "text-warning" : ""}`}
                             >
                               {formatGrams(spool.remainingWeight)}
-                              {low && <span className="sr-only"> ({t("filament.lowStock")})</span>}
+                              {low && (
+                                <span className="ml-1.5 text-xs font-medium">
+                                  {t("filament.lowStock")}
+                                </span>
+                              )}
                             </span>
                             <span className="truncate text-xs text-subtle tabular-nums">
                               {t("filament.ofWeight", {
@@ -319,8 +323,16 @@ export function FilamentPage() {
                               aria-label={t("filament.deleteSpool")}
                               title={t("filament.deleteSpool")}
                               onClick={() =>
-                                window.confirm(t("filament.deleteSpoolConfirm")) &&
-                                mutate.mutate({ path: `/api/spools/${spool.id}`, method: "DELETE" })
+                                confirm({
+                                  title: t("confirm.spoolTitle"),
+                                  message: t("confirm.spool"),
+                                  confirmLabel: t("common.delete"),
+                                  action: () =>
+                                    mutate.mutateAsync({
+                                      path: `/api/spools/${spool.id}`,
+                                      method: "DELETE",
+                                    }),
+                                })
                               }
                             >
                               <Icon name="close" size={14} />
@@ -343,14 +355,19 @@ export function FilamentPage() {
             isAdmin={isAdmin}
             onEdit={(filament) => setDialog({ kind: "filament", filament })}
             onDelete={(filament) =>
-              window.confirm(
-                t("filament.deleteFilamentConfirm", { name: filamentLabel(filament) }),
-              ) && mutate.mutate({ path: `/api/filaments/${filament.id}`, method: "DELETE" })
+              confirm({
+                title: t("confirm.deleteTitle", { name: filamentLabel(filament) }),
+                message: t("confirm.filament"),
+                confirmLabel: t("common.delete"),
+                action: () =>
+                  mutate.mutateAsync({ path: `/api/filaments/${filament.id}`, method: "DELETE" }),
+              })
             }
           />
         )}
       </div>
 
+      {confirmDialog}
       <Dialog open={dialog !== null} onClose={() => setDialog(null)} title={dialogTitle}>
         {dialog?.kind === "spool" && (
           <SpoolForm spool={dialog.spool} filaments={filaments} onDone={() => setDialog(null)} />

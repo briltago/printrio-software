@@ -1,5 +1,6 @@
 import {
   type CreateUser,
+  DEFAULT_LOW_STOCK_GRAMS,
   type DefaultView,
   ORDER_FOLDER_VARIABLES,
   orderFolderTemplateSchema,
@@ -12,7 +13,15 @@ import {
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { createElement, type FC, type FormEvent, useRef, useState } from "react";
-import { Dialog, Field, FormError, OptionCards, PageHeader, Section } from "../components.tsx";
+import {
+  Dialog,
+  Field,
+  FormError,
+  OptionCards,
+  PageHeader,
+  Section,
+  useConfirm,
+} from "../components.tsx";
 import { BackupSettings } from "../features/backup-settings.tsx";
 import { LicenceSettings } from "../features/licence-settings.tsx";
 import { SlicerSettings } from "../features/slicer-settings.tsx";
@@ -27,7 +36,7 @@ import {
 } from "../i18n/index.tsx";
 import { Icon, type IconName, NavIcon } from "../icons.tsx";
 import { api } from "../lib/api.ts";
-import { useModules } from "../lib/modules.tsx";
+import { modulesQuery, useModules } from "../lib/modules.tsx";
 import { groupsQuery, settingsQuery, usersQuery, useUpdateSettings } from "../lib/queries.ts";
 import { meQuery } from "../lib/session.ts";
 import { type SidebarEntry, toSaved, useSidebar } from "../lib/sidebar.ts";
@@ -36,6 +45,7 @@ import { placeModuleSettingsTab, SETTINGS_GROUPS, type SettingsGroup } from "../
 
 export const SETTINGS_TABS = [
   "general",
+  "filament",
   "sidebar",
   "appearance",
   "slicer",
@@ -48,6 +58,7 @@ export const SETTINGS_TABS = [
 export type SettingsTab = (typeof SETTINGS_TABS)[number];
 const ADMIN_TABS = new Set<string>([
   "general",
+  "filament",
   "sidebar",
   "groups",
   "users",
@@ -59,7 +70,7 @@ const ADMIN_TABS = new Set<string>([
 /** Built-in tabs by settings group (see SETTINGS_GROUPS); module tabs join these groups. */
 const CORE_TABS: Record<SettingsGroup, SettingsTab[]> = {
   workspace: ["general", "appearance", "sidebar"],
-  printers: ["groups", "slicer"],
+  printers: ["groups", "slicer", "filament"],
   team: ["users", "sso"],
   sales: [],
   integrations: [],
@@ -172,6 +183,7 @@ export function SettingsPage() {
             <p className="mt-1 text-sm text-muted">{description}</p>
           </div>
           {active === "general" && <GeneralSettings />}
+          {active === "filament" && <FilamentSettings />}
           {active === "sidebar" && <SidebarSettings />}
           {active === "appearance" && <AppearanceSettings />}
           {active === "groups" && <GroupSettings />}
@@ -267,6 +279,7 @@ function CostSettingsSection() {
   return (
     <Section title={t("settings.costs")} hint={t("settings.costsHint")}>
       <form onSubmit={onSubmit} onChange={() => setSaved(false)}>
+        <FormError error={update.error} />
         <div className="grid gap-x-4 sm:grid-cols-3">
           <Field
             label={t("settings.currency")}
@@ -291,6 +304,57 @@ function CostSettingsSection() {
             hint={t("settings.defaultPowerHint")}
           />
         </div>
+        <div className="flex items-center gap-3">
+          <button type="submit" className="btn btn-primary btn-sm" disabled={update.isPending}>
+            {t("common.save")}
+          </button>
+          {saved && (
+            <span role="status" className="text-sm text-success">
+              {t("settings.saved")}
+            </span>
+          )}
+        </div>
+      </form>
+    </Section>
+  );
+}
+
+/** One low-stock rule for the spool list, printer pages and module alerts (e.g. Pro's notifications). */
+function FilamentSettings() {
+  const t = useT();
+  const { data: settings } = useSuspenseQuery(settingsQuery);
+  const { data: loaded } = useQuery(modulesQuery);
+  const update = useUpdateSettings();
+  const [saved, setSaved] = useState(false);
+  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const raw = String(new FormData(event.currentTarget).get("lowStockGrams") ?? "").trim();
+    update.mutate(
+      { inventory: { lowStockGrams: raw === "" ? null : Number(raw) } },
+      { onSuccess: () => setSaved(true) },
+    );
+  };
+  return (
+    <Section title={t("settings.lowStock")} hint={t("settings.lowStockHint")}>
+      <form onSubmit={onSubmit} onChange={() => setSaved(false)}>
+        <FormError error={update.error} />
+        <div className="max-w-xs">
+          <Field
+            label={t("settings.lowStockGrams")}
+            name="lowStockGrams"
+            type="number"
+            min={0}
+            max={5000}
+            step={1}
+            required={false}
+            placeholder={String(DEFAULT_LOW_STOCK_GRAMS)}
+            defaultValue={settings.inventory.lowStockGrams ?? ""}
+            hint={t("settings.lowStockGramsHint", { grams: DEFAULT_LOW_STOCK_GRAMS })}
+          />
+        </div>
+        {loaded?.modules.some((module) => module.id === "pro" && module.status === "active") && (
+          <p className="mb-4 text-sm text-muted">{t("settings.lowStockAlerts")}</p>
+        )}
         <div className="flex items-center gap-3">
           <button type="submit" className="btn btn-primary btn-sm" disabled={update.isPending}>
             {t("common.save")}
@@ -779,6 +843,7 @@ const initials = (name: string) =>
 
 function UserSettings() {
   const t = useT();
+  const { confirm, dialog } = useConfirm();
   const queryClient = useQueryClient();
   const { data: me } = useSuspenseQuery(meQuery);
   const { data } = useQuery(usersQuery);
@@ -875,8 +940,12 @@ function UserSettings() {
                 type="button"
                 className="btn btn-danger btn-sm"
                 onClick={() =>
-                  window.confirm(t("users.deleteConfirm", { name: user.displayName })) &&
-                  remove.mutate(user.id)
+                  confirm({
+                    title: t("confirm.deleteTitle", { name: user.displayName }),
+                    message: t("confirm.user", { name: user.displayName }),
+                    confirmLabel: t("common.delete"),
+                    action: () => remove.mutateAsync(user.id),
+                  })
                 }
               >
                 {t("common.delete")}
@@ -963,6 +1032,7 @@ function UserSettings() {
           </div>
         </form>
       </Dialog>
+      {dialog}
     </Section>
   );
 }

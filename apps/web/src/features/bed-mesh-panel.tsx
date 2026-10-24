@@ -1,7 +1,7 @@
 import type { BedMeshActionDto, BedMeshDto } from "@printrio/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { EmptyState, FormError } from "../components.tsx";
+import { EmptyState, FormError, useConfirm } from "../components.tsx";
 import { useT } from "../i18n/index.tsx";
 import { api } from "../lib/api.ts";
 import {
@@ -27,6 +27,7 @@ export function BedMeshPanel({
   isAdmin: boolean;
 }) {
   const t = useT();
+  const { confirm, dialog } = useConfirm();
   const queryClient = useQueryClient();
   const queryKey = ["bed-mesh", printerId];
   const [source, setSource] = useStoredState<Source>("printrio-mesh-source", "mesh");
@@ -51,8 +52,15 @@ export function BedMeshPanel({
 
   const matrix = source === "probed" ? data.probed : data.mesh.length ? data.mesh : data.probed;
   const pending = action.isPending ? action.variables?.op : null;
-  const run = (body: BedMeshActionDto, confirm?: string) => {
-    if (!confirm || window.confirm(confirm)) action.mutate(body);
+  const run = (body: BedMeshActionDto, question?: string) => {
+    if (!question) action.mutate(body);
+    else
+      confirm({
+        title: question,
+        confirmLabel: t("common.continue"),
+        destructive: body.op === "remove",
+        action: () => action.mutateAsync(body),
+      });
   };
   const saveAs = () => {
     const name = window.prompt(t("mesh.savePrompt"), data.activeProfile ?? "default")?.trim();
@@ -200,6 +208,7 @@ export function BedMeshPanel({
           </ul>
         </section>
       </div>
+      {dialog}
     </div>
   );
 }

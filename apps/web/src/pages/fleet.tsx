@@ -1,18 +1,24 @@
-import type { Printer, PrinterGroup, PrinterState } from "@printrio/shared";
+import type { Printer, PrinterGroup } from "@printrio/shared";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Dialog, EmptyState, PageHeader, ProgressBar, StateBadge } from "../components.tsx";
 import { PrinterForm } from "../features/printer-form.tsx";
 import { useT } from "../i18n/index.tsx";
+import {
+  countStates,
+  filterPrinters,
+  isFiltered,
+  isKnownState,
+  NO_FILTER,
+  stateOptions,
+} from "../lib/fleet.ts";
 import { formatDuration, formatPercent, formatTemp, heaterName } from "../lib/format.ts";
 import { groupsQuery, printersQuery } from "../lib/queries.ts";
 import { meQuery } from "../lib/session.ts";
 import { useStoredState } from "../lib/stored-state.ts";
 
 type ViewMode = "cards" | "compact" | "list";
-/** Filter order: what is running, what needs someone, what is free, what is away. */
-const STATES: PrinterState[] = ["printing", "error", "paused", "idle", "offline", "connecting"];
 
 export function FleetPage() {
   const t = useT();
@@ -30,15 +36,15 @@ export function FleetPage() {
 
   const printers = data.printers;
   const tags = useMemo(() => [...new Set(printers.flatMap((p) => p.tags))].sort(), [printers]);
-  const filtered = printers.filter(
-    (p) =>
-      (!search || p.name.toLowerCase().includes(search.toLowerCase())) &&
-      (!state || p.status.state === state) &&
-      (!groupId || p.groupId === groupId) &&
-      (!tag || p.tags.includes(tag)),
-  );
-  const counts = new Map<PrinterState, number>();
-  for (const p of printers) counts.set(p.status.state, (counts.get(p.status.state) ?? 0) + 1);
+  const filter = { search, state, groupId, tag };
+  const filtered = filterPrinters(printers, groups, filter);
+  const counts = countStates(printers);
+  const clearFilters = () => {
+    setSearch(NO_FILTER.search);
+    setState(NO_FILTER.state);
+    setGroupId(NO_FILTER.groupId);
+    setTag(NO_FILTER.tag);
+  };
   const addButton = isAdmin && (
     <button type="button" className="btn btn-primary" onClick={() => setAdding(true)}>
       {t("printer.add")}
@@ -68,7 +74,7 @@ export function FleetPage() {
               {t("common.all")}
               <span className="tabular-nums text-subtle">{printers.length}</span>
             </button>
-            {STATES.filter((s) => counts.has(s) || state === s).map((s) => (
+            {stateOptions(counts, state).map(({ state: s, count }) => (
               <button
                 key={s}
                 type="button"
@@ -76,8 +82,8 @@ export function FleetPage() {
                 onClick={() => setState(state === s ? "" : s)}
               >
                 <span aria-hidden="true" className={`state-${s} h-2 w-2 rounded-full bg-current`} />
-                {t(`printer.states.${s}`)}
-                <span className="tabular-nums text-subtle">{counts.get(s) ?? 0}</span>
+                {isKnownState(s) ? t(`printer.states.${s}`) : s}
+                <span className="tabular-nums text-subtle">{count}</span>
               </button>
             ))}
           </fieldset>
@@ -122,7 +128,18 @@ export function FleetPage() {
           </div>
 
           {filtered.length === 0 ? (
-            <p className="mt-10 text-center text-sm text-muted">{t("fleet.noMatches")}</p>
+            <div className="mt-10 text-center text-sm text-muted" role="status">
+              <p>{t("fleet.noMatches")}</p>
+              {isFiltered(filter) && (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm mt-3"
+                  onClick={clearFilters}
+                >
+                  {t("fleet.clearFilters")}
+                </button>
+              )}
+            </div>
           ) : view === "list" ? (
             <ListView printers={filtered} groups={groups} />
           ) : (

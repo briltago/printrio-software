@@ -1,7 +1,7 @@
 import type { SoftwareComponentDto, UpdateActionDto, UpdateStatusDto } from "@printrio/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
-import { FormError } from "../components.tsx";
+import { FormError, useConfirm } from "../components.tsx";
 import { useT } from "../i18n/index.tsx";
 import { api } from "../lib/api.ts";
 import { formatRelativeTime } from "../lib/format.ts";
@@ -10,6 +10,7 @@ import { clearUpdateLog, useUpdateLog } from "../lib/realtime.ts";
 /** Software updates of the printer host via Moonraker's update manager. */
 export function UpdatesPanel({ printerId, busy }: { printerId: string; busy: boolean }) {
   const t = useT();
+  const { confirm, dialog } = useConfirm();
   const queryClient = useQueryClient();
   const queryKey = ["updates", printerId];
   const log = useUpdateLog(printerId);
@@ -41,7 +42,12 @@ export function UpdatesPanel({ printerId, busy }: { printerId: string; busy: boo
     const message = name
       ? t("updates.confirmOne", { name })
       : t("updates.confirmAll", { count: updatable.length });
-    if (window.confirm(message)) action.mutate({ op: "upgrade", name });
+    confirm({
+      title: message,
+      confirmLabel: t("common.continue"),
+      destructive: false,
+      action: () => action.mutateAsync({ op: "upgrade", name }),
+    });
   };
 
   return (
@@ -95,8 +101,11 @@ export function UpdatesPanel({ printerId, busy }: { printerId: string; busy: boo
               updating={pendingName === component.name || pendingName === "*"}
               onUpgrade={() => upgrade(component.name)}
               onRecover={() =>
-                window.confirm(t("updates.recoverConfirm", { name: component.name })) &&
-                action.mutate({ op: "recover", name: component.name })
+                confirm({
+                  title: t("updates.recoverConfirm", { name: component.name }),
+                  confirmLabel: t("common.continue"),
+                  action: () => action.mutateAsync({ op: "recover", name: component.name }),
+                })
               }
             />
           ))}
@@ -130,6 +139,7 @@ export function UpdatesPanel({ printerId, busy }: { printerId: string; busy: boo
           </pre>
         </section>
       )}
+      {dialog}
     </div>
   );
 }

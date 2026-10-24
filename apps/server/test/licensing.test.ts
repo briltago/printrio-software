@@ -62,6 +62,11 @@ export default {
       } },
       { method: "GET", path: "hello/:name", handler: async ({ params }) => ({ hello: params.name, tier: ctx.getLease()?.tier }) },
       { method: "POST", path: "linked", permissions: ["orders.manage"], handler: async () => ({ ok: true }) },
+      { method: "GET", path: "inventory", handler: async () => ctx.inventory.lowStockGrams() },
+      { method: "POST", path: "inventory", adminOnly: true, handler: async ({ body }) => {
+        await ctx.inventory.adoptLowStockGrams(body.grams);
+        return ctx.inventory.lowStockGrams();
+      } },
       { method: "POST", path: "orders", handler: async ({ body }) => {
         const order = await ctx.orders.create({ name: body.name, customer: "Acme" });
         const done = await ctx.orders.update(order.id, { status: "in_progress" });
@@ -261,6 +266,39 @@ describe("licensing", () => {
     expect(modules).toEqual([
       { id: "test", version: "1.0.0", web: true, status: "active", error: null },
     ]);
+  });
+
+  it("shares the core's low-stock threshold with modules without overriding an admin's choice", async () => {
+    expect((await api("GET", "/api/modules/test/inventory")).json()).toEqual({
+      grams: 150,
+      configured: false,
+    });
+    // A module hands over its own former setting once…
+    expect((await api("POST", "/api/modules/test/inventory", { grams: 200 })).json()).toEqual({
+      grams: 200,
+      configured: true,
+    });
+    // …and cannot change it again; only Settings can.
+    expect((await api("POST", "/api/modules/test/inventory", { grams: 50 })).json()).toEqual({
+      grams: 200,
+      configured: true,
+    });
+    await ctx.app.inject({
+      method: "PATCH",
+      url: "/api/settings",
+      payload: { inventory: { lowStockGrams: 0 } },
+      headers: { cookie: admin },
+    });
+    expect((await api("GET", "/api/modules/test/inventory")).json()).toEqual({
+      grams: 0,
+      configured: true,
+    });
+    await ctx.app.inject({
+      method: "PATCH",
+      url: "/api/settings",
+      payload: { inventory: { lowStockGrams: null } },
+      headers: { cookie: admin },
+    });
   });
 
   it("serves module routes, migrations and the web bundle", async () => {

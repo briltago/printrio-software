@@ -1,5 +1,6 @@
 import type {
   PrintrioWebModule,
+  WebCustomerPanel,
   WebModuleHost,
   WebNavItem,
   WebOrderPanel,
@@ -11,9 +12,18 @@ import type { LoadedModule } from "@printrio/shared";
 import * as ReactQuery from "@tanstack/react-query";
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import * as React from "react";
-import { createContext, type ReactNode, useContext, useEffect, useState } from "react";
+import {
+  createContext,
+  createElement,
+  type FC,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 import * as jsxRuntime from "react/jsx-runtime";
 import {
+  ConfirmDialog,
   Dialog,
   EmptyState,
   Field,
@@ -40,6 +50,7 @@ export interface ModuleExtensions {
   settingsTabs: WithModule<WebSettingsTab>[];
   printerPanels: WithModule<WebPrinterPanel>[];
   orderPanels: WithModule<WebOrderPanel>[];
+  customerPanels: WithModule<WebCustomerPanel>[];
   /** True until every active module's web part has been imported. */
   loading: boolean;
 }
@@ -50,6 +61,7 @@ const EMPTY: ModuleExtensions = {
   settingsTabs: [],
   printerPanels: [],
   orderPanels: [],
+  customerPanels: [],
   loading: false,
 };
 
@@ -72,6 +84,8 @@ const host: WebModuleHost = {
     ProgressBar,
     Section,
     Panel,
+    CustomerPanels,
+    ConfirmDialog,
   } as never,
   format: {
     ...format,
@@ -108,6 +122,7 @@ export function ModulesProvider({ children }: { children: ReactNode }) {
         settingsTabs: [],
         printerPanels: [],
         orderPanels: [],
+        customerPanels: [],
         loading: false,
       };
       for (const entry of key ? key.split(",") : []) {
@@ -125,6 +140,7 @@ export function ModulesProvider({ children }: { children: ReactNode }) {
           next.settingsTabs.push(...tag(result.settingsTabs));
           next.printerPanels.push(...tag(result.printerPanels));
           next.orderPanels.push(...tag(result.orderPanels));
+          next.customerPanels.push(...tag(result.customerPanels));
         } catch (error) {
           console.error(`Module ${moduleId} failed to load:`, error);
         }
@@ -141,3 +157,21 @@ export function ModulesProvider({ children }: { children: ReactNode }) {
 }
 
 export const useModules = () => useContext(ModulesContext);
+
+/**
+ * Sections other modules add to a customer's detail (rendered by Pro's
+ * Customers page through the host), so one customer page carries everything
+ * about that customer instead of each module listing customers again.
+ */
+function CustomerPanels({ customerId }: { customerId: string }) {
+  const { customerPanels } = useModules();
+  return customerPanels.map((panel) => (
+    <Panel
+      key={`${panel.moduleId}:${panel.id}`}
+      id={`customer-${panel.moduleId}-${panel.id}`}
+      title={panel.title}
+    >
+      {createElement(panel.component as FC<{ customerId: string }>, { customerId })}
+    </Panel>
+  ));
+}

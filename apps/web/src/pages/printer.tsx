@@ -9,6 +9,7 @@ import {
   PageHeader,
   ProgressBar,
   StateBadge,
+  useConfirm,
 } from "../components.tsx";
 import { ConsolePanel } from "../features/console-panel.tsx";
 import { FilesPanel } from "../features/files-panel.tsx";
@@ -40,6 +41,7 @@ export function PrinterPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
+  const { confirm, dialog } = useConfirm();
   const printer = data.printers.find((p) => p.id === printerId);
   const isAdmin = me?.role === "admin";
 
@@ -79,9 +81,7 @@ export function PrinterPage() {
   const job = status.job;
   const connected = status.state !== "offline" && status.state !== "connecting";
   const canPrint = status.state === "idle" && printer.withinLimit;
-  const confirmThen = (message: string, body: PrinterCommand) => {
-    if (window.confirm(message)) command.mutate(body);
-  };
+
   const group = groupData?.groups.find((g) => g.id === printer.groupId)?.name;
   const meta = [group, ...printer.tags].filter(Boolean).join(" · ");
 
@@ -225,8 +225,12 @@ export function PrinterPage() {
                     type="button"
                     className="btn btn-secondary btn-sm"
                     onClick={() =>
-                      confirmThen(t("printer.cancelConfirm", { name: printer.name }), {
-                        action: "cancel",
+                      confirm({
+                        title: t("confirm.cancelTitle", { name: printer.name }),
+                        message: t("confirm.cancel"),
+                        confirmLabel: t("confirm.cancelButton"),
+                        cancelLabel: t("confirm.keep"),
+                        action: () => command.mutateAsync({ action: "cancel" }),
                       })
                     }
                   >
@@ -238,8 +242,11 @@ export function PrinterPage() {
                   className="btn btn-danger btn-sm ml-auto"
                   disabled={!connected}
                   onClick={() =>
-                    confirmThen(t("printer.emergencyConfirm", { name: printer.name }), {
-                      action: "emergency_stop",
+                    confirm({
+                      title: t("confirm.emergencyTitle", { name: printer.name }),
+                      message: t("confirm.emergency"),
+                      confirmLabel: t("printer.emergencyStop"),
+                      action: () => command.mutateAsync({ action: "emergency_stop" }),
                     })
                   }
                 >
@@ -337,13 +344,19 @@ export function PrinterPage() {
             className="btn btn-danger mt-3"
             disabled={remove.isPending}
             onClick={() =>
-              window.confirm(t("printer.deleteConfirm", { name: printer.name })) && remove.mutate()
+              confirm({
+                title: t("confirm.removePrinterTitle", { name: printer.name }),
+                message: t("printer.removeText"),
+                confirmLabel: t("printer.removeTitle"),
+                action: () => remove.mutateAsync(),
+              })
             }
           >
             {t("printer.removeButton")}
           </button>
         </section>
       </Dialog>
+      {dialog}
     </main>
   );
 }

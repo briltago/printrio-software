@@ -1,6 +1,15 @@
 import type { PrinterState } from "@printrio/shared";
-import { type InputHTMLAttributes, type ReactNode, useEffect, useId, useRef } from "react";
+import {
+  type InputHTMLAttributes,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import { useT } from "./i18n/index.tsx";
+import { isKnownState } from "./lib/fleet.ts";
 
 export function Brand({ size = 30 }: { size?: number }) {
   return (
@@ -84,7 +93,9 @@ export function FormError({ error }: { error: Error | null | undefined }) {
 
 export function StateBadge({ state }: { state: PrinterState }) {
   const t = useT();
-  return <span className={`badge state-${state}`}>{t(`printer.states.${state}`)}</span>;
+  // A state a newer server reports is shown as it is rather than as a missing translation key.
+  const label = isKnownState(state) ? t(`printer.states.${state}`) : String(state);
+  return <span className={`badge state-${state}`}>{label}</span>;
 }
 
 export function ProgressBar({ value, label }: { value: number; label: string }) {
@@ -294,4 +305,89 @@ export function OptionCards<T extends string>({
       })}
     </div>
   );
+}
+
+export interface ConfirmOptions {
+  title: string;
+  /** What happens, in one or two sentences: what is removed and what stays. */
+  message?: ReactNode;
+  confirmLabel: string;
+  /** Label of the button that backs out (default "Cancel"); e.g. "Keep" when the action itself is a cancel. */
+  cancelLabel?: string;
+  /** Red confirm button (default) for deleting, cancelling, stopping. */
+  destructive?: boolean;
+  /** The real operation; the dialog stays open with its error if it fails. */
+  action: () => Promise<unknown> | unknown;
+}
+
+/**
+ * Confirmation before a consequential action. Cancel is focused first, the
+ * confirm button is disabled while the action runs (no double submission) and
+ * the dialog only closes once the action succeeded.
+ */
+export function ConfirmDialog({
+  open,
+  onClose,
+  title,
+  message,
+  confirmLabel,
+  cancelLabel,
+  destructive = true,
+  action,
+}: ConfirmOptions & { open: boolean; onClose: () => void }) {
+  const t = useT();
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  useEffect(() => {
+    if (open) setError(null);
+  }, [open]);
+  const run = async () => {
+    setPending(true);
+    setError(null);
+    try {
+      await action();
+      onClose();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure : new Error(String(failure)));
+    } finally {
+      setPending(false);
+    }
+  };
+  return (
+    <Dialog open={open} onClose={() => !pending && onClose()} title={title}>
+      {message && <div className="text-sm text-muted">{message}</div>}
+      <div className="mt-4">
+        <FormError error={error} />
+      </div>
+      {/* Cancel comes first, so the native modal focuses the safe choice. */}
+      <div className="flex flex-wrap justify-end gap-2">
+        <button type="button" className="btn btn-secondary" onClick={onClose} disabled={pending}>
+          {cancelLabel ?? t("common.cancel")}
+        </button>
+        <button
+          type="button"
+          className={`btn ${destructive ? "btn-danger-solid" : "btn-primary"}`}
+          disabled={pending}
+          aria-busy={pending}
+          onClick={() => void run()}
+        >
+          {pending ? t("common.working") : confirmLabel}
+        </button>
+      </div>
+    </Dialog>
+  );
+}
+
+/** `confirm({...})` opens a ConfirmDialog; render `dialog` once in the component. */
+export function useConfirm() {
+  const [options, setOptions] = useState<ConfirmOptions | null>(null);
+  const [open, setOpen] = useState(false);
+  const confirm = useCallback((next: ConfirmOptions) => {
+    setOptions(next);
+    setOpen(true);
+  }, []);
+  const dialog = options ? (
+    <ConfirmDialog {...options} open={open} onClose={() => setOpen(false)} />
+  ) : null;
+  return { confirm, dialog };
 }

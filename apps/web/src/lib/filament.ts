@@ -16,9 +16,6 @@ export function filamentLabel(filament: Pick<FilamentDto, "vendor" | "name" | "m
   return [filament.vendor, name].filter(Boolean).join(" ");
 }
 
-/** Below this share of its original weight a spool counts as running low. */
-export const LOW_STOCK_SHARE = 0.15;
-
 export const remainingShare = (spool: Pick<SpoolDto, "remainingWeight" | "initialWeight">) =>
   spool.initialWeight > 0
     ? Math.min(1, Math.max(0, spool.remainingWeight / spool.initialWeight))

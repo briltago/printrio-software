@@ -1,7 +1,7 @@
 import type { ApiKeyCreatedDto, ApiKeyDto } from "@printrio/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
-import { Field, FormError, Section } from "../components.tsx";
+import { Field, FormError, Section, useConfirm } from "../components.tsx";
 import { useT } from "../i18n/index.tsx";
 import { api } from "../lib/api.ts";
 import { formatRelativeTime } from "../lib/format.ts";
@@ -39,6 +39,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
  */
 export function SlicerSettings() {
   const t = useT();
+  const { confirm, dialog } = useConfirm();
   const queryClient = useQueryClient();
   const [created, setCreated] = useState<ApiKeyCreatedDto | null>(null);
   const keys = useQuery({
@@ -130,8 +131,12 @@ export function SlicerSettings() {
                 type="button"
                 className="btn btn-secondary btn-sm"
                 onClick={() =>
-                  window.confirm(t("slicer.revokeConfirm", { name: key.name })) &&
-                  revoke.mutate(key.id)
+                  confirm({
+                    title: t("confirm.revokeTitle", { name: key.name }),
+                    message: t("confirm.revoke"),
+                    confirmLabel: t("slicer.revoke"),
+                    action: () => revoke.mutateAsync(key.id),
+                  })
                 }
               >
                 {t("slicer.revoke")}
@@ -140,6 +145,7 @@ export function SlicerSettings() {
           ))}
         </ul>
       </Section>
+      {dialog}
     </>
   );
 }

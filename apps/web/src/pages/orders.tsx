@@ -9,7 +9,7 @@ import {
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Link, useSearch } from "@tanstack/react-router";
 import { createElement, type FC, type FormEvent, useRef, useState } from "react";
-import { Dialog, EmptyState, Field, FormError, PageHeader } from "../components.tsx";
+import { Dialog, EmptyState, Field, FormError, PageHeader, useConfirm } from "../components.tsx";
 import { Swatch } from "../features/filament-forms.tsx";
 import { useT } from "../i18n/index.tsx";
 import { api } from "../lib/api.ts";
@@ -298,6 +298,7 @@ function OrderForm({ order, onDone }: { order?: OrderDto; onDone: () => void }) 
 
 function OrderDetail({ orderId, onDone }: { orderId: string; onDone: () => void }) {
   const t = useT();
+  const { confirm, dialog } = useConfirm();
   const { data: me } = useSuspenseQuery(meQuery);
   const invalidate = useInvalidateOrders();
   const [adding, setAdding] = useState(false);
@@ -414,13 +415,19 @@ function OrderDetail({ orderId, onDone }: { orderId: string; onDone: () => void 
             type="button"
             className="btn btn-danger btn-sm"
             onClick={() =>
-              window.confirm(t("orders.deleteConfirm", { name: order.name })) && remove.mutate()
+              confirm({
+                title: t("confirm.deleteTitle", { name: order.name }),
+                message: t("confirm.order"),
+                confirmLabel: t("orders.delete"),
+                action: () => remove.mutateAsync(),
+              })
             }
           >
             {t("orders.delete")}
           </button>
         </div>
       )}
+      {dialog}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import {
+  chmodSync,
   createReadStream,
   existsSync,
   mkdirSync,
@@ -231,6 +232,74 @@ describe("backups", () => {
       // The failed restores ran in one transaction each: the database is as it was.
       expect(await settingsCount()).toBe(1);
       expect(restored).toBe(0);
+    });
+
+    it("runs a backup's SQL without superuser rights, and leaves nothing behind", async () => {
+      if (!(await backups.toolsAvailable())) return;
+      const { db } = database;
+      const [me] = await db.execute<{ super: boolean }>(
+        sql`select rolsuper as super from pg_roles where rolname = current_user`,
+      );
+      if (!me?.super) return; // only a superuser role has anything to take away
+      await db.execute(sql`insert into instance_settings (key, value) values ('keep', '{}')`);
+      // The database server runs as another OS user: let it write here, so a marker would show.
+      chmodSync(work, 0o777);
+      const attacks = [
+        `COPY (SELECT 1) TO PROGRAM 'touch ${marker}';\n`,
+        `DO $$ BEGIN EXECUTE 'COPY (SELECT 1) TO PROGRAM ''touch ${marker}'''; END $$;\n`,
+        `CREATE TABLE public.t (a text);\nCOPY public.t FROM PROGRAM 'touch ${marker}';\n`,
+        `COPY (SELECT 1) TO '${marker}';\n`,
+        `CREATE TABLE public.t (a text);\nCOPY public.t FROM '/etc/passwd';\n`,
+        `SELECT pg_read_file('/etc/passwd');\n`,
+        `CREATE ROLE printrio_evil SUPERUSER LOGIN PASSWORD 'x';\n`,
+        `ALTER ROLE CURRENT_USER SUPERUSER;\n`,
+        `RESET SESSION AUTHORIZATION;\nRESET ROLE;\nCOPY (SELECT 1) TO PROGRAM 'touch ${marker}';\n`,
+        `SET ROLE printrio;\nCOPY (SELECT 1) TO PROGRAM 'touch ${marker}';\n`,
+        `ALTER SYSTEM SET log_statement = 'all';\n`,
+      ];
+      for (const attack of attacks) {
+        const name = plant(craft({ sql: attack }));
+        await expect(backups.restore(name), attack).rejects.toThrow();
+        expect(existsSync(marker), attack).toBe(false);
+      }
+      expect(restored).toBe(0);
+      // Each failed restore was one transaction: the data is as it was …
+      expect(await settingsCount()).toBe(1);
+      // … the temporary role is gone, no role was created, and Printrio's role owns its schemas again.
+      const roles = await db.execute<{ name: string }>(
+        sql`select rolname::text as name from pg_roles where rolname like 'printrio\_restore\_%' or rolname = 'printrio_evil'`,
+      );
+      expect(roles).toHaveLength(0);
+      const owners = await db.execute<{ schema: string; owner: string; me: string }>(
+        sql`select nspname::text as schema, pg_get_userbyid(nspowner)::text as owner, current_user::text as me
+              from pg_namespace where nspname in ('public', 'drizzle')`,
+      );
+      expect(owners.length).toBe(2);
+      for (const row of owners) expect(row.owner, row.schema).toBe(row.me);
+      const typical = plant(craft({ sql: attacks[0] }));
+      await expect(backups.restore(typical)).rejects.toThrow(
+        /database rights a Printrio backup never needs/,
+      );
+    });
+
+    it("hands restored tables back to Printrio's own role", async () => {
+      if (!(await backups.toolsAvailable())) return;
+      const { db } = database;
+      const made = await backups.create("manual");
+      await backups.restore(made.name);
+      const foreign = await db.execute<{ name: string }>(
+        sql`select c.relname::text as name from pg_class c join pg_namespace n on n.oid = c.relnamespace
+             where n.nspname in ('public', 'drizzle') and pg_get_userbyid(c.relowner) <> current_user`,
+      );
+      expect(foreign).toHaveLength(0);
+      // A second restore, and normal use afterwards, still work.
+      await backups.restore(made.name);
+      await db.execute(sql`insert into instance_settings (key, value) values ('after', '{}')`);
+      expect(await pendingMigrations(db)).toBe(0);
+      const roles = await db.execute(
+        sql`select 1 from pg_roles where rolname like 'printrio\_restore\_%'`,
+      );
+      expect(roles).toHaveLength(0);
     });
 
     it("restores table data that only looks like a meta-command", async () => {

@@ -352,6 +352,51 @@ export class Backups {
     return top;
   }
 
+  /**
+   * A temporary login role for one restore, when Printrio's own role is a
+   * superuser: it owns the schemas (so it can replace them) and may create new
+   * ones, nothing more. `release` hands everything back and removes the role,
+   * whether the restore worked or not. Null when the own role is no superuser:
+   * the restore then runs as that role, which has no special rights either.
+   */
+  private async restrictedRole(schemas: string[]) {
+    const { db } = this.options;
+    const ident = (name: string) => `"${name.replace(/"/g, '""')}"`;
+    const [me] = await db.execute<{ super: boolean; name: string; database: string }>(
+      sql`select rolsuper as super, current_user::text as name, current_database()::text as database from pg_roles where rolname = current_user`,
+    );
+    if (!me?.super) return null;
+    const drop = async (role: string) => {
+      await db.execute(sql.raw(`REASSIGN OWNED BY ${ident(role)} TO ${ident(me.name)}`));
+      await db.execute(sql.raw(`DROP OWNED BY ${ident(role)}`));
+      await db.execute(sql.raw(`DROP ROLE IF EXISTS ${ident(role)}`));
+    };
+    // Left behind by a restore that was interrupted (e.g. the container stopped).
+    for (const { name } of await db.execute<{ name: string }>(
+      sql`select rolname::text as name from pg_roles where rolname like 'printrio\_restore\_%'`,
+    ))
+      await drop(name);
+    const role = `printrio_restore_${randomBytes(6).toString("hex")}`;
+    const password = randomBytes(24).toString("hex");
+    await db.execute(
+      sql.raw(
+        `CREATE ROLE ${ident(role)} LOGIN PASSWORD '${password}' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`,
+      ),
+    );
+    try {
+      await db.execute(sql.raw(`GRANT CREATE ON DATABASE ${ident(me.database)} TO ${ident(role)}`));
+      for (const schema of schemas)
+        await db.execute(sql.raw(`ALTER SCHEMA ${ident(schema)} OWNER TO ${ident(role)}`));
+    } catch (error) {
+      await drop(role);
+      throw error;
+    }
+    const url = new URL(this.options.databaseUrl);
+    url.username = role;
+    url.password = password;
+    return { url: url.toString(), release: () => drop(role) };
+  }
+
   /** After extraction: nothing but regular files and folders may be in the tree. */
   private async assertPlainTree(path: string, expectDirectory?: boolean): Promise<void> {
     const info = await lstat(path);
@@ -438,6 +483,10 @@ export class Backups {
         const key = randomBytes(32).toString("hex");
         const script = `\\restrict ${key}\n${drop}\nCREATE SCHEMA public;\n${dump}`;
         await writeFile(join(tmp, "restore.sql"), script);
+        // …and as a role without special rights when Printrio's own role is a
+        // superuser (the bundled PostgreSQL): the SQL of a backup then cannot reach
+        // the server's files or programs (COPY … PROGRAM, server-side files, roles).
+        const restricted = await this.restrictedRole(schemas.map((row) => row.name));
         try {
           await run("psql", [
             "--quiet",
@@ -446,7 +495,7 @@ export class Backups {
             "-v",
             "ON_ERROR_STOP=1",
             `--file=${join(tmp, "restore.sql")}`,
-            this.options.databaseUrl,
+            restricted?.url ?? this.options.databaseUrl,
           ]);
         } catch (error) {
           const message = String((error as { stderr?: unknown }).stderr ?? error);
@@ -459,7 +508,18 @@ export class Backups {
               "The installed psql is too old to restore backups safely. Update the Printrio image (PostgreSQL client 17.6 or 16.10 and newer).",
               503,
             );
+          if (
+            restricted &&
+            /permission denied|must be superuser|must be owner|must be member|only roles with/i.test(
+              message,
+            )
+          )
+            throw new BackupError(
+              "This backup needs database rights a Printrio backup never needs and was not restored.",
+            );
           throw error;
+        } finally {
+          await restricted?.release();
         }
         for (const entry of data)
           await cp(join(tmp, entry), join(this.options.dataDir, entry), {

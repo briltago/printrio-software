@@ -286,6 +286,7 @@ export async function buildApp({
       dataDir: config.DATA_DIR,
       version: VERSION,
       log: app.log,
+      passphrase: config.BACKUP_PASSPHRASE,
     });
   backupRoutes(app, backups);
   const updates = new UpdateChecker({

@@ -1,11 +1,12 @@
 import { spawn } from "node:child_process";
-import { randomBytes } from "node:crypto";
-import { createWriteStream, existsSync } from "node:fs";
+import { createCipheriv, createDecipheriv, randomBytes, scrypt } from "node:crypto";
+import { createReadStream, createWriteStream, existsSync } from "node:fs";
 import {
   cp,
   lstat,
   mkdir,
   mkdtemp,
+  open,
   readdir,
   readFile,
   rename,
@@ -30,7 +31,7 @@ import { instanceSettings } from "../db/schema.ts";
 
 const SETTINGS_KEY = "backups";
 const NAME =
-  /^printrio-(\d{8}-\d{6})(?:-(\d+))?-(manual|scheduled|pre-update|uploaded)-v([\w.+-]+)\.tar\.gz$/;
+  /^printrio-(\d{8}-\d{6})(?:-(\d+))?-(manual|scheduled|pre-update|uploaded)-v([\w.+-]+)\.tar\.gz(?:\.enc)?$/;
 /**
  * The only entries of DATA_DIR a backup holds and a restore writes back: the
  * instance secret and the G-code library. Backups themselves and downloaded
@@ -127,6 +128,12 @@ export class Backups {
         error(message: string): void;
       };
       now?: () => Date;
+      /**
+       * BACKUP_PASSPHRASE: when set, new backups are encrypted with it
+       * (….tar.gz.enc) and encrypted backups can be read. Without it a backup
+       * is a plain archive that holds the instance secret and password hashes.
+       */
+      passphrase?: string;
       /** Called after a restore; the default exits so Docker restarts Printrio. */
       onRestored?: () => void;
     },
@@ -262,12 +269,20 @@ export class Backups {
           data,
         };
         await writeFile(join(tmp, "manifest.json"), JSON.stringify(manifest, null, 2));
-        const name = await this.freeName(stamp(created), kind, this.options.version);
+        const name = await this.freeName(
+          stamp(created),
+          kind,
+          this.options.version,
+          Boolean(this.options.passphrase),
+        );
         const partial = join(tmp, "archive.tar.gz");
         const args = ["-czf", partial, "-C", tmp, "manifest.json", "database.sql"];
         if (data.length) args.push("-C", this.options.dataDir, ...data);
         await run("tar", args);
-        await rename(partial, join(this.dir, name));
+        if (this.options.passphrase) {
+          await encryptFile(partial, `${partial}.enc`, this.options.passphrase);
+          await rename(`${partial}.enc`, join(this.dir, name));
+        } else await rename(partial, join(this.dir, name));
         await this.prune();
         this.options.log.info(`Backup ${name} created.`);
         return (await this.list()).find((entry) => entry.name === name) as BackupEntry;
@@ -278,10 +293,10 @@ export class Backups {
   }
 
   /** printrio-<time>[-n]-<kind>-v<version>.tar.gz, numbered when two land in the same second. */
-  private async freeName(when: string, kind: BackupKind, version: string) {
+  private async freeName(when: string, kind: BackupKind, version: string, encrypted = false) {
     const safe = version.replace(/[^\w.+-]/g, "_");
     for (let n = 1; ; n++) {
-      const name = `printrio-${when}${n > 1 ? `-${n}` : ""}-${kind}-v${safe}.tar.gz`;
+      const name = `printrio-${when}${n > 1 ? `-${n}` : ""}-${kind}-v${safe}.tar.gz${encrypted ? ".enc" : ""}`;
       if (!existsSync(join(this.dir, name))) return name;
     }
   }
@@ -303,18 +318,48 @@ export class Backups {
     const tmp = join(this.dir, `.upload-${Date.now()}.tar.gz`);
     try {
       await pipeline(source, createWriteStream(tmp));
-      await this.inspectArchive(tmp);
-      const manifest = await this.readManifest(tmp);
+      const archive = await this.plainArchive(tmp);
+      let manifest: Manifest;
+      try {
+        await this.inspectArchive(archive.path);
+        manifest = await this.readManifest(archive.path);
+      } finally {
+        await archive.release();
+      }
       const name = await this.freeName(
         stamp(new Date(manifest.createdAt)),
         "uploaded",
         manifest.version,
+        archive.encrypted,
       );
       await rename(tmp, join(this.dir, name));
       return (await this.list()).find((entry) => entry.name === name) as BackupEntry;
     } finally {
       await rm(tmp, { force: true });
     }
+  }
+
+  /**
+   * The archive as a plain .tar.gz: itself, or — for an encrypted backup — a
+   * decrypted temporary copy that `release` deletes.
+   */
+  private async plainArchive(file: string) {
+    if (!(await isEncrypted(file)))
+      return { path: file, encrypted: false, release: async () => {} };
+    if (!this.options.passphrase)
+      throw new BackupError(
+        "This backup is encrypted. Set BACKUP_PASSPHRASE to the passphrase it was made with.",
+      );
+    const path = join(this.dir, `.plain-${randomBytes(6).toString("hex")}.tar.gz`);
+    try {
+      await decryptFile(file, path, this.options.passphrase);
+    } catch {
+      await rm(path, { force: true });
+      throw new BackupError(
+        "This backup could not be decrypted: BACKUP_PASSPHRASE is not the passphrase it was made with, or the file is damaged.",
+      );
+    }
+    return { path, encrypted: true, release: () => rm(path, { force: true }) };
   }
 
   /**
@@ -438,7 +483,19 @@ export class Backups {
   restore(name: string): Promise<void> {
     return this.exclusive(async () => {
       if (!(await this.toolsAvailable())) throw new BackupError("psql is not installed.", 503);
-      const file = this.path(name);
+      const archive = await this.plainArchive(this.path(name));
+      const file = archive.path;
+      try {
+        await this.restoreArchive(name, file);
+      } finally {
+        await archive.release();
+      }
+      (this.options.onRestored ?? (() => setTimeout(() => process.exit(0), 500).unref()))();
+    });
+  }
+
+  private async restoreArchive(name: string, file: string) {
+    {
       const top = await this.inspectArchive(file);
       const manifest = await this.readManifest(file);
       if (manifest.migrations > (await this.appliedMigrations()))
@@ -530,8 +587,7 @@ export class Backups {
       } finally {
         await rm(tmp, { recursive: true, force: true });
       }
-      (this.options.onRestored ?? (() => setTimeout(() => process.exit(0), 500).unref()))();
-    });
+    }
   }
 
   /** Daily backup at the configured hour (server time), checked every 10 minutes. */
@@ -565,6 +621,69 @@ export class Backups {
     this.timer = null;
     await this.running?.catch(() => {});
   }
+}
+
+// ----- Encrypted backups ------------------------------------------------------------
+// File: MAGIC, 16 bytes salt, 12 bytes IV, AES-256-GCM ciphertext, 16 bytes tag.
+// The key is scrypt(passphrase, salt).
+
+const MAGIC = Buffer.from("PRINTRIO-BACKUP-ENC1\n");
+const HEADER = MAGIC.length + 16 + 12;
+const TAG = 16;
+
+const deriveKey = (passphrase: string, salt: Buffer) =>
+  new Promise<Buffer>((resolve, reject) =>
+    scrypt(passphrase, salt, 32, (error, key) => (error ? reject(error) : resolve(key))),
+  );
+
+export async function isEncrypted(file: string) {
+  const handle = await open(file, "r");
+  try {
+    const head = Buffer.alloc(MAGIC.length);
+    const { bytesRead } = await handle.read(head, 0, MAGIC.length, 0);
+    return bytesRead === MAGIC.length && head.equals(MAGIC);
+  } finally {
+    await handle.close();
+  }
+}
+
+export async function encryptFile(source: string, target: string, passphrase: string) {
+  const salt = randomBytes(16);
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", await deriveKey(passphrase, salt), iv);
+  const out = createWriteStream(target, { mode: 0o600 });
+  out.write(Buffer.concat([MAGIC, salt, iv]));
+  await pipeline(createReadStream(source), cipher, out, { end: false });
+  await new Promise<void>((resolve, reject) =>
+    out.end(cipher.getAuthTag(), (error?: Error | null) => (error ? reject(error) : resolve())),
+  );
+}
+
+/** Throws when the passphrase is wrong or the file was changed (the target is then incomplete). */
+export async function decryptFile(source: string, target: string, passphrase: string) {
+  const { size } = await stat(source);
+  if (size < HEADER + TAG) throw new Error("Not an encrypted backup.");
+  const handle = await open(source, "r");
+  let head: Buffer;
+  let tag: Buffer;
+  try {
+    head = Buffer.alloc(HEADER);
+    await handle.read(head, 0, HEADER, 0);
+    tag = Buffer.alloc(TAG);
+    await handle.read(tag, 0, TAG, size - TAG);
+  } finally {
+    await handle.close();
+  }
+  if (!head.subarray(0, MAGIC.length).equals(MAGIC)) throw new Error("Not an encrypted backup.");
+  const salt = head.subarray(MAGIC.length, MAGIC.length + 16);
+  const iv = head.subarray(MAGIC.length + 16);
+  const decipher = createDecipheriv("aes-256-gcm", await deriveKey(passphrase, salt), iv);
+  decipher.setAuthTag(tag);
+  await pipeline(
+    createReadStream(source, { start: HEADER, end: size - TAG - 1 }),
+    decipher,
+    createWriteStream(target, { mode: 0o600 }),
+  );
 }
 
 /**

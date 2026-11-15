@@ -31,5 +31,9 @@ describe("config", () => {
     expect(loadConfig(base).SETUP_CODE).toBeUndefined();
     expect(loadConfig({ ...base, SETUP_CODE: "K7QM-2XPA-9DWT" }).SETUP_CODE).toBe("K7QM-2XPA-9DWT");
     expect(() => loadConfig({ ...base, SETUP_CODE: "short" })).toThrow(/at least 8 characters/);
+    expect(loadConfig({ ...base, BACKUP_PASSPHRASE: "" }).BACKUP_PASSPHRASE).toBeUndefined();
+    expect(() => loadConfig({ ...base, BACKUP_PASSPHRASE: "short" })).toThrow(
+      /at least 12 characters/,
+    );
   });
 });

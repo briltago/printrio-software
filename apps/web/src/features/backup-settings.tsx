@@ -109,7 +109,7 @@ export function BackupSettings() {
           <input
             ref={fileInput}
             type="file"
-            accept=".gz,.tar.gz,application/gzip"
+            accept=".gz,.tar.gz,.enc,application/gzip"
             hidden
             onChange={onUpload}
           />

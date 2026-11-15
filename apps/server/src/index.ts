@@ -21,6 +21,7 @@ const backups = new Backups({
   dataDir: config.DATA_DIR,
   version: VERSION,
   log: startupLog,
+  passphrase: config.BACKUP_PASSPHRASE,
 });
 // An update that changes the database: keep a copy of the old one first.
 const preUpdate = await backupBeforeMigrations(backups, await pendingMigrations(db));

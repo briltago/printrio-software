@@ -17,6 +17,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: printrio
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      # Optional: encrypt backups with this passphrase (see .env.example).
+      BACKUP_PASSPHRASE: ${BACKUP_PASSPHRASE:-}
       # Optional: code the first-run setup must present (see .env.example).
       SETUP_CODE: ${SETUP_CODE:-}
       # Behind a reverse proxy on the same Docker network/host, e.g. 1 or 172.16.0.0/12.

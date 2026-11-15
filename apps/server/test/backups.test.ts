@@ -5,6 +5,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   symlinkSync,
@@ -14,7 +15,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Backups, withoutOwnRestriction } from "../src/backups/backups.ts";
+import { Backups, encryptFile, withoutOwnRestriction } from "../src/backups/backups.ts";
 import { createDatabase, pendingMigrations, runMigrations } from "../src/db/client.ts";
 import { TEST_DATABASE_URL } from "./helpers.ts";
 
@@ -506,6 +507,135 @@ describe("backups", () => {
         .filter(Boolean)
         .map((name) => name.replace(/\/$/, ""));
       expect(members.sort()).toEqual(["app-secret", "database.sql", "files", "manifest.json"]);
+    });
+  });
+
+  describe("encrypted backups", () => {
+    const withPassphrase = (passphrase?: string) =>
+      new Backups({
+        db: database.db,
+        databaseUrl: TEST_DATABASE_URL,
+        dataDir,
+        version: "1.0.0",
+        log: quiet,
+        passphrase,
+        onRestored: () => {
+          restored++;
+        },
+      });
+
+    it("encrypts with BACKUP_PASSPHRASE and restores only with the same passphrase", async () => {
+      if (!(await backups.toolsAvailable())) return;
+      const { db } = database;
+      await db.execute(
+        sql`insert into instance_settings (key, value) values ('marker', '{"v":1}')`,
+      );
+      writeFileSync(join(dataDir, "app-secret"), "top-secret-instance-key\n");
+      const secure = withPassphrase("correct horse battery staple");
+      const made = await secure.create("manual");
+      expect(made.name).toMatch(/\.tar\.gz\.enc$/);
+      expect((await secure.list()).map((entry) => entry.name)).toContain(made.name);
+
+      // Not an archive any more, and nothing readable inside.
+      const bytes = readFileSync(secure.path(made.name));
+      expect(bytes.subarray(0, 2).equals(Buffer.from([0x1f, 0x8b]))).toBe(false);
+      expect(bytes.includes("top-secret-instance-key")).toBe(false);
+      expect(() =>
+        execFileSync("tar", ["-tzf", secure.path(made.name)], { stdio: "pipe" }),
+      ).toThrow();
+      // Two backups of the same data differ (fresh salt and IV).
+      const again = await secure.create("manual");
+      expect(readFileSync(secure.path(again.name)).equals(bytes)).toBe(false);
+
+      await db.execute(sql`delete from instance_settings`);
+      writeFileSync(join(dataDir, "app-secret"), "changed\n");
+      await expect(withPassphrase("another passphrase 123").restore(made.name)).rejects.toThrow(
+        /could not be decrypted/,
+      );
+      await expect(withPassphrase().restore(made.name)).rejects.toThrow(/is encrypted/);
+      expect(restored).toBe(0);
+      expect(readFileSync(join(dataDir, "app-secret"), "utf8")).toBe("changed\n");
+
+      await secure.restore(made.name);
+      expect(restored).toBe(1);
+      const rows = await db.execute<{ value: string }>(
+        sql`select value from instance_settings where key = 'marker'`,
+      );
+      expect(rows[0]?.value).toContain('"v":1');
+      expect(readFileSync(join(dataDir, "app-secret"), "utf8")).toBe("top-secret-instance-key\n");
+      // No decrypted copy is left in the backup folder.
+      expect(readdirSync(secure.dir).filter((name) => name.startsWith("."))).toEqual([]);
+    });
+
+    it("detects a changed file, accepts encrypted uploads and still reads plain backups", async () => {
+      if (!(await backups.toolsAvailable())) return;
+      const secure = withPassphrase("correct horse battery staple");
+      const plain = await backups.create("manual"); // made without a passphrase
+      const made = await secure.create("manual");
+
+      const damaged = Buffer.from(readFileSync(secure.path(made.name)));
+      damaged[damaged.length - 40] = (damaged[damaged.length - 40] as number) ^ 0xff;
+      const damagedName = "printrio-20260101-000000-7-uploaded-v1.0.0.tar.gz.enc";
+      writeFileSync(join(secure.dir, damagedName), damaged);
+      await expect(secure.restore(damagedName)).rejects.toThrow(/could not be decrypted/);
+      expect(restored).toBe(0);
+
+      const copy = join(tmpdir(), `enc-upload-${Date.now()}.bin`);
+      writeFileSync(copy, readFileSync(secure.path(made.name)));
+      const uploaded = await secure.saveUpload(createReadStream(copy));
+      expect(uploaded.name).toMatch(/-uploaded-v1\.0\.0\.tar\.gz\.enc$/);
+      await expect(withPassphrase().saveUpload(createReadStream(copy))).rejects.toThrow(
+        /is encrypted/,
+      );
+      await expect(
+        withPassphrase("another passphrase 123").saveUpload(createReadStream(copy)),
+      ).rejects.toThrow(/could not be decrypted/);
+      rmSync(copy);
+
+      await secure.restore(uploaded.name);
+      await secure.restore(plain.name);
+      expect(restored).toBe(2);
+      expect(readdirSync(secure.dir).filter((name) => name.startsWith("."))).toEqual([]);
+    });
+
+    it("checks an encrypted archive like a plain one", async () => {
+      if (!(await backups.toolsAvailable())) return;
+      const work = mkdtempSync(join(tmpdir(), "printrio-enc-evil-"));
+      try {
+        const root = join(work, "root");
+        mkdirSync(join(root, "files"), { recursive: true });
+        symlinkSync("/etc", join(root, "files", "escape"));
+        writeFileSync(
+          join(root, "manifest.json"),
+          JSON.stringify({
+            format: 1,
+            version: "1.0.0",
+            createdAt: "2026-01-01T00:00:00.000Z",
+            kind: "manual",
+            migrations: 0,
+            data: ["files"],
+          }),
+        );
+        writeFileSync(join(root, "database.sql"), `\\! touch ${join(work, "pwned")}\n`);
+        const archive = join(work, "a.tar.gz");
+        execFileSync("tar", [
+          "-czf",
+          archive,
+          "-C",
+          root,
+          "manifest.json",
+          "database.sql",
+          "files",
+        ]);
+        await encryptFile(archive, `${archive}.enc`, "correct horse battery staple");
+        const secure = withPassphrase("correct horse battery staple");
+        await expect(secure.saveUpload(createReadStream(`${archive}.enc`))).rejects.toThrow(
+          /cannot be used/,
+        );
+        expect(existsSync(join(work, "pwned"))).toBe(false);
+      } finally {
+        rmSync(work, { recursive: true, force: true });
+      }
     });
   });
 

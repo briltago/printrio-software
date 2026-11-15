@@ -50,6 +50,14 @@ const configSchema = z.object({
             ? Number(value)
             : value,
     ),
+  /**
+   * Encrypts backups (AES-256-GCM, key from this passphrase). Keep it somewhere
+   * else too: without it an encrypted backup cannot be restored.
+   */
+  BACKUP_PASSPHRASE: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.string().min(12, "BACKUP_PASSPHRASE must have at least 12 characters.").max(256).optional(),
+  ),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
   /** Look for new Printrio releases on GitHub (only the version is read; nothing is sent). */
   UPDATE_CHECK: z

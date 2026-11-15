@@ -82,6 +82,31 @@ export interface AppOptions {
 export const defaultDriverFactories = () =>
   new Map<string, PrinterDriverFactory>([[moonrakerDriverFactory.id, moonrakerDriverFactory]]);
 
+/**
+ * Whether the Origin header, when there is one, names the host of the request:
+ * the Host header, or the host a reverse proxy reports as forwarded (a web page
+ * cannot set either on a cross-site request). The scheme is not compared, since
+ * a proxy may terminate TLS. "null" (sandboxed or redirected pages) never matches.
+ */
+export function sameOrigin(headers: Record<string, string | string[] | undefined>) {
+  const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
+  const origin = first(headers.origin);
+  if (origin === undefined) return true;
+  let originHost: string;
+  try {
+    originHost = new URL(origin).host.toLowerCase();
+  } catch {
+    return false;
+  }
+  if (!originHost) return false;
+  const hosts = [first(headers.host), ...(first(headers["x-forwarded-host"])?.split(",") ?? [])]
+    .map((host) => host?.trim().toLowerCase())
+    .filter((host): host is string => Boolean(host));
+  // Default ports may be written out on one side only (example.com vs example.com:80).
+  const bare = (host: string) => host.replace(/:(80|443)$/, "");
+  return hosts.some((host) => host === originHost || bare(host) === bare(originHost));
+}
+
 /** The decoded module id of a request to /api/modules/:id/…, if any. */
 const moduleIdOf = (request: { params: unknown }) =>
   (request.params as { id?: string } | undefined)?.id;
@@ -190,6 +215,12 @@ export async function buildApp({
     if (safe && !upgrade) return;
     const site = request.headers["sec-fetch-site"];
     if (site === "cross-site" || site === "same-site")
+      return reply.code(403).send({ error: "Cross-site request refused." });
+    // Browsers send Sec-Fetch-Site only to HTTPS and localhost. Over plain HTTP on
+    // a LAN address (the usual first installation) it is missing, so the Origin
+    // header decides: it must name the host the request was sent to. Requests
+    // without Origin are not from a web page (slicers, scripts, API clients).
+    if (site === undefined && !sameOrigin(request.headers))
       return reply.code(403).send({ error: "Cross-site request refused." });
   });
   // Plain-text bodies are only useful to cross-site forms; the API takes JSON and multipart.

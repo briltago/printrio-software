@@ -1,7 +1,9 @@
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { createWriteStream, existsSync } from "node:fs";
 import {
   cp,
+  lstat,
   mkdir,
   mkdtemp,
   readdir,
@@ -29,8 +31,14 @@ import { instanceSettings } from "../db/schema.ts";
 const SETTINGS_KEY = "backups";
 const NAME =
   /^printrio-(\d{8}-\d{6})(?:-(\d+))?-(manual|scheduled|pre-update|uploaded)-v([\w.+-]+)\.tar\.gz$/;
-/** Entries of DATA_DIR that are never backed up: the backups themselves and downloaded modules. */
-const SKIP = new Set(["backups", "modules"]);
+/**
+ * The only entries of DATA_DIR a backup holds and a restore writes back: the
+ * instance secret and the G-code library. Backups themselves and downloaded
+ * modules (fetched again, signature-checked) are never part of one, and
+ * nothing else in an archive is ever copied into DATA_DIR.
+ */
+const DATA_ENTRIES = ["app-secret", "files"] as const;
+const isDataEntry = (entry: string) => (DATA_ENTRIES as readonly string[]).includes(entry);
 const FORMAT = 1;
 
 export const DEFAULT_BACKUP_SETTINGS: BackupSettings = {
@@ -87,7 +95,13 @@ function run(
     child.on("close", (code) =>
       code === 0
         ? resolve(out)
-        : reject(new Error(`${command} failed: ${err.trim().split("\n").slice(-3).join(" ")}`)),
+        : reject(
+            // The short message is shown to the user; `stderr` keeps everything for checks.
+            Object.assign(
+              new Error(`${command} failed: ${err.trim().split("\n").slice(-3).join(" ")}`),
+              { stderr: err },
+            ),
+          ),
     );
     if (options.input !== undefined) child.stdin.end(options.input);
   });
@@ -206,9 +220,13 @@ export class Backups {
   /** One backup at a time; the others wait. */
   private exclusive<T>(work: () => Promise<T>): Promise<T> {
     const next = (this.running ?? Promise.resolve()).catch(() => {}).then(work);
-    this.running = next.finally(() => {
-      if (this.running === next) this.running = null;
-    });
+    // The caller gets the failure; the queue itself must not turn it into an unhandled rejection.
+    const settled: Promise<unknown> = next
+      .catch(() => {})
+      .finally(() => {
+        if (this.running === settled) this.running = null;
+      });
+    this.running = settled;
     return next;
   }
 
@@ -231,8 +249,7 @@ export class Backups {
         ]);
         const data = existsSync(this.options.dataDir)
           ? (await readdir(this.options.dataDir)).filter(
-              (entry) =>
-                !SKIP.has(entry) && !entry.startsWith(".") && (includeFiles || entry !== "files"),
+              (entry) => isDataEntry(entry) && (includeFiles || entry !== "files"),
             )
           : [];
         const created = this.now();
@@ -286,6 +303,7 @@ export class Backups {
     const tmp = join(this.dir, `.upload-${Date.now()}.tar.gz`);
     try {
       await pipeline(source, createWriteStream(tmp));
+      await this.inspectArchive(tmp);
       const manifest = await this.readManifest(tmp);
       const name = await this.freeName(
         stamp(new Date(manifest.createdAt)),
@@ -296,6 +314,50 @@ export class Backups {
       return (await this.list()).find((entry) => entry.name === name) as BackupEntry;
     } finally {
       await rm(tmp, { force: true });
+    }
+  }
+
+  /**
+   * Checks an archive before anything is extracted from it and returns its
+   * top-level entries. A Printrio backup holds only regular files and folders,
+   * all below its own root; links, devices and paths that leave the archive
+   * (which could make the extraction write elsewhere) are refused.
+   */
+  private async inspectArchive(file: string): Promise<Set<string>> {
+    let listing: string;
+    let names: string;
+    try {
+      listing = await run("tar", ["-tzvf", file]);
+      names = await run("tar", ["-tzf", file]);
+    } catch {
+      throw new BackupError("This is not a Printrio backup.");
+    }
+    // `tar -tv` starts each entry with its type: "-" file, "d" folder, "l"/"h" links, …
+    for (const line of listing.split("\n"))
+      if (line && line[0] !== "-" && line[0] !== "d")
+        throw new BackupError("This backup contains links or special files and cannot be used.");
+    const top = new Set<string>();
+    for (const name of names.split("\n")) {
+      if (!name) continue;
+      const parts = name.replace(/\/+$/, "").split("/");
+      if (name.startsWith("/") || parts.some((part) => part === ".." || part === "." || part === ""))
+        throw new BackupError("This backup contains unexpected paths and cannot be used.");
+      top.add(parts[0] as string);
+    }
+    if (!top.has("manifest.json") || !top.has("database.sql"))
+      throw new BackupError("This is not a Printrio backup.");
+    return top;
+  }
+
+  /** After extraction: nothing but regular files and folders may be in the tree. */
+  private async assertPlainTree(path: string, expectDirectory?: boolean): Promise<void> {
+    const info = await lstat(path);
+    if (expectDirectory !== undefined && info.isDirectory() !== expectDirectory)
+      throw new BackupError("This backup contains unexpected entries and cannot be used.");
+    if (info.isDirectory()) {
+      for (const entry of await readdir(path)) await this.assertPlainTree(join(path, entry));
+    } else if (!info.isFile()) {
+      throw new BackupError("This backup contains links or special files and cannot be used.");
     }
   }
 
@@ -329,15 +391,31 @@ export class Backups {
     return this.exclusive(async () => {
       if (!(await this.toolsAvailable())) throw new BackupError("psql is not installed.", 503);
       const file = this.path(name);
+      const top = await this.inspectArchive(file);
       const manifest = await this.readManifest(file);
       if (manifest.migrations > (await this.appliedMigrations()))
         throw new BackupError(
           `The backup is from a newer Printrio (${manifest.version}). Update Printrio first, then restore.`,
           409,
         );
+      // Only what a backup is made of leaves the archive; anything else in it is ignored.
+      const data = DATA_ENTRIES.filter((entry) => manifest.data.includes(entry) && top.has(entry));
       const tmp = await mkdtemp(join(this.dir, ".restore-"));
       try {
-        await run("tar", ["-xzf", file, "-C", tmp]);
+        await run("tar", [
+          "-xzf",
+          file,
+          "-C",
+          tmp,
+          "--no-same-owner",
+          "--no-same-permissions",
+          "--",
+          "manifest.json",
+          "database.sql",
+          ...data,
+        ]);
+        await this.assertPlainTree(join(tmp, "database.sql"), false);
+        for (const entry of data) await this.assertPlainTree(join(tmp, entry), entry === "files");
         const schemas = await this.options.db.execute<{ name: string }>(
           sql`select nspname as name from pg_namespace where nspname not like 'pg\\_%' and nspname <> 'information_schema'`,
         );
@@ -345,27 +423,46 @@ export class Backups {
           .map((row) => `DROP SCHEMA IF EXISTS "${row.name.replace(/"/g, '""')}" CASCADE;`)
           .join("\n");
         // pg_dump 17 writes a setting older servers do not know; it is not needed for the restore.
-        const dump = (await readFile(join(tmp, "database.sql"), "utf8")).replace(
-          /^SET transaction_timeout = .*$/m,
-          "",
+        const dump = withoutOwnRestriction(
+          (await readFile(join(tmp, "database.sql"), "utf8")).replace(
+            /^SET transaction_timeout = .*$/m,
+            "",
+          ),
         );
-        const script = `${drop}\nCREATE SCHEMA public;\n${dump}`;
+        // The dump is data, not a script to trust: psql runs it in restricted mode,
+        // where backslash commands (\!, \copy … program, \i, \o, …) are refused. Only
+        // \unrestrict with this one-time key, which the dump cannot know, would end it.
+        const key = randomBytes(32).toString("hex");
+        const script = `\\restrict ${key}\n${drop}\nCREATE SCHEMA public;\n${dump}`;
         await writeFile(join(tmp, "restore.sql"), script);
-        await run("psql", [
-          "--quiet",
-          "--no-psqlrc",
-          "--single-transaction",
-          "-v",
-          "ON_ERROR_STOP=1",
-          `--file=${join(tmp, "restore.sql")}`,
-          this.options.databaseUrl,
-        ]);
-        for (const entry of manifest.data) {
-          if (SKIP.has(entry) || entry.includes("/") || entry.startsWith(".")) continue;
-          const source = join(tmp, entry);
-          if (existsSync(source))
-            await cp(source, join(this.options.dataDir, entry), { recursive: true, force: true });
+        try {
+          await run("psql", [
+            "--quiet",
+            "--no-psqlrc",
+            "--single-transaction",
+            "-v",
+            "ON_ERROR_STOP=1",
+            `--file=${join(tmp, "restore.sql")}`,
+            this.options.databaseUrl,
+          ]);
+        } catch (error) {
+          const message = String((error as { stderr?: unknown }).stderr ?? error);
+          if (/backslash commands are restricted|\\unrestrict: wrong key/i.test(message))
+            throw new BackupError(
+              "This backup contains commands a Printrio backup never has and was not restored.",
+            );
+          if (/invalid command \\restrict/i.test(message))
+            throw new BackupError(
+              "The installed psql is too old to restore backups safely. Update the Printrio image (PostgreSQL client 17.6 or 16.10 and newer).",
+              503,
+            );
+          throw error;
         }
+        for (const entry of data)
+          await cp(join(tmp, entry), join(this.options.dataDir, entry), {
+            recursive: true,
+            force: true,
+          });
         this.options.log.warn(`Backup ${name} restored; restarting.`);
       } finally {
         await rm(tmp, { recursive: true, force: true });
@@ -405,6 +502,26 @@ export class Backups {
     this.timer = null;
     await this.running?.catch(() => {});
   }
+}
+
+/**
+ * pg_dump (16.10 / 17.6 and newer) wraps its output in \restrict <key> … \unrestrict <key>.
+ * The restore sets its own restriction, inside which those two lines would be
+ * refused, so exactly these are dropped: a \restrict line in the header (before
+ * any table data) and an \unrestrict line that is the last line. Lines that
+ * merely look alike inside table data are left untouched.
+ */
+export function withoutOwnRestriction(dump: string) {
+  const lines = dump.split("\n");
+  const firstData = lines.findIndex((line) => line.startsWith("COPY ") || line === "\\.");
+  const header = firstData === -1 ? lines.length : firstData;
+  const open = lines.findIndex((line, index) => index < header && /^\\restrict [A-Za-z0-9]+$/.test(line));
+  if (open !== -1) lines.splice(open, 1);
+  // pg_dump ends with it: the last line that is not empty.
+  let last = lines.length - 1;
+  while (last >= 0 && lines[last] === "") last--;
+  if (last >= 0 && /^\\unrestrict [A-Za-z0-9]+$/.test(lines[last] as string)) lines.splice(last, 1);
+  return lines.join("\n");
 }
 
 /** Before migrations change an existing database: a database-only backup (best effort). */

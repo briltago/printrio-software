@@ -129,6 +129,12 @@ export interface ModuleInventory {
   adoptLowStockGrams(grams: number): Promise<void>;
 }
 
+/** Encryption with the instance secret (AES-256-GCM); `decrypt` throws on anything `encrypt` did not produce. */
+export interface ModuleSecrets {
+  encrypt(plaintext: string): string;
+  decrypt(payload: string): string;
+}
+
 export interface ModuleContext {
   logger: ModuleLogger;
   /** Current lease; modules must re-check it themselves before privileged work. */
@@ -150,6 +156,12 @@ export interface ModuleContext {
   orders?: ModuleOrders;
   /** Optional: cores before 1.1 do not provide it. Use it instead of a module's own low-stock setting. */
   inventory?: ModuleInventory;
+  /**
+   * Encrypts credentials a module stores in its tables (shop tokens, webhook
+   * secrets, SMTP passwords) with the instance secret, like the core does for
+   * printer API keys. Optional: cores before 1.2 do not provide it.
+   */
+  secrets?: ModuleSecrets;
   /**
    * Custom roles: called for change requests of non-admin users; returning
    * false refuses the request (403). Optional: cores before Nov 2026 lack it.

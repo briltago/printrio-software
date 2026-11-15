@@ -20,6 +20,7 @@ import {
   moduleSigningMessage,
   type Permission,
 } from "@printrio/shared";
+import type { SecretBox } from "../crypto.ts";
 import type { Database } from "../db/client.ts";
 import type { OrderService } from "../orders/service.ts";
 import { getWorkspaceSettings, updateWorkspaceSettings } from "../settings.ts";
@@ -48,6 +49,8 @@ export interface ModuleHostOptions {
   events: ModuleEventBus;
   factories: Map<string, PrinterDriverFactory>;
   notifyChange: (change: ModuleChange) => void;
+  /** Encrypts module credentials at rest with the instance secret. */
+  secrets?: SecretBox;
   /** Orders for modules (Business turns accepted quotes into orders). */
   orders?: OrderService;
   logger: { info(msg: string): void; warn(msg: string): void; error(msg: string): void };
@@ -354,6 +357,10 @@ export class ModuleHost {
       registerAuthorizer: (authorize) => {
         this.authorizers.add(authorize);
         entry.cleanup.push(() => this.authorizers.delete(authorize));
+      },
+      secrets: this.options.secrets && {
+        encrypt: (plaintext) => (this.options.secrets as SecretBox).encrypt(plaintext),
+        decrypt: (payload) => (this.options.secrets as SecretBox).decrypt(payload),
       },
       inventory: {
         lowStockGrams: async () => {

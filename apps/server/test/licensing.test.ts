@@ -63,6 +63,12 @@ export default {
       { method: "GET", path: "hello/:name", handler: async ({ params }) => ({ hello: params.name, tier: ctx.getLease()?.tier }) },
       { method: "POST", path: "linked", permissions: ["orders.manage"], handler: async () => ({ ok: true }) },
       { method: "GET", path: "inventory", handler: async () => ctx.inventory.lowStockGrams() },
+      { method: "POST", path: "seal", adminOnly: true, handler: async ({ body }) => {
+        const sealed = ctx.secrets.encrypt(body.value);
+        let tampered = "ok";
+        try { ctx.secrets.decrypt(sealed.slice(0, -2) + "AA"); } catch { tampered = "refused"; }
+        return { sealed, opened: ctx.secrets.decrypt(sealed), tampered };
+      } },
       { method: "POST", path: "inventory", adminOnly: true, handler: async ({ body }) => {
         await ctx.inventory.adoptLowStockGrams(body.grams);
         return ctx.inventory.lowStockGrams();
@@ -401,6 +407,21 @@ export default {
       await api("POST", "/api/licence/refresh");
       await waitForModules((list) => !list.some((m) => m.id === "business"));
     }
+  });
+
+  it("gives modules encryption with the instance secret", async () => {
+    const res = (
+      await api("POST", "/api/modules/test/seal", { value: "shpat_secret-token" })
+    ).json();
+    expect(res.opened).toBe("shpat_secret-token");
+    expect(res.sealed).toMatch(/^v1\./);
+    expect(res.sealed).not.toContain("shpat_secret-token");
+    expect(res.tampered).toBe("refused");
+    // A fresh IV each time.
+    const again = (
+      await api("POST", "/api/modules/test/seal", { value: "shpat_secret-token" })
+    ).json();
+    expect(again.sealed).not.toBe(res.sealed);
   });
 
   it("refuses a module whose signature does not match", async () => {

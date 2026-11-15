@@ -182,6 +182,7 @@ export async function buildApp({
   const modules = new ModuleHost({
     db,
     dataDir: config.DATA_DIR,
+    secrets,
     licence,
     url: licensingUrl,
     modulePublicKey: licensing.modulePublicKey ?? MODULE_PUBLIC_KEY,

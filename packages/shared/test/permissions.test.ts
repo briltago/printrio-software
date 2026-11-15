@@ -16,4 +16,16 @@ describe("permissionFor", () => {
     expect(permissionFor("POST", "/api/modules/:id/*", "business")).toBe("module.business");
     expect(permissionFor("PATCH", "/api/settings")).toBeNull(); // admin-only anyway
   });
+
+  it("asks for the module's permission to read Pro and Business data too", () => {
+    for (const method of ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"]) {
+      expect(permissionFor(method, "/api/modules/:id/*", "business")).toBe("module.business");
+      expect(permissionFor(method, "/api/modules/:id/*", "pro")).toBe("module.pro");
+    }
+    // Other modules, the module list and the web bundles (the UI itself) carry no permission.
+    expect(permissionFor("GET", "/api/modules/:id/*", "other")).toBeNull();
+    expect(permissionFor("GET", "/api/modules/:id/*", "..%2Fbusiness")).toBeNull();
+    expect(permissionFor("GET", "/api/modules")).toBeNull();
+    expect(permissionFor("GET", "/api/modules/:id/web.js", "business")).toBeNull();
+  });
 });

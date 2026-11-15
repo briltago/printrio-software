@@ -1,8 +1,10 @@
 /**
- * What a change request does, for custom roles (Business). Admins can always
- * do everything; operators can do everything a module's role does not forbid.
- * Only requests that change something are mapped — viewing stays open to every
- * signed-in user.
+ * What a request does, for custom roles (Business). Admins can always do
+ * everything; operators can do everything a module's role does not forbid.
+ * In the core only requests that change something are mapped — viewing printers,
+ * files and orders stays open to every signed-in user. The data of the Pro and
+ * Business modules (customers, statistics, quotes, invoices, CRM) is different:
+ * reading it needs the module's permission too.
  */
 export const PERMISSIONS = [
   "printers.control",
@@ -23,8 +25,9 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   "queue.manage": "Change print queues and start the next print",
   "orders.manage": "Create and change orders, link prints",
   "filament.manage": "Filament, spools and loading spools",
-  "module.pro": "Pro tools: fleet queue, order items, customers, notifications",
-  "module.business": "Business: quotes, invoices, CRM, shipping",
+  "module.pro":
+    "Pro tools (view and change): fleet queue, order items, customers, statistics, notifications",
+  "module.business": "Business (view and change): quotes, invoices, CRM, shipping",
 };
 
 const RULES: [RegExp, Permission][] = [
@@ -47,9 +50,10 @@ const RULES: [RegExp, Permission][] = [
  * URL, which may be percent-encoded).
  */
 export function permissionFor(method: string, route: string, moduleId?: string): Permission | null {
-  if (method === "GET" || method === "HEAD" || method === "OPTIONS") return null;
+  // Module routes, reading included: a role without the module may not see its data.
   if (route === "/api/modules/:id/*")
     return moduleId === "pro" || moduleId === "business" ? `module.${moduleId}` : null;
+  if (method === "GET" || method === "HEAD" || method === "OPTIONS") return null;
   for (const [pattern, permission] of RULES) if (pattern.test(route)) return permission;
   return null;
 }

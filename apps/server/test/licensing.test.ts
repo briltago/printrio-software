@@ -25,13 +25,13 @@ function jws(payload: unknown, key: KeyObject) {
 }
 
 /** A module bundle like printrio-pro's build produces. */
-function bundle(server: string, options: { version?: string; key?: KeyObject } = {}) {
+function bundle(server: string, options: { version?: string; key?: KeyObject; id?: string } = {}) {
   const sha = (code: string) => createHash("sha256").update(code).digest("hex");
   const web = "export default { id: 'test', setup() { return {}; } };";
   const unsigned = {
     format: 1 as const,
     manifest: {
-      id: "test",
+      id: options.id ?? "test",
       version: options.version ?? "1.0.0",
       requiresTier: "pro" as const,
       coreVersion: "1",
@@ -347,6 +347,60 @@ describe("licensing", () => {
       payload: { text: "csrf" },
     });
     expect(crossSite.statusCode).toBe(403);
+  });
+
+  it("lets a custom role hide a module's data: reading needs the module permission", async () => {
+    // A module called "business" whose role system denies operators the Business permission.
+    const source = `
+export default {
+  manifest: { id: "business", version: "1.0.0", requiresTier: "pro", coreVersion: "1" },
+  async activate(ctx) {
+    ctx.registerRoutes([
+      { method: "GET", path: "invoices", handler: async () => ({ invoices: [{ number: "2026-0001", total: 121000 }] }) },
+      { method: "GET", path: "crm/customers/:id", handler: async ({ params }) => ({ id: params.id, vatId: "CZ12345678" }) },
+      { method: "POST", path: "invoices", handler: async () => ({ ok: true }) },
+    ]);
+    ctx.registerAuthorizer((user, permission) => (permission === "module.business" ? false : undefined));
+  },
+};`;
+    server.bundles.set("business/1.0.0", bundle(source, { id: "business" }));
+    server.modules = [...server.modules, { id: "business", version: "1.0.0" }];
+    await api("POST", "/api/licence/refresh");
+    await waitForModules((list) => list.some((m) => m.id === "business" && m.status === "active"));
+    try {
+      // The administrator reads and writes.
+      expect((await api("GET", "/api/modules/business/invoices")).json()).toEqual({
+        invoices: [{ number: "2026-0001", total: 121000 }],
+      });
+      expect((await api("POST", "/api/modules/business/invoices", {})).statusCode).toBe(200);
+      // The operator's role has no Business permission: neither reading nor writing.
+      for (const path of ["invoices", "crm/customers/42", "invoices?limit=1", "nope"]) {
+        const res = await api("GET", `/api/modules/business/${path}`, undefined, operator);
+        expect(res.statusCode, path).toBe(403);
+        expect(res.json()).toMatchObject({ permission: "module.business" });
+        expect(res.body).not.toContain("2026-0001");
+        expect(res.body).not.toContain("CZ12345678");
+      }
+      expect((await api("POST", "/api/modules/business/invoices", {}, operator)).statusCode).toBe(
+        403,
+      );
+      // An encoded module name does not get around it.
+      expect(
+        (await api("GET", "/api/modules/%62usiness/invoices", undefined, operator)).statusCode,
+      ).toBe(403);
+      // The interface itself still loads, and other modules are unaffected.
+      expect(
+        (await api("GET", "/api/modules/business/web.js", undefined, operator)).statusCode,
+      ).toBe(200);
+      expect((await api("GET", "/api/modules", undefined, operator)).statusCode).toBe(200);
+      expect((await api("GET", "/api/modules/test/notes", undefined, operator)).statusCode).toBe(
+        200,
+      );
+    } finally {
+      server.modules = server.modules.filter((m) => m.id !== "business");
+      await api("POST", "/api/licence/refresh");
+      await waitForModules((list) => !list.some((m) => m.id === "business"));
+    }
   });
 
   it("refuses a module whose signature does not match", async () => {

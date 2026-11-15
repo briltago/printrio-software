@@ -162,8 +162,20 @@ function ssoRoutes(
 ) {
   const origin = (request: { protocol: string; host: string }) =>
     `${request.protocol}://${request.host}`;
+  // The message may come from the identity provider's redirect (error_description),
+  // i.e. from the URL: keep it short and plain so the sign-in page cannot be made
+  // to show a long or misleading text.
   const failed = (reply: FastifyReply, message: string) =>
-    reply.redirect(`/login?sso_error=${encodeURIComponent(message)}`);
+    reply.redirect(
+      `/login?sso_error=${encodeURIComponent(
+        message
+          // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what is removed.
+          .replace(/[\u0000-\u001f\u007f]+/g, " ")
+          .replace(/https?:\/\/\S+/gi, "")
+          .trim()
+          .slice(0, 200) || "Single sign-on failed.",
+      )}`,
+    );
 
   app.get("/api/auth/sso", async (): Promise<SsoPublicDto> => {
     const config = await sso.active();

@@ -20,6 +20,16 @@ const configSchema = z.object({
    */
   APP_SECRET: z.string().min(32).optional(),
   DATA_DIR: z.string().default("./data"),
+  /**
+   * Code the first-run setup must present to create the administrator. When
+   * unset, one is generated and written to the log, and only asked for when
+   * the setup request comes from a public address.
+   */
+  SETUP_CODE: z.preprocess(
+    // Docker Compose passes an empty string when it is not set.
+    (value) => (value === "" ? undefined : value),
+    z.string().min(8, "SETUP_CODE must have at least 8 characters.").max(64).optional(),
+  ),
   /** printrio-licensing base URL (leases are verified with pinned keys either way). */
   LICENSING_URL: z.url().optional(),
   /**

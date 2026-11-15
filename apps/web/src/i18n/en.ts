@@ -64,6 +64,9 @@ export const en = {
     password: "Password",
     passwordHint: "Password (min. 12 characters)",
     createAccount: "Create account",
+    setupCode: "Setup code",
+    setupCodeHint:
+      "Shown in the Printrio server log when it starts (docker compose logs printrio).",
     signInTitle: "Sign in",
     signInSubtitle: "Sign in to your Printrio workspace.",
     signIn: "Sign in",

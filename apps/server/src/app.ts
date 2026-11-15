@@ -294,7 +294,7 @@ export async function buildApp({
   });
   app.get("/api/system/update", { preHandler: requireAdmin }, () => updates.info());
   const sso = new Sso(db, secrets, () => licence.current()?.features.includes("business") === true);
-  authRoutes(app, { db, cookieSecure: config.COOKIE_SECURE, sso });
+  authRoutes(app, { db, cookieSecure: config.COOKIE_SECURE, sso, setupCode: config.SETUP_CODE });
   settingsRoutes(app, db);
   userRoutes(app, db, limits);
   printerRoutes(app, {

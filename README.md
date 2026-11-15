@@ -57,6 +57,7 @@ setup wizard to add your first printer (its Moonraker address, usually
 | `POSTGRES_PASSWORD` | —        | Password of the bundled PostgreSQL database (required, any characters; write a literal `$` as `$$`). |
 | `PRINTRIO_PORT`     | `3000`   | Port Printrio listens on, inside the container and on the host. |
 | `COOKIE_SECURE`     | `false`  | Set to `true` when Printrio is served over HTTPS. |
+| `SETUP_CODE`        | *(unset)* | Code the first-run setup must present. When unset, a code is written to the log at start and only asked for when the setup request comes from a public address. |
 | `TRUST_PROXY`       | `false`  | Behind a reverse proxy: `1` (one proxy hop) or the proxy's address/CIDR, so rate limits and logs see the real client address. |
 | `PRINTRIO_VERSION`  | `latest` | Image tag to run: `latest`, a release such as `0.9.0`, or `edge` (newest build from `main`). |
 

@@ -12,7 +12,9 @@ export const TEST_DATABASE_URL =
   process.env.TEST_DATABASE_URL ?? "postgres://printrio:printrio@localhost:5432/printrio_test";
 
 /** Builds an app against a freshly migrated, empty test database. */
-export async function createTestApp(options: { licensing?: AppOptions["licensing"] } = {}) {
+export async function createTestApp(
+  options: { licensing?: AppOptions["licensing"]; env?: Record<string, string> } = {},
+) {
   const { db, close } = createDatabase(TEST_DATABASE_URL);
   await db.execute(sql`drop schema if exists public cascade`);
   await db.execute(sql`drop schema if exists drizzle cascade`);
@@ -30,6 +32,7 @@ export async function createTestApp(options: { licensing?: AppOptions["licensing
     NODE_ENV: "test",
     DATABASE_URL: TEST_DATABASE_URL,
     DATA_DIR: dataDir,
+    ...options.env,
   });
   // Short backoff so reconnect behaviour is observable in tests.
   const factories = defaultDriverFactories();

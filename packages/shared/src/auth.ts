@@ -12,6 +12,8 @@ export const setupRequestSchema = z.object({
   email: z.email().max(254),
   displayName: z.string().trim().min(1).max(120),
   password: passwordSchema,
+  /** From the server log; needed when setting up from a public address (or when SETUP_CODE is set). */
+  setupCode: z.string().max(64).optional(),
 });
 export type SetupRequest = z.infer<typeof setupRequestSchema>;
 
@@ -31,5 +33,7 @@ export type User = z.infer<typeof userSchema>;
 
 export const setupStatusSchema = z.object({
   setupRequired: z.boolean(),
+  /** The setup form must ask for the setup code (shown in the server log). */
+  setupCodeRequired: z.boolean().optional(),
 });
 export type SetupStatus = z.infer<typeof setupStatusSchema>;

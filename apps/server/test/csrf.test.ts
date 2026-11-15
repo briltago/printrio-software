@@ -10,7 +10,11 @@ beforeAll(async () => {
   const setup = await ctx.app.inject({
     method: "POST",
     url: "/api/setup",
-    payload: { email: "admin@example.com", displayName: "Admin", password: "correct horse battery" },
+    payload: {
+      email: "admin@example.com",
+      displayName: "Admin",
+      password: "correct horse battery",
+    },
   });
   cookie = sessionCookie(setup.headers["set-cookie"]);
 });
@@ -32,8 +36,13 @@ describe("cross-site request protection", () => {
   it("accepts Printrio's own pages over plain HTTP, where browsers send no Sec-Fetch-Site", async () => {
     expect((await post({ origin: "http://192.168.1.20:3000" })).statusCode).toBe(201);
     // Host names are compared without regard to case or a written-out default port.
-    expect((await post({ origin: "http://Printrio.local", host: "printrio.local:80" })).statusCode).toBe(201);
-    expect((await post({ origin: "https://printrio.example.com:443", host: "printrio.example.com" })).statusCode).toBe(201);
+    expect(
+      (await post({ origin: "http://Printrio.local", host: "printrio.local:80" })).statusCode,
+    ).toBe(201);
+    expect(
+      (await post({ origin: "https://printrio.example.com:443", host: "printrio.example.com" }))
+        .statusCode,
+    ).toBe(201);
   });
 
   it("refuses other origins when Sec-Fetch-Site is missing", async () => {
@@ -51,7 +60,11 @@ describe("cross-site request protection", () => {
       expect(res.json()).toEqual({ error: "Cross-site request refused." });
     }
     // Nothing was created by the refused requests.
-    const groups = await ctx.app.inject({ method: "GET", url: "/api/printer-groups", headers: { cookie } });
+    const groups = await ctx.app.inject({
+      method: "GET",
+      url: "/api/printer-groups",
+      headers: { cookie },
+    });
     expect(groups.json().groups).toHaveLength(3);
   });
 
@@ -84,24 +97,47 @@ describe("cross-site request protection", () => {
       headers: { cookie, ...foreign, upgrade: "websocket", connection: "Upgrade" },
     });
     expect(socket.statusCode).toBe(403);
-    const remove = await ctx.app.inject({ method: "DELETE", url: "/api/printer-groups/00000000-0000-4000-8000-000000000000", headers: { cookie, ...foreign } });
+    const remove = await ctx.app.inject({
+      method: "DELETE",
+      url: "/api/printer-groups/00000000-0000-4000-8000-000000000000",
+      headers: { cookie, ...foreign },
+    });
     expect(remove.statusCode).toBe(403);
   });
 
   it("keeps refusing what Sec-Fetch-Site marks as foreign, whatever Origin says", async () => {
     for (const site of ["cross-site", "same-site"])
-      expect((await post({ "sec-fetch-site": site, origin: "http://192.168.1.20:3000" })).statusCode, site).toBe(403);
+      expect(
+        (await post({ "sec-fetch-site": site, origin: "http://192.168.1.20:3000" })).statusCode,
+        site,
+      ).toBe(403);
   });
 
   it("trusts Sec-Fetch-Site when the browser sends it, e.g. behind a proxy that rewrites Host", async () => {
-    const res = await post({ "sec-fetch-site": "same-origin", origin: "https://printrio.example.com", host: "printrio:3000" });
+    const res = await post({
+      "sec-fetch-site": "same-origin",
+      origin: "https://printrio.example.com",
+      host: "printrio:3000",
+    });
     expect(res.statusCode).toBe(201);
   });
 
   it("accepts the host a reverse proxy forwards", async () => {
-    const res = await post({ origin: "http://printrio.lan", host: "printrio:3000", "x-forwarded-host": "printrio.lan" });
+    const res = await post({
+      origin: "http://printrio.lan",
+      host: "printrio:3000",
+      "x-forwarded-host": "printrio.lan",
+    });
     expect(res.statusCode).toBe(201);
-    expect((await post({ origin: "http://evil.example", host: "printrio:3000", "x-forwarded-host": "printrio.lan" })).statusCode).toBe(403);
+    expect(
+      (
+        await post({
+          origin: "http://evil.example",
+          host: "printrio:3000",
+          "x-forwarded-host": "printrio.lan",
+        })
+      ).statusCode,
+    ).toBe(403);
   });
 
   it("leaves clients that are not web pages alone, and reading", async () => {

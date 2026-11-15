@@ -11,6 +11,7 @@ import type { FastifyInstance, FastifyReply } from "fastify";
 import { findApiKeyUser } from "../auth/api-keys.ts";
 import { getDummyHash, hashPassword, verifyPassword } from "../auth/password.ts";
 import { createSession, deleteSession, findSessionUser, SESSION_COOKIE } from "../auth/sessions.ts";
+import { isLocalAddress, newSetupCode, sameSetupCode } from "../auth/setup.ts";
 import { type Sso, SsoError } from "../auth/sso.ts";
 import type { Database } from "../db/client.ts";
 import { users } from "../db/schema.ts";
@@ -27,9 +28,14 @@ interface AuthOptions {
   cookieSecure: boolean;
   /** OpenID Connect sign-in (Business). */
   sso?: Sso;
+  /** SETUP_CODE: when set, the first-run setup always needs it. */
+  setupCode?: string;
 }
 
-export function authRoutes(app: FastifyInstance, { db, cookieSecure, sso }: AuthOptions) {
+export function authRoutes(
+  app: FastifyInstance,
+  { db, cookieSecure, sso, setupCode: configuredCode }: AuthOptions,
+) {
   app.decorateRequest("user", null);
 
   app.addHook("onRequest", async (request) => {
@@ -54,31 +60,60 @@ export function authRoutes(app: FastifyInstance, { db, cookieSecure, sso }: Auth
 
   const userCount = async () => (await db.select({ value: count() }).from(users))[0]?.value ?? 0;
 
-  app.get("/api/setup/status", async () => ({ setupRequired: (await userCount()) === 0 }));
-
-  app.post("/api/setup", async (request, reply) => {
-    const parsed = setupRequestSchema.safeParse(request.body);
-    if (!parsed.success) return reply.code(400).send({ error: parsed.error.issues[0]?.message });
-    const { email, displayName, password } = parsed.data;
-    const passwordHash = await hashPassword(password);
-
-    // Serialise concurrent setup attempts so only one initial admin can be created.
-    const created = await db.transaction(async (tx) => {
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('printrio_setup'))`);
-      const [existing] = await tx.select({ value: count() }).from(users);
-      if ((existing?.value ?? 0) > 0) return null;
-      const [user] = await tx
-        .insert(users)
-        .values({ email, displayName, passwordHash, role: "admin" })
-        .returning({ id: users.id });
-      return user ?? null;
-    });
-    if (!created) return reply.code(409).send({ error: "Setup has already been completed." });
-
-    const session = await createSession(db, created.id);
-    setSessionCookie(reply, session.token, session.expiresAt);
-    return reply.code(201).send({ ok: true });
+  // Until the administrator exists, whoever reaches the instance first could
+  // create it. A setup from a public address therefore needs a code that only
+  // someone with access to the server knows: SETUP_CODE, or one written to the log.
+  const setupCode = configuredCode ?? newSetupCode();
+  const codeRequired = (ip: string) => Boolean(configuredCode) || !isLocalAddress(ip);
+  app.addHook("onReady", async () => {
+    if (configuredCode || (await userCount()) > 0) return;
+    app.log.warn(
+      `No administrator account yet. Setup code (asked for when Printrio is set up from a public address): ${setupCode}`,
+    );
   });
+
+  app.get("/api/setup/status", async (request) => {
+    const setupRequired = (await userCount()) === 0;
+    return { setupRequired, setupCodeRequired: setupRequired && codeRequired(request.ip) };
+  });
+
+  app.post(
+    "/api/setup",
+    { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      // Before anything expensive: once set up, this endpoint only ever answers 409.
+      if ((await userCount()) > 0)
+        return reply.code(409).send({ error: "Setup has already been completed." });
+      const parsed = setupRequestSchema.safeParse(request.body);
+      if (!parsed.success) return reply.code(400).send({ error: parsed.error.issues[0]?.message });
+      const { email, displayName, password } = parsed.data;
+      if (codeRequired(request.ip) && !sameSetupCode(parsed.data.setupCode, setupCode))
+        return reply.code(403).send({
+          error: configuredCode
+            ? "Enter the setup code (SETUP_CODE of this installation)."
+            : "Enter the setup code from the Printrio server log (docker compose logs printrio).",
+          code: "setup_code_required",
+        });
+      const passwordHash = await hashPassword(password);
+
+      // Serialise concurrent setup attempts so only one initial admin can be created.
+      const created = await db.transaction(async (tx) => {
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtext('printrio_setup'))`);
+        const [existing] = await tx.select({ value: count() }).from(users);
+        if ((existing?.value ?? 0) > 0) return null;
+        const [user] = await tx
+          .insert(users)
+          .values({ email, displayName, passwordHash, role: "admin" })
+          .returning({ id: users.id });
+        return user ?? null;
+      });
+      if (!created) return reply.code(409).send({ error: "Setup has already been completed." });
+
+      const session = await createSession(db, created.id);
+      setSessionCookie(reply, session.token, session.expiresAt);
+      return reply.code(201).send({ ok: true });
+    },
+  );
 
   app.post(
     "/api/auth/login",

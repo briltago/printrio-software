@@ -66,6 +66,8 @@ export const cs: Translation = {
     password: "Heslo",
     passwordHint: "Heslo (alespoň 12 znaků)",
     createAccount: "Vytvořit účet",
+    setupCode: "Instalační kód",
+    setupCodeHint: "Najdete ho v logu serveru Printrio po spuštění (docker compose logs printrio).",
     signInTitle: "Přihlášení",
     signInSubtitle: "Přihlaste se do svého pracovního prostoru Printrio.",
     signIn: "Přihlásit se",

@@ -37,7 +37,7 @@ describe("health", () => {
 describe("first-run setup and authentication", () => {
   it("requires setup on an empty instance", async () => {
     const res = await ctx.app.inject({ method: "GET", url: "/api/setup/status" });
-    expect(res.json()).toEqual({ setupRequired: true });
+    expect(res.json()).toEqual({ setupRequired: true, setupCodeRequired: false });
   });
 
   it("rejects a weak password", async () => {
@@ -64,7 +64,7 @@ describe("first-run setup and authentication", () => {
 
   it("closes setup once a user exists", async () => {
     const status = await ctx.app.inject({ method: "GET", url: "/api/setup/status" });
-    expect(status.json()).toEqual({ setupRequired: false });
+    expect(status.json()).toEqual({ setupRequired: false, setupCodeRequired: false });
 
     const res = await ctx.app.inject({
       method: "POST",

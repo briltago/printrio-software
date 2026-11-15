@@ -340,7 +340,10 @@ export class Backups {
     for (const name of names.split("\n")) {
       if (!name) continue;
       const parts = name.replace(/\/+$/, "").split("/");
-      if (name.startsWith("/") || parts.some((part) => part === ".." || part === "." || part === ""))
+      if (
+        name.startsWith("/") ||
+        parts.some((part) => part === ".." || part === "." || part === "")
+      )
         throw new BackupError("This backup contains unexpected paths and cannot be used.");
       top.add(parts[0] as string);
     }
@@ -515,7 +518,9 @@ export function withoutOwnRestriction(dump: string) {
   const lines = dump.split("\n");
   const firstData = lines.findIndex((line) => line.startsWith("COPY ") || line === "\\.");
   const header = firstData === -1 ? lines.length : firstData;
-  const open = lines.findIndex((line, index) => index < header && /^\\restrict [A-Za-z0-9]+$/.test(line));
+  const open = lines.findIndex(
+    (line, index) => index < header && /^\\restrict [A-Za-z0-9]+$/.test(line),
+  );
   if (open !== -1) lines.splice(open, 1);
   // pg_dump ends with it: the last line that is not empty.
   let last = lines.length - 1;

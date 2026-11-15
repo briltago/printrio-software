@@ -24,4 +24,12 @@ describe("config", () => {
       loadConfig({ DATABASE_URL: "postgres://printrio:a#b@postgres:5432/printrio/" + "%" }),
     ).toThrow(/percent-encoded/);
   });
+
+  it("treats an empty SETUP_CODE as unset and refuses a short one", () => {
+    const base = { DATABASE_URL: "postgres://a:b@db:5432/x" };
+    expect(loadConfig({ ...base, SETUP_CODE: "" }).SETUP_CODE).toBeUndefined();
+    expect(loadConfig(base).SETUP_CODE).toBeUndefined();
+    expect(loadConfig({ ...base, SETUP_CODE: "K7QM-2XPA-9DWT" }).SETUP_CODE).toBe("K7QM-2XPA-9DWT");
+    expect(() => loadConfig({ ...base, SETUP_CODE: "short" })).toThrow(/at least 8 characters/);
+  });
 });

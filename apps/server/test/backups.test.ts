@@ -196,12 +196,18 @@ describe("backups", () => {
     };
     const settingsCount = async () =>
       Number(
-        (await database.db.execute<{ n: number }>(sql`select count(*)::int as n from instance_settings`))[0]?.n,
+        (
+          await database.db.execute<{ n: number }>(
+            sql`select count(*)::int as n from instance_settings`,
+          )
+        )[0]?.n,
       );
 
     it("never runs psql meta-commands from a backup, and changes nothing when it finds one", async () => {
       if (!(await backups.toolsAvailable())) return;
-      await database.db.execute(sql`insert into instance_settings (key, value) values ('keep', '{}')`);
+      await database.db.execute(
+        sql`insert into instance_settings (key, value) values ('keep', '{}')`,
+      );
       const attacks = [
         `\\! touch ${marker}\n`,
         `SELECT 1;\n\\! touch ${marker}\n`,
@@ -239,8 +245,15 @@ describe("backups", () => {
       const made = await backups.create("manual");
       await db.execute(sql`delete from module_pro.notes`);
       await backups.restore(made.name);
-      const rows = await db.execute<{ body: string | null }>(sql`select body from module_pro.notes`);
-      expect(rows.map((row) => row.body)).toEqual(["\restrict abc", "\\! id", null, "\runrestrict abc"]);
+      const rows = await db.execute<{ body: string | null }>(
+        sql`select body from module_pro.notes`,
+      );
+      expect(rows.map((row) => row.body)).toEqual([
+        "\restrict abc",
+        "\\! id",
+        null,
+        "\runrestrict abc",
+      ]);
     });
 
     it("drops only pg_dump's own restriction lines", () => {
@@ -287,18 +300,28 @@ describe("backups", () => {
         ],
         [
           "the library itself as a symlink",
-          craft({ data: ["files"], members: ["files"], prepare: (root) => symlinkSync(outside, join(root, "files")) }),
+          craft({
+            data: ["files"],
+            members: ["files"],
+            prepare: (root) => symlinkSync(outside, join(root, "files")),
+          }),
         ],
         [
           "the secret as a symlink",
-          craft({ data: ["app-secret"], members: ["app-secret"], prepare: (root) => symlinkSync("/etc/passwd", join(root, "app-secret")) }),
+          craft({
+            data: ["app-secret"],
+            members: ["app-secret"],
+            prepare: (root) => symlinkSync("/etc/passwd", join(root, "app-secret")),
+          }),
         ],
         [
           "the dump as a symlink",
-          craft({ prepare: (root) => {
-            rmSync(join(root, "database.sql"));
-            symlinkSync("/etc/passwd", join(root, "database.sql"));
-          } }),
+          craft({
+            prepare: (root) => {
+              rmSync(join(root, "database.sql"));
+              symlinkSync("/etc/passwd", join(root, "database.sql"));
+            },
+          }),
         ],
         [
           "a path that leaves the archive",
@@ -319,9 +342,13 @@ describe("backups", () => {
       ];
       for (const [what, file] of hostile) {
         // Refused when uploaded …
-        await expect(backups.saveUpload(createReadStream(file)), what).rejects.toThrow(/cannot be used|not a Printrio backup/);
+        await expect(backups.saveUpload(createReadStream(file)), what).rejects.toThrow(
+          /cannot be used|not a Printrio backup/,
+        );
         // … and when the file got into the backup folder some other way.
-        await expect(backups.restore(plant(file)), what).rejects.toThrow(/cannot be used|not a Printrio backup/);
+        await expect(backups.restore(plant(file)), what).rejects.toThrow(
+          /cannot be used|not a Printrio backup/,
+        );
       }
       expect(existsSync(join(work, "evil"))).toBe(false);
       expect(existsSync(join(work, "abs-evil"))).toBe(false);
@@ -351,14 +378,26 @@ describe("backups", () => {
       execFileSync("tar", ["-xzf", backups.path(real.name), "-C", realDir, "database.sql"]);
       const file = craft({
         sql: readFileSync(join(realDir, "database.sql"), "utf8"),
-        data: ["app-secret", "files", "modules", "backups", "extra.txt", ".hidden", "../outside", "files/../../x"],
+        data: [
+          "app-secret",
+          "files",
+          "modules",
+          "backups",
+          "extra.txt",
+          ".hidden",
+          "../outside",
+          "files/../../x",
+        ],
         members: ["app-secret", "files", "modules", "backups", "extra.txt", ".hidden"],
         prepare: (root) => {
           writeFileSync(join(root, "app-secret"), "from-backup\n");
           mkdirSync(join(root, "files"));
           writeFileSync(join(root, "files", "part.gcode"), "G28\n");
           mkdirSync(join(root, "modules", "pro", "9.9.9"), { recursive: true });
-          writeFileSync(join(root, "modules", "pro", "9.9.9", "server.mjs"), "throw new Error('planted')");
+          writeFileSync(
+            join(root, "modules", "pro", "9.9.9", "server.mjs"),
+            "throw new Error('planted')",
+          );
           mkdirSync(join(root, "backups"));
           writeFileSync(join(root, "backups", "printrio-20200101-000000-manual-v1.tar.gz"), "x");
           writeFileSync(join(root, "extra.txt"), "x");
@@ -373,10 +412,15 @@ describe("backups", () => {
       expect(existsSync(join(dataDir, "modules"))).toBe(false);
       expect(existsSync(join(dataDir, "extra.txt"))).toBe(false);
       expect(existsSync(join(dataDir, ".hidden"))).toBe(false);
-      expect(existsSync(join(backups.dir, "printrio-20200101-000000-manual-v1.tar.gz"))).toBe(false);
+      expect(existsSync(join(backups.dir, "printrio-20200101-000000-manual-v1.tar.gz"))).toBe(
+        false,
+      );
 
       // Listed in the manifest but absent from the archive: skipped, not an error.
-      const partial = craft({ sql: readFileSync(join(realDir, "database.sql"), "utf8"), data: ["app-secret", "files"] });
+      const partial = craft({
+        sql: readFileSync(join(realDir, "database.sql"), "utf8"),
+        data: ["app-secret", "files"],
+      });
       await backups.restore(plant(partial));
       expect(restored).toBe(2);
     });

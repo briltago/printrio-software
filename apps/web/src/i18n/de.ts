@@ -69,6 +69,9 @@ export const de: Translation = {
     password: "Passwort",
     passwordHint: "Passwort (mind. 12 Zeichen)",
     createAccount: "Konto anlegen",
+    setupCode: "Einrichtungscode",
+    setupCodeHint:
+      "Steht nach dem Start im Printrio-Serverprotokoll (docker compose logs printrio).",
     signInTitle: "Anmelden",
     signInSubtitle: "Melden Sie sich bei Ihrem Printrio-Arbeitsbereich an.",
     signIn: "Anmelden",

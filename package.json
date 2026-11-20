@@ -17,8 +17,8 @@
     "db:generate": "pnpm --filter @printrio/server db:generate"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.15",
-    "turbo": "2.11.9",
+    "@biomejs/biome": "2.6.8",
+    "turbo": "2.11.11",
     "typescript": "7.0.2"
   }
 }
